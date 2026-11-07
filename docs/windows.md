@@ -87,3 +87,7 @@ Windows 正式构建会检查可信 Authenticode 签名、时间戳与指定证�
 工具参数与验证器配置以 SSL.com 的 [CodeSignTool 指南](https://www.ssl.com/guide/esigner-codesigntool-command-guide/)和 [签名凭据指南](https://www.ssl.com/guide/esigner-signing-credential-guide/)为准。
 
 CI 负责源码、原生窗口、安装器和 Windows 可执行测试；干净 Windows 10/11 上的虚拟化仍需要设备验收。每次正式发行至少记录：首次安装、WebView2 首次启动、无虚拟化时的提示、代理导入、VM 首次下载与启动、网络隔离检查、中文和空格路径共享、终端输入与缩放、退出恢复、从旧签名版升级、失败恢复、卸载后数据保留。只有真实执行的项目才能标记通过。
+
+### 窗口上栏的外观
+
+切换「设置 → 外观」后，菜单栏及其下拉菜单会采用所选主题的侧栏配色。Windows 11 的标题栏使用相同配色，Windows 10 的标题栏随浅色或深色模式切换。开启 Windows 对比度主题时，原生菜单和标题栏采用系统配色。

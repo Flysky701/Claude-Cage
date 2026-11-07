@@ -67,6 +67,26 @@ internal sealed class MainWindow : Form
         FormClosed += (_, _) => { lifetime.Cancel(); updater.Dispose(); tray.Dispose(); web.Dispose(); };
     }
 
+    private WindowChrome? chrome;
+
+    private void ApplyWindowChrome()
+    {
+        if (IsHandleCreated && MainMenuStrip != null)
+            chrome?.Apply(Handle, MainMenuStrip);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyWindowChrome();
+    }
+
+    protected override void OnSystemColorsChanged(EventArgs e)
+    {
+        base.OnSystemColorsChanged(e);
+        ApplyWindowChrome();
+    }
+
     private void AddAction(ToolStripMenuItem menu, string label, string action, Keys shortcut) =>
         menu.DropDownItems.Add(new ToolStripMenuItem(label, null, (_, _) => Action(action)) { ShortcutKeys = shortcut });
     private bool ConfirmStop() => MessageBox.Show(this,
@@ -322,7 +342,12 @@ internal sealed class MainWindow : Form
                     var mode = request.Text("mode"); var background = request.Text("background");
                     if (mode is not ("system" or "light" or "dark") || !System.Text.RegularExpressions.Regex.IsMatch(background, "^#[0-9a-fA-F]{6}$"))
                         throw new InvalidDataException("外观参数无效");
+                    var foreground = request.Text("foreground");
                     BackColor = ColorTranslator.FromHtml(background); web.DefaultBackgroundColor = BackColor;
+                    var ink = System.Text.RegularExpressions.Regex.IsMatch(foreground, "^#[0-9a-fA-F]{6}$")
+                        ? ColorTranslator.FromHtml(foreground) : WindowChrome.ContrastingText(BackColor);
+                    chrome = new WindowChrome(BackColor, ink, request.Text("variant") == "dark");
+                    ApplyWindowChrome();
                     web.CoreWebView2.Profile.PreferredColorScheme = mode == "dark" ? CoreWebView2PreferredColorScheme.Dark : mode == "light" ? CoreWebView2PreferredColorScheme.Light : CoreWebView2PreferredColorScheme.Auto;
                     result = true; break;
                 case "accountDevice":

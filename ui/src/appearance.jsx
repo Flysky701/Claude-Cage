@@ -101,6 +101,7 @@ export function AppearanceProvider({ children }) {
         mode: appearance.mode,
         variant,
         background: variables["--sidebar"],
+        foreground: variables["--sidebar-ink"],
         translucent: !theme.opaqueWindows,
       }).catch(() =>
         setError("外观已应用到工作台，原生窗口未能同步，请重新打开 Cage。"),
