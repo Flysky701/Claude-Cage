@@ -264,6 +264,7 @@ func (s *Server) handler() http.Handler {
 		mux.HandleFunc("POST /api/handoff", s.handoffEntry)
 	} else {
 		mux.HandleFunc("POST /api/handoff", s.handoff)
+		mux.HandleFunc("POST /api/desktop-local/trusted-login", s.localTrustedLogin)
 		mux.HandleFunc("POST /api/desktop-local/{action}", s.desktopLocalControl)
 	}
 	if s.desktopEntry {
@@ -410,7 +411,7 @@ func (s *Server) handler() http.Handler {
 		accountRoute := r.URL.Path == "/api/account" || strings.HasPrefix(r.URL.Path, "/api/account/")
 		bootstrapRoute := r.URL.Path == "/api/session" || r.URL.Path == "/api/launch" || r.URL.Path == "/api/handoff" || r.URL.Path == "/api/remote/manifest"
 		if strings.HasPrefix(r.URL.Path, "/api/") && !accountRoute && !bootstrapRoute && !strings.HasPrefix(r.URL.Path, "/api/diagnostics") && !(r.Method == "GET" && r.URL.Path == "/api/appearance") {
-			epoch, unlocked := s.account.access()
+			epoch, unlocked := s.account.accessFor(s.hasTrustedView(r))
 			if !unlocked {
 				http.Error(w, "Cage 已锁定，请先登录", http.StatusLocked)
 				return

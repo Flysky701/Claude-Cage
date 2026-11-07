@@ -307,6 +307,10 @@ func (d *desktopLocal) localSession(life, bootstrap context.Context, c *controll
 		return nil, errors.New("本机工作台版本或环境身份不符")
 	}
 	manifest := remotehost.PublicManifest{APIProtocol: m.APIProtocol, InstanceID: m.InstanceID, Version: m.Version, Platform: m.Platform, Runtime: m.Runtime, Capabilities: m.Capabilities}
+	c.client.Jar.SetCookies(u, []*http.Cookie{{
+		Name:  cookieName + "_" + u.Port() + "-desktop",
+		Value: trustedViewProof(c.record.Token), Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode,
+	}})
 	return remotehost.LocalSession(life, c.origin, manifest, c.client.Jar)
 }
 

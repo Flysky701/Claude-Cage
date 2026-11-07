@@ -24,6 +24,8 @@ import (
 )
 
 type accountRecord struct {
+	TrustedDevice         string                   `json:"trusted_device,omitempty"`
+	TrustedUnlock         *accountDevice           `json:"trusted_unlock,omitempty"`
 	Version               int                      `json:"version"`
 	Username              string                   `json:"username"`
 	Avatar                string                   `json:"avatar,omitempty"`
@@ -35,17 +37,20 @@ type accountRecord struct {
 }
 
 type localAccount struct {
-	mu          sync.Mutex
-	path        string
-	record      *accountRecord
-	key         []byte
-	vaultLease  string
-	epoch       context.Context
-	cancel      context.CancelFunc
-	nextAttempt time.Time
+	mu             sync.Mutex
+	path           string
+	record         *accountRecord
+	trustedSession bool
+	key            []byte
+	vaultLease     string
+	epoch          context.Context
+	cancel         context.CancelFunc
+	nextAttempt    time.Time
 }
 
 type accountView struct {
+	TrustedLocal          bool              `json:"trusted_local,omitempty"`
+	TrustedLogin          bool              `json:"trusted_login,omitempty"`
 	Exists                bool              `json:"exists"`
 	Unlocked              bool              `json:"unlocked"`
 	Username              string            `json:"username"`
@@ -69,8 +74,11 @@ func loadLocalAccount(profile string) (*localAccount, error) {
 		return nil, errors.New("本地账户文件权限不安全，请恢复私有文件权限")
 	}
 	var record accountRecord
-	if len(b) > 256<<10 || json.Unmarshal(b, &record) != nil || record.Version != 1 || len(record.Salt) != 16 || len(record.Nonce) != 12 || len(record.SealedKey) != 48 || validAccountName(record.Username) != nil {
+	if len(b) > 256<<10 || json.Unmarshal(b, &record) != nil || record.Version != 1 || !validTrustedID(record.TrustedDevice) || len(record.Salt) != 16 || len(record.Nonce) != 12 || len(record.SealedKey) != 48 || validAccountName(record.Username) != nil {
 		return nil, errors.New("本地账户文件损坏，请从备份恢复；已有数据未修改")
+	}
+	if device := record.TrustedUnlock; device != nil && (len(device.ID) != 64 || !validTrustedID(device.ID) || len(device.Nonce) != 12 || len(device.SealedKey) != 48 || record.TrustedDevice != "") {
+		return nil, errors.New("本机信任记录损坏，请从备份恢复")
 	}
 	a.record = &record
 	for kind, device := range record.Devices {
@@ -133,15 +141,19 @@ func openAccountKey(record *accountRecord, password string) ([]byte, error) {
 	return key, nil
 }
 
-func (a *localAccount) view() accountView {
+func (a *localAccount) view() accountView { return a.viewFor(true) }
+
+func (a *localAccount) viewFor(desktop bool) accountView {
 	if a == nil {
 		return accountView{}
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	v := accountView{Exists: a.record != nil, Unlocked: len(a.key) == 32}
+	v := accountView{Exists: a.record != nil, Unlocked: len(a.key) == 32 && (!a.trustedSession || desktop)}
 	v.DeviceBinding = fmtAccountBinding(a.path)
 	if a.record != nil {
+		v.TrustedLocal = a.record.TrustedDevice != ""
+		v.TrustedLogin = a.record.TrustedUnlock != nil
 		v.Username = a.record.Username
 		v.Avatar = a.record.Avatar
 		v.RequireAuthentication = a.record.RequireAuthentication
@@ -153,13 +165,15 @@ func (a *localAccount) view() accountView {
 	return v
 }
 
-func (a *localAccount) access() (context.Context, bool) {
+func (a *localAccount) access() (context.Context, bool) { return a.accessFor(true) }
+
+func (a *localAccount) accessFor(desktop bool) (context.Context, bool) {
 	if a == nil {
 		return nil, false
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.epoch, len(a.key) == 32
+	return a.epoch, len(a.key) == 32 && (!a.trustedSession || desktop)
 }
 
 func (a *localAccount) setKey(key []byte) {
@@ -168,6 +182,7 @@ func (a *localAccount) setKey(key []byte) {
 	}
 	clear(a.key)
 	a.key = key
+	a.trustedSession = false
 	a.vaultLease = randomToken()
 	a.epoch, a.cancel = context.WithCancel(context.Background())
 }

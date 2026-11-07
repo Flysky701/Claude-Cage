@@ -18,12 +18,16 @@ import {
   Settings2,
 } from "lucide-react";
 import { api, native, nativeAvailable } from "./api";
-import { isRemoteClient } from "./client-context.mjs";
+import { getClientContext, isRemoteClient } from "./client-context.mjs";
 import logo from "./logo.png";
 import "./account.css";
 
 const AccountContext = createContext(null);
 export const useAccount = () => useContext(AccountContext);
+const localDesktop = () => getClientContext().desktop_gateway && !isRemoteClient();
+const trustedLogin = (action, password) => api("/client/trusted-login", {
+  action, password, connection_id: getClientContext().connection_id,
+});
 const credentialPresent = (status) => status === "available" || status === "authentication_required";
 
 export function AccountProvider({ children }) {
@@ -180,6 +184,20 @@ export function AccountGate({ children }) {
   const [error, setError] = useState("");
   const automaticAttempt = useRef("");
   const gateAcknowledged = useRef(false);
+  const [passwordSetup, setPasswordSetup] = useState(false);
+  const trustedAttempt = useRef(false);
+  const enterTrusted = async (action) => {
+    setBusy(true); setError("");
+    try { await trustedLogin(action); await refresh(); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => {
+    if (account?.unlocked) { trustedAttempt.current = false; return; }
+    if (!(account?.trusted_local || account?.trusted_login) || !localDesktop() || trustedAttempt.current || account.require_authentication) return;
+    trustedAttempt.current = true;
+    void enterTrusted("resume");
+  }, [account?.unlocked, account?.trusted_local, account?.trusted_login, account?.require_authentication]);
   useEffect(() => {
     if (!account || account.unlocked || connectionError || gateAcknowledged.current || !nativeAvailable()) return;
     // A working lock/setup screen is a valid upgraded UI. Waiting for the
@@ -190,7 +208,7 @@ export function AccountGate({ children }) {
   }, [Boolean(account), account?.unlocked, connectionError]);
   useEffect(() => {
     const id = account?.devices?.automatic;
-    if (!id || account.unlocked || account.require_authentication || !deviceSupport?.supported || deviceSupport.device_status?.automatic !== "available" || automaticAttempt.current === id) return;
+    if ((account?.trusted_login && localDesktop()) || !id || account.unlocked || account.require_authentication || !deviceSupport?.supported || deviceSupport.device_status?.automatic !== "available" || automaticAttempt.current === id) return;
     automaticAttempt.current = id;
     setBusy(true);
     deviceAction("unlock", "automatic").catch((e) => setError(e.message)).finally(() => setBusy(false));
@@ -258,9 +276,9 @@ export function AccountGate({ children }) {
         </h1>
         <p className="account-entry-intro">
           {creating
-            ? isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : "创建一个本地账户，收好你的工作与登录状态。"
+            ? isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : localDesktop() && !passwordSetup ? "选择这台电脑的登录方式。" : "创建一个本地账户，收好你的工作与登录状态。"
             : account
-              ? "输入密码，继续你的工作。"
+              ? account.trusted_local ? "本机工作区" : "输入密码，继续你的工作。"
               : isRemoteClient() ? "正在读取云端账户…" : "正在读取本机账户…"}
         </p>
         {account?.background_running && (
@@ -269,7 +287,23 @@ export function AccountGate({ children }) {
             后台环境仍在运行，任务没有停止
           </div>
         )}
-        {account && (
+        {localDesktop() && creating && (
+          <div className="account-trust-choice">
+            {!passwordSetup && <>
+              <p>信任此电脑后，下次使用当前系统用户打开 Cage 会直接进入。</p>
+              <button className="primary account-submit" disabled={busy} onClick={() => enterTrusted("create")}>信任此电脑并进入</button>
+            </>}
+            <button className="text-button" disabled={busy} onClick={() => setPasswordSetup(!passwordSetup)}>
+              {passwordSetup ? "返回本机免账号登录" : "使用用户名和密码"}
+            </button>
+          </div>
+        )}
+        {account?.trusted_local && <div className="account-trust-choice">
+          <p>{localDesktop() ? "使用当前系统用户的本机信任凭据进入工作区。" : "请回到受信任的桌面设置账户密码，再从此处登录。"}</p>
+          {localDesktop() && <button className="quiet-button" disabled={busy} onClick={() => enterTrusted("resume")}>{busy ? "正在进入…" : "重新进入本机工作区"}</button>}
+        </div>}
+        {(account?.trusted_local || (creating && localDesktop() && !passwordSetup)) && error && <p className="account-error" role="alert">{error}</p>}
+        {account && !account.trusted_local && (!creating || !localDesktop() || passwordSetup) && (
           <form onSubmit={submit}>
             <fieldset disabled={busy}>
               {creating && (
@@ -352,11 +386,11 @@ export function AccountGate({ children }) {
           <LockKeyhole size={14} />
           {isRemoteClient() ? "账户资料保存在当前云端主机" : "账户资料仅保存在这台设备上"}
         </p>
-        <p className="account-recovery-note">
+        {(!localDesktop() || passwordSetup || account?.exists) && !account?.trusted_local && <p className="account-recovery-note">
           {creating
             ? "密码至少 8 个字符，用于保护应用登录凭据。请妥善保存，当前不支持在线找回。"
             : isRemoteClient() ? "请输入云端 Cage 账户密码；当前不支持在线找回。" : "请输入本地账户密码；当前不支持在线找回。"}
-        </p>
+        </p>}
       </section>
       {nativeAvailable() && (
         <button
@@ -425,7 +459,7 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
         <AccountAvatar account={account} />
         <span className="account-trigger-name">
           <strong>{account.username}</strong>
-          <small>{isRemoteClient() ? "云端账户" : "本地账户"}</small>
+          <small>{account.trusted_local ? "受信任的本机" : isRemoteClient() ? "云端账户" : "本地账户"}</small>
         </span>
         <ChevronDown size={15} />
       </button>
@@ -450,6 +484,9 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
             <Settings2 size={16} />
             设置
           </button>
+          {account.trusted_local ? <button role="menuitem" onClick={() => { setOpen(false); onSettings("account"); }}>
+            <LockKeyhole size={16} /> 设置账户密码
+          </button> : <>
           <div className="account-menu-divider" />
           <button role="menuitem" onClick={() => perform("lock")}>
             <LockKeyhole size={16} />
@@ -462,7 +499,7 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
           >
             <LogOut size={16} />
             退出账户
-          </button>
+          </button></>}
         </div>
       )}
     </div>
@@ -470,7 +507,7 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
 }
 
 export function AccountSettings({ busy: environmentBusy, onDirty }) {
-  const { account, act } = useAccount();
+  const { account, act, refresh } = useAccount();
   const [name, setName] = useState(account.username),
     [avatar, setAvatar] = useState(account.avatar || "");
   const [oldPassword, setOldPassword] = useState(""),
@@ -519,6 +556,13 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
     setError("");
     setMessage("");
     try {
+      if (changingPassword && account.trusted_local) {
+        await trustedLogin("protect", password);
+        await refresh();
+        setPassword(""); setConfirmation("");
+        setMessage("已设置密码，下次打开 Cage 时使用密码登录。");
+        return;
+      }
       const value = await act(
         changingPassword ? "password" : "profile",
         changingPassword
@@ -628,11 +672,11 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
           <p className="field-help">
             修改密码不会清除 Claude 的登录状态。{isRemoteClient() ? "密码用于解锁当前云端 Cage，没有在线找回。" : "密码仅用于本机解锁，没有在线找回。"}
           </p>
-          <PasswordField
+          {!account.trusted_local && <PasswordField
             label="当前密码"
             value={oldPassword}
             onChange={setOldPassword}
-          />
+          />}
           <PasswordField
             label="新密码"
             value={password}
@@ -647,21 +691,48 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
           />
           <button
             className="quiet-button"
-            disabled={busy || !oldPassword || !password || !confirmation}
+            disabled={busy || (!account.trusted_local && !oldPassword) || !password || !confirmation}
           >
-            修改密码
+            {account.trusted_local ? "设置密码并关闭免账号登录" : "修改密码"}
           </button>
         </fieldset>
       </form>
 
       {feedbackTarget === "password" && feedback}
-      <AccountDeviceSettings />
+      {localDesktop() && !account.trusted_local && <TrustedDeviceSettings />}
+      {!account.trusted_local && <AccountDeviceSettings />}
       <p className="account-settings-note">
         <LockKeyhole size={15} />
         {isRemoteClient() ? "账户、应用资料与登录凭据保存在当前云端主机。" : "一个本地账户，一个持久工作环境。资料与凭据不上传到 Cage 服务器。"}
       </p>
     </div>
   );
+}
+
+function TrustedDeviceSettings() {
+  const { account, refresh } = useAccount();
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const update = async (event) => {
+    event.preventDefault();
+    setBusy(true); setMessage("");
+    try {
+      await trustedLogin(account.trusted_login ? "disable" : "enable", password);
+      setPassword("");
+      await refresh();
+    } catch (error) { setMessage(error.message); }
+    finally { setBusy(false); }
+  };
+  return <form onSubmit={update}>
+    <fieldset disabled={busy}>
+      <h4>信任此电脑</h4>
+      <p className="field-help">{account.trusted_login ? "已开启本机自动登录。手动锁定仍需验证，退出账户会撤销信任。" : "验证一次账户密码，下次用当前系统用户打开时自动进入。"}</p>
+      {!account.trusted_login && <PasswordField label="验证账户密码" value={password} onChange={setPassword} autoComplete="current-password" />}
+      <button className="quiet-button" disabled={!account.trusted_login && !password}>{account.trusted_login ? "关闭本机信任" : "信任此电脑"}</button>
+      {message && <p className="account-error" role="alert">{message}</p>}
+    </fieldset>
+  </form>;
 }
 
 function AccountDeviceSettings() {

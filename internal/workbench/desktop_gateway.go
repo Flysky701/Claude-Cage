@@ -465,6 +465,10 @@ func (d *desktopGateway) close() {
 }
 
 func (d *desktopGateway) handle(path string, w http.ResponseWriter, r *http.Request) bool {
+	if path == "trusted-login" {
+		d.trustedLogin(w, r)
+		return true
+	}
 	if path == "local-status" && r.Method == http.MethodGet {
 		if d.local == nil {
 			jsonReply(w, DesktopLocalStatus{Known: true})

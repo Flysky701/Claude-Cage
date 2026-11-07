@@ -321,3 +321,5 @@
 .account-device-option small { color: var(--muted); font-size: 12px; line-height: 1.6; }
 
 .account-trigger[aria-expanded="false"] > svg { transform: rotate(180deg); }
+
+.account-trust-choice { display: grid; gap: 12px; margin: 16px 0; }

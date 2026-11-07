@@ -5,7 +5,7 @@ import (
 )
 
 func (s *Server) accountStatus(w http.ResponseWriter, r *http.Request) {
-	v := s.account.view()
+	v := s.account.viewFor(s.hasTrustedView(r))
 	v.BackgroundRunning = s.vmRunning()
 	jsonReply(w, v)
 }
@@ -21,10 +21,14 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if action != "create" && action != "unlock" && action != "device-unlock" {
-		if _, ok := s.account.access(); !ok {
+		if _, ok := s.account.accessFor(s.hasTrustedView(r)); !ok {
 			http.Error(w, "请先解锁 Cage", http.StatusLocked)
 			return
 		}
+	}
+	if (action == "lock" || action == "logout" || action == "device-enroll") && s.account.view().TrustedLocal {
+		http.Error(w, "请先在本机的「设置 → 账户」设置密码", http.StatusConflict)
+		return
 	}
 	var input struct {
 		Username        string           `json:"username"`

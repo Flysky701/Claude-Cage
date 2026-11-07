@@ -163,6 +163,9 @@ func (db *vaultData) save(entry vaultEntry) error {
 func (a *localAccount) verifyVaultPassword(password string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.record != nil && a.record.TrustedDevice != "" {
+		return errors.New("查看或复制密码前，请在本机的「设置 → 账户」设置密码")
+	}
 	if len(a.key) != 32 {
 		return errors.New("请先解锁 Cage")
 	}

@@ -136,6 +136,7 @@ func (a *localAccount) lockAccess(logout bool) error {
 	record.RequireAuthentication = true
 	if logout {
 		record.Devices = nil
+		record.TrustedUnlock = nil
 	}
 	if err := writePrivate(a.path, record); err != nil {
 		return errors.New("无法保存账户锁定状态，请重试")
