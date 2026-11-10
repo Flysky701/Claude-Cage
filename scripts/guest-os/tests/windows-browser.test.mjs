@@ -5,11 +5,11 @@ import net from "node:net";
 import { once } from "node:events";
 import { createInterface } from "node:readline";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { applyWindowsEditorHTMLDefault, checkedBrowserURL, checkedLoopbackProxy, createWindowsBrowserService, validWindowsBrowserFileName } from "../windows-browser.mjs";
+const { applyWindowsEditorHTMLDefault, checkedBrowserURL, checkedLoopbackProxy, createWindowsBrowserService, validWindowsBrowserFileName } = await import(process.env.CAGE_BROWSER_TEST_CONTROLLER ? pathToFileURL(process.env.CAGE_BROWSER_TEST_CONTROLLER) : new URL("../windows-browser.mjs", import.meta.url));
 import { fixtureZip } from "./windows-browser-fixtures.mjs";
 import { serveMacOSBrowser } from "../macos-browser-service.mjs";
 const moduleURL = file => process.env.CAGE_BROWSER_TEST_MODULE_DIRECTORY ? pathToFileURL(path.join(process.env.CAGE_BROWSER_TEST_MODULE_DIRECTORY, file)) : new URL("../../../internal/cage/" + file, import.meta.url);
@@ -45,7 +45,7 @@ test("Cage editor changes only its fixed low-priority trust default in the offic
 const playwrightPath = process.env.CAGE_BROWSER_TEST_PLAYWRIGHT;
 const executablePath = process.env.CAGE_BROWSER_TEST_CHROMIUM;
 const integration = playwrightPath && executablePath ? test : test.skip;
-async function fixture(t, configured = {}) {
+async function fixture(t, configured = {}, overrides = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "cage-windows-browser-"));
   const payload = Buffer.alloc((128 << 10) + 37);
   for (let i = 0; i < payload.length; i++) payload[i] = i % 251;
@@ -74,6 +74,7 @@ async function fixture(t, configured = {}) {
     modules: { BrowserClipboard, UploadManager, DownloadManager, browserCookies, BrowserVault, ...(process.env.CAGE_BROWSER_TEST_EXTENSIONS === "1" ? { BrowserExtensions } : {}) }, displayScale: 2,
     splitDirectory: process.env.CAGE_BROWSER_TEST_SPLIT_DIRECTORY,
     editor: async workspace => ({ url: `http://${workspace.slice(0, 16)}.cage-editor.localhost:${server.address().port}/editor-` + workspace }),
+    ...overrides,
   };
   let service = createWindowsBrowserService(options);
   const settings = { proxy: configured.diagnostic ? url : "http://127.0.0.1:18501", ...configured };
@@ -378,7 +379,7 @@ integration("split panes resize actual pages and route physical input to the cli
 });
 
 integration("screencast retains HiDPI pixels, skips static frames and resumes after its viewer leaves", async t => {
-  const f = await fixture(t), one = await f.open("/still");
+  const f = await fixture(t, {}, { continuousFrames: false }), one = await f.open("/still");
   await one.page.evaluate(() => { document.body.style.background = "rgb(245, 240, 230)"; });
   const screenshot = one.page.screenshot.bind(one.page);
   one.page.screenshot = async options => {
@@ -464,6 +465,66 @@ integration("a scrolled browser viewport stays visible while a web font is loadi
       await new Promise(resolve => setTimeout(resolve, 30));
     }
   } finally { clearTimeout(timer); releaseFont(); }
+});
+
+integration("pixel wheel preserves distance and still rejects stale targets and invalid bounds", async t => {
+  const f = await fixture(t), { page } = await f.open();
+  await page.evaluate(() => { document.body.style.height = "6000px"; document.documentElement.style.scrollBehavior = "auto"; });
+  const frame = await f.call("frame", {}, "GET");
+  const wheel = { kind: "pointer", target: frame.target, x: 600, y: 600, mask: 16, deltaX: 0, deltaY: 720 };
+  await f.call("input", wheel);
+  await page.waitForFunction(() => scrollY >= 700);
+  assert.equal(await page.evaluate(() => scrollY), 720);
+  await f.call("input", { ...wheel, mask: 8, deltaY: -360 });
+  await page.waitForFunction(() => scrollY === 360);
+  await assert.rejects(f.call("input", { ...wheel, target: "stale" }), /target changed/);
+  await assert.rejects(f.call("input", { ...wheel, deltaY: 2049 }), /滚动距离/);
+  await assert.rejects(f.call("input", { ...wheel, mask: 17 }), /滚动距离/);
+  assert.equal(await page.evaluate(() => scrollY), 360);
+});
+
+integration("continuous HiDPI frames preserve pixels, click coordinates and resize without screenshot polling", async t => {
+  const f = await fixture(t), { id, page } = await f.open();
+  await page.evaluate(() => {
+    document.body.innerHTML = '<style>body{margin:0}section{height:240px;border-bottom:1px solid #aaa}button{margin:24px;width:200px;height:40px}</style>' +
+      Array.from({ length: 40 }, (_, i) => `<section style="background:${i % 2 ? '#cef' : '#fed'}"><button onclick="this.textContent='clicked'">Marker ${i}</button></section>`).join('');
+    scrollTo(0, 1100);
+  });
+  const reference = (await page.screenshot({ type: 'jpeg', quality: 85, caret: 'initial' })).toString('base64');
+  let frame = await f.call('frame', {}, 'GET');
+  // The first compositor event may already be in flight during the surface
+  // resize. Compare the settled image, rather than that transition frame.
+  await new Promise(resolve => setTimeout(resolve, 100));
+  frame = await f.call('frame', {}, 'GET');
+  if (process.env.CAGE_CAPTURE_DIAG_DIR) {
+    await writeFile(path.join(process.env.CAGE_CAPTURE_DIAG_DIR, 'stream-test.jpg'), Buffer.from(frame.jpeg, 'base64'));
+    await writeFile(path.join(process.env.CAGE_CAPTURE_DIAG_DIR, 'reference-test.jpg'), Buffer.from(reference, 'base64'));
+  }
+  const comparison = await page.evaluate(async ({ actual, reference }) => {
+    const images = await Promise.all([actual, reference].map(async jpeg => { const image = new Image(); image.src = 'data:image/jpeg;base64,' + jpeg; await image.decode(); return image; }));
+    const pixels = images.map(image => { const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height; const ctx = canvas.getContext('2d'); ctx.drawImage(image, 0, 0); return ctx.getImageData(0, 0, canvas.width, canvas.height).data; });
+    let total = 0; for (let i = 0; i < pixels[0].length; i += 4) for (let j = 0; j < 3; j++) total += Math.abs(pixels[0][i+j] - pixels[1][i+j]);
+    return { sizes: images.map(i => [i.width, i.height]), error: total / (pixels[0].length / 4 * 3), dpr: devicePixelRatio, scroll: scrollY };
+  }, { actual: frame.jpeg, reference });
+  assert.deepEqual(comparison.sizes, [[2280, 1400], [2280, 1400]]);
+  assert.equal(comparison.dpr, 2); assert.equal(comparison.scroll, 1100);
+  assert(comparison.error < 3, JSON.stringify(comparison));
+  const button = await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => b.getBoundingClientRect().y > 30); const r = b.getBoundingClientRect(); return { x: r.x + r.width/2, y: r.y + r.height/2 }; });
+  for (const mask of [1, 0]) await f.call('input', { kind: 'pointer', target: frame.target, x: button.x*2, y: button.y*2, mask });
+  assert.equal(await page.evaluate(() => !![...document.querySelectorAll('button')].find(b => b.textContent === 'clicked')), true);
+  await f.call('resize', { width: 2000, height: 1300 });
+  await assert.rejects(f.call('input', { kind: 'pointer', target: frame.target, x: 100, y: 100, mask: 1 }), /target changed/);
+  frame = await f.call('frame', {}, 'GET');
+  assert.equal(frame.width, 2000); assert.equal(frame.height, 1300);
+  await f.call('input', { kind: 'pointer', target: frame.target, x: 300, y: 400, mask: 16, deltaX: 0, deltaY: 120 });
+  await page.waitForFunction(() => scrollY === 1220);
+  const stats = (await f.call('health', {}, 'GET')).capture;
+  assert.equal(stats.screenshots, 0); assert(stats.streamed_frames > 0);
+  await new Promise(resolve => setTimeout(resolve, 1700));
+  const resumed = await f.call('frame', {}, 'GET');
+  assert.equal(resumed.width, 2000);
+  assert.equal((await f.call('health', {}, 'GET')).capture.screenshots, 0);
+  t.diagnostic(JSON.stringify({ imageMeanError: comparison.error, screenshots: stats.screenshots, streamedFrames: stats.streamed_frames }));
 });
 
 integration("audit reads configured browser state separately from expected values and preserves actual HTTP failures", async t => {

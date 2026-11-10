@@ -20,6 +20,26 @@ const fileLimit = 2 * 1024 * 1024 * 1024;
 const imageLimit = 20 << 20;
 const textLimit = 2 << 20;
 const lineLimit = 128 << 10;
+function jpegFrameSize(value) {
+  if (typeof value !== "string" || value.length > 12 << 20) return null;
+  const bytes = Buffer.from(value.slice(0, 128 << 10), "base64");
+  if (bytes.length < 4 || bytes.readUInt16BE(0) !== 0xffd8) return null;
+  let offset = 2;
+  while (offset + 4 <= bytes.length) {
+    if (bytes[offset++] !== 0xff) return null;
+    while (bytes[offset] === 0xff) offset++;
+    const marker = bytes[offset++];
+    if (marker === 0xda || marker === 0xd9) return null;
+    if (marker === 0x01 || marker >= 0xd0 && marker <= 0xd7) continue;
+    if (offset + 2 > bytes.length) return null;
+    const length = bytes.readUInt16BE(offset);
+    if (length < 2 || offset + length > bytes.length) return null;
+    if ([0xc0, 0xc1, 0xc2].includes(marker) && length >= 8)
+      return { width: bytes.readUInt16BE(offset + 5), height: bytes.readUInt16BE(offset + 3) };
+    offset += length;
+  }
+  return null;
+}
 // Playwright appends <-loopback> unless already present. Put it first so the
 // following exact loopback rules can reach authorized local project services.
 const proxyBypass = "<-loopback>,127.0.0.1,localhost,*.cage-editor.localhost";
@@ -102,6 +122,7 @@ export function browserExecutable() {
 // guest's browser mode, fixed executable, and Cage-owned profile.
 export function createNativeBrowserService(options = {}) {
   const mac = options.platform === "darwin";
+  const continuousFrames = !mac && options.continuousFrames !== false;
   // The dedicated Windows controller streams the live viewport even when a
   // site hasn't finished downloading fonts. Playwright otherwise waits on
   // document.fonts.ready for every screenshot, blocking the input queue too.
@@ -123,7 +144,7 @@ export function createNativeBrowserService(options = {}) {
   let stateVersion = 0, snapshotVersion = -1, snapshotAt = 0, snapshotCache;
   let rfbTarget = "", rfbMask = 0, lastClick, rfbPointer;
   let split, rfbPane;
-  const captureMetrics = { screenshots: 0, total_ms: 0, damage_frames: 0 };
+  const captureMetrics = { screenshots: 0, total_ms: 0, damage_frames: 0, streamed_frames: 0 };
   const heldKeys = new Map();
   let inputOwner, keyTarget;
 
@@ -292,18 +313,41 @@ export function createNativeBrowserService(options = {}) {
       capture.receive = frame => {
         if (captures.get(tab.page) !== capture) return;
         if (!mac) captureMetrics.damage_frames++;
+        if (continuousFrames) {
+          // Acknowledge every compositor frame, retaining only the newest one.
+          // A slow viewer must not build a queue or exhaust Chromium's window.
+          void connection.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {});
+          const dimensions = jpegFrameSize(frame.data);
+          if (!dimensions || dimensions.width !== Math.round(size.width * displayScale) || dimensions.height !== Math.round(size.height * displayScale)) return;
+          captureMetrics.streamed_frames++;
+        }
         // Screenshot capture can itself schedule another compositor frame.
         // An identical damage bitmap must not trigger a screenshot feedback
         // loop or invalidate the viewer's existing static-frame receipt.
         if (mac || capture.signal !== frame.data) {
           capture.signal = frame.data;
-          capture.latest = { jpeg: mac ? frame.data : undefined, sequence: token() };
+          capture.latest = { jpeg: mac || continuousFrames ? frame.data : undefined, sequence: token() };
         }
-        capture.ack = frame.sessionId;
+        if (!continuousFrames) capture.ack = frame.sessionId;
         received();
       };
       connection.on("Page.screencastFrame", capture.receive);
       try {
+        if (continuousFrames) {
+          // Scale the live compositor surface, not a document-anchored clip.
+          // The latter goes blank when the page scrolls beyond that clip.
+          // Own the metrics on the tab's long-lived session so ending a viewer
+          // doesn't silently change coordinates while an input lease is held.
+          const nativeSession = sessions.get(tab.session);
+          await nativeSession.send("Emulation.setDeviceMetricsOverride", {
+            ...size, deviceScaleFactor: displayScale, mobile: false,
+            dontSetVisibleSize: true, scale: displayScale,
+          });
+          await nativeSession.send("Emulation.setVisibleSize", {
+            width: Math.round(size.width * displayScale), height: Math.round(size.height * displayScale),
+          });
+          tab.inputScale = displayScale;
+        }
         // Screencast otherwise downscales HiDPI output to CSS pixels. This clip
         // preserves the logical viewport and input coordinates at native density.
         if (mac) await connection.send("Emulation.setDeviceMetricsOverride", {
@@ -358,6 +402,11 @@ export function createNativeBrowserService(options = {}) {
     // Playwright owns out-of-process-frame discovery. It does not expose raw
     // flattened child session transports, so each Frame gets its own CDPSession.
     if (method === "Target.setAutoAttach") return {};
+    if (method === "Input.dispatchMouseEvent") {
+      const tab = [...tabs.values()].find(tab => tab.session === sessionID);
+      const scale = tab?.inputScale ?? 1;
+      params = { ...params, x: params.x * scale, y: params.y * scale };
+    }
     return session.send(method, params);
   }
   function detachFrame(tab, frame, expected) {
@@ -651,7 +700,8 @@ export function createNativeBrowserService(options = {}) {
     const left = Math.max(80, Math.min(viewport.width - 80, Math.floor(viewport.width * (split?.fraction || 0.5))));
     for (const tab of tabs.values()) {
       const width = split?.left === tab.id ? left : split?.right === tab.id ? viewport.width - left : viewport.width;
-      await tab.page.setViewportSize({ width, height: viewport.height }); tab.geometry = token();
+      await stopCapture(tab.page);
+      await tab.page.setViewportSize({ width, height: viewport.height }); tab.inputScale = 1; tab.geometry = token();
     }
     if (split) split.generation = token();
   }
@@ -952,6 +1002,8 @@ export function createNativeBrowserService(options = {}) {
     if (input.target !== (split?.generation ?? tab.geometry)) throw failure("target_changed", "Input target changed");
     if (input.kind === "pointer") {
       if (!Number.isInteger(input.mask) || input.mask < 0 || input.mask > 127 || ![input.x, input.y].every(Number.isFinite) || input.x < 0 || input.y < 0 || input.x >= viewport.width * displayScale || input.y >= viewport.height * displayScale) throw failure("invalid_input", "指针位置无效");
+      const pixelWheel = input.deltaX !== undefined || input.deltaY !== undefined;
+      if (pixelWheel && (![input.deltaX, input.deltaY].every(v => Number.isInteger(v) && Math.abs(v) <= 2048) || (input.mask & 7) || !(input.mask & 120))) throw failure("invalid_input", "滚动距离无效");
       const x = Math.max(0, Math.min(tab.page.viewportSize().width - 1, (input.x - xOffset) / displayScale)), y = input.y / displayScale, mask = input.mask & 7;
       const modifiers = Number.isInteger(input.modifiers) && input.modifiers >= 0 && input.modifiers <= 15 ? input.modifiers : 0;
       const buttons = ((mask & 1) ? 1 : 0) | ((mask & 2) ? 4 : 0) | ((mask & 4) ? 2 : 0);
@@ -965,8 +1017,8 @@ export function createNativeBrowserService(options = {}) {
         if (down) lastClick = { button, x, y, count, time: now };
       }
       signal?.throwIfAborted();
-      await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, buttons, modifiers }, tab.session);
-      const deltaY = (input.mask & 8 ? -80 : 0) + (input.mask & 16 ? 80 : 0), deltaX = (input.mask & 32 ? -80 : 0) + (input.mask & 64 ? 80 : 0);
+      if (!pixelWheel) await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, buttons, modifiers }, tab.session);
+      const deltaY = pixelWheel ? input.deltaY : (input.mask & 8 ? -80 : 0) + (input.mask & 16 ? 80 : 0), deltaX = pixelWheel ? input.deltaX : (input.mask & 32 ? -80 : 0) + (input.mask & 64 ? 80 : 0);
       if (deltaX || deltaY) await cdp("Input.dispatchMouseEvent", { type: "mouseWheel", x, y, deltaX, deltaY, buttons, modifiers }, tab.session);
       rfbMask = mask; if (!mask) rfbPane = undefined; return { ok: true, active };
     }
@@ -1255,8 +1307,8 @@ export function createNativeBrowserService(options = {}) {
       return { ok: true };
     }
     if (["click", "pointer", "wheel"].includes(action)) {
-      const p = point(input, page.viewportSize()); await page.bringToFront(); await page.mouse.move(p.x, p.y);
-      if (action === "click") await page.mouse.click(p.x, p.y, { clickCount: input.double ? 2 : 1 });
+      const p = point(input, page.viewportSize()), scale = tab.inputScale ?? 1; await page.bringToFront(); await page.mouse.move(p.x * scale, p.y * scale);
+      if (action === "click") await page.mouse.click(p.x * scale, p.y * scale, { clickCount: input.double ? 2 : 1 });
       if (action === "wheel") {
         if (![input.dx, input.dy].every(v => Number.isFinite(v) && Math.abs(v) <= 2000)) throw failure("invalid_input", "滚动位置无效");
         await page.mouse.wheel(input.dx, input.dy);
