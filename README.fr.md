@@ -111,7 +111,7 @@ Pour l'index complet, voir [Index des documents](docs/README.md).
 Le projet évolue rapidement. Rejoignez le groupe communautaire pour partager vos commentaires ; les responsables de la communauté sont les bienvenus.
 
 <p align="center">
-  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ · 1134250870" width="240" /></a>
+  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ · 1127457578" width="240" /></a>
 </p>
 
 ## Origines et licences

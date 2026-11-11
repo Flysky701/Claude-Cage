@@ -65,7 +65,7 @@ function readCopy(language: typeof languages[number]) {
     downloadTitle: installation.title, downloadText: installParagraphs[1],
     downloadNote: installParagraphs[0], updateNote: installParagraphs.at(-1) || '',
     communityTitle: contribution.title, communityText: paragraphs(contribution.body).at(-1) || '',
-    group: 'QQ · 1134250870', docsTitle: contribution.title, docs,
+    group: 'QQ · 1127457578', docsTitle: contribution.title, docs,
     licenseTitle: license.title, licenseText: paragraphs(license.body).slice(0,-1).join('\n\n'),
     independent: paragraphs(license.body).at(-1) || '',
   };

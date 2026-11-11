@@ -111,7 +111,7 @@
 المشروع يتطور بسرعة. انضم إلى مجموعة المجتمع لمشاركة التعليقات؛ مشرفو المجتمع مرحب بهم.
 
 <p align="center">
-  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ · 1134250870" width="240" /></a>
+  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ · 1127457578" width="240" /></a>
 </p>
 
 ## الأصول والترخيص
