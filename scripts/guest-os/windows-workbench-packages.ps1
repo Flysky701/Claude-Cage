@@ -2,9 +2,12 @@
 function Invoke-WorkbenchDownload([string]$Address, [string]$Target, [string]$Name, [string]$Cache, [string]$Digest = '') {
     $downloader = Join-Path (Split-Path $PSScriptRoot -Parent) 'cage.exe'
     if (Test-Path -LiteralPath $downloader -PathType Leaf) {
-        $arguments = @('host-download', $Address, $Target, $Name, '*/*')
-        if ($Digest) { $arguments += @((Join-Path $Cache '.downloads'), $Digest) }
-        & $downloader @arguments | ForEach-Object { [Console]::WriteLine($_) }
+        $arguments = @('host-download', $Address, $Target, $Name)
+        $verification = @()
+        if ($Digest) { $verification = @((Join-Path $Cache '.downloads'), $Digest) }
+        # An array-splatted wildcard expands on Unix PowerShell. Keep Accept
+        # quoted at the native call boundary, including metadata downloads.
+        & $downloader @arguments '*/*' @verification | ForEach-Object { [Console]::WriteLine($_) }
         if ($LASTEXITCODE -ne 0) { throw ('Package download failed: '+$Name) }
     } else {
         Invoke-WebRequest -UseBasicParsing -Uri $Address -OutFile $Target
