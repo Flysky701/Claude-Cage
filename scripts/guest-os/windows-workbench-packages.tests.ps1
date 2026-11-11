@@ -2,6 +2,7 @@
 # certificate APIs are substitutes; the production resolver and MSIX parser run.
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+Add-Type -AssemblyName System.IO.Compression
 . (Join-Path $PSScriptRoot 'claude-desktop-windows.ps1')
 . (Join-Path $PSScriptRoot 'windows-workbench-packages.ps1')
 $root=Join-Path ([IO.Path]::GetTempPath()) ('claude-release-test-'+[guid]::NewGuid().ToString('N'))
