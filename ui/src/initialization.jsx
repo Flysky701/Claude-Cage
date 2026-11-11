@@ -14,6 +14,7 @@ import { InitializationChecks, InitializationDetails } from "./initialization-ch
 import { MacOSLogin } from "./macos-login";
 import { Modal } from "./modal";
 import { SafetyMessage } from "./safety-message";
+import { bindDetectedMacOSExit } from "./safety";
 import { needsProxySetup } from "./onboarding-state.mjs";
 import { networkState } from "./safety-state.mjs";
 import { useSSHNavigation } from "./remote-hosts";
@@ -76,7 +77,9 @@ function Initialization({ initial, onComplete }) {
   const job = status?.job || {};
   const busy = submitting || Boolean(job.running);
   const network = networkState(status);
-  const ready = Boolean(status?.ready && status.vm_running && !busy && !job.error && network.mode === "open");
+  const exitCandidate = status?.guest_system === "macos" && status.safety?.macos_exit_candidate?.ip;
+  const needsExitRestart = status?.guest_system === "macos" && status.safety?.error === "已保存固定出口。请重启 macOS 客机，登录后重新检测。";
+  const ready = Boolean(status?.ready && status.vm_running && !busy && !job.error && !needsExitRestart && network.mode === "open");
   const confirm = options => new Promise(resolve => setDialog({ ...options, resolve }));
   const settleDialog = value => { dialog?.resolve(value); setDialog(null); };
 
@@ -168,32 +171,49 @@ function Initialization({ initial, onComplete }) {
   async function enter() {
     await run(async () => { await api("/environment/initialization", { action: "complete" }); await refresh(); if (alive.current) onComplete(); });
   }
+  async function waitForJob(accepted, kind) {
+    if (!accepted.id) throw new Error("操作未返回任务编号，请核对状态后重试。");
+    while (alive.current) {
+      const next = await api("/status");
+      if (!alive.current) break;
+      setStatus(next);
+      const current = next.job;
+      if (current?.id !== accepted.id || current.kind !== kind) throw new Error("操作状态已变化，请核对状态后重试。");
+      if (current.error || current.canceled) throw new Error(current.error || "操作已取消，请核对状态后重试。");
+      if (!current.running) return next;
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+    throw new Error("初始化页面已关闭，操作未继续。");
+  }
+  async function bindExit() {
+    await run(async () => {
+      const accepted = await bindDetectedMacOSExit(exitCandidate, confirm);
+      if (!accepted) return;
+      await waitForJob(accepted, "settings");
+    });
+  }
+  async function restart() {
+    await run(async () => {
+      const running = status.vm_running;
+      if (!await confirm({ title: running ? "重启虚拟 Mac 并检查？" : "启动客机并重新检测？", body: "请先保存文件。当前终端会话会结束，浏览器登录和项目文件会保留。重新检测通过前，外网保持关闭。", confirm: running ? "重启并检查" : "启动并检测" })) return;
+      const current = await api("/status");
+      if (!alive.current) return;
+      if (current.job?.running) throw new Error("其他操作仍在进行，请等待完成后重试。");
+      if (current.vm_running) {
+        const stopped = await waitForJob(await api("/stop", {}), "stop");
+        if (stopped.vm_running) throw new Error("客机尚未停止，请核对状态后重试。");
+      }
+      if (!alive.current) return;
+      const accepted = await api("/start", {});
+      if (!accepted.id) throw new Error("启动请求未返回任务编号，请核对状态后重试。");
+      setStatus(current => ({ ...current, job: { ...accepted, running: true, kind: "start", message: accepted.message || "正在启动并检查客机…" } }));
+    });
+  }
   async function checkNetwork() {
     await run(async () => {
       const accepted = await api("/safety/check", {});
       setStatus(current => ({ ...current, job: { ...accepted, running: true, kind: "safety", message: "正在检查代理出口和环境隔离…" } }));
     });
-  }
-  async function restart() {
-    if (!await confirm({ title: "重启虚拟 Mac 并检查？", body: "请先保存客机中的工作。当前会话会断开，客机磁盘、账户和项目文件会保留。", confirm: "重启并检查" })) return;
-    await run(async () => {
-      const accepted = await api("/stop", {});
-      let stopped;
-      do {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (!alive.current) return;
-        stopped = await api("/status");
-        setStatus(stopped);
-        if (stopped.job?.id !== accepted.id) throw new Error("停止操作状态已变化，请核对客机状态后继续。");
-      } while (stopped.job?.running);
-      if (stopped.job?.error) throw new Error(stopped.job.error);
-      await api("/start", {});
-    });
-  }
-  async function bindExit() {
-    const ip = status.safety?.macos_exit_candidate?.ip;
-    if (!ip || !await confirm({ title: "确认固定出口？", body: `客机终端、浏览器与代理均测得 ${ip}。绑定后仅允许此 IP，之后需要重启客机并重新检测。`, confirm: "绑定固定出口" })) return;
-    await run(() => api("/macos/exit-policy", { ip }));
   }
   async function back() {
     if (step === "proxy" && proxyDirty && !await confirm({ title: "放弃尚未应用的代理修改？", body: "已经保存并应用的代理会保留，当前未应用的表单修改会丢弃。", confirm: "放弃修改" })) return;
@@ -239,11 +259,13 @@ function Initialization({ initial, onComplete }) {
           </>}
           {step === "proxy" && <><ProxySettings initializing status={status} onConfirm={confirm} onDirty={setProxyDirty} onApplied={async () => { setProxy(await api("/proxy")); pollNow.current?.(); }} />{choice?.clone && !needsProxySetup(null, status, proxy) && <HostCloneSummary pending={choice.pending} onChange={setChoice} />}</>}
           {step === "install" && (ready ? <div className="initialization-ready"><ShieldCheck size={36} /><h2>环境已就绪</h2><p>独立客机已安装，工具、文件和登录状态会持续保存。以后打开 Cage 可直接进入工作台。</p></div> : <>
-            {progress ? <SetupProgress job={progress} onDetails={() => setDetails(true)} onStop={stop} onRetry={install} disconnected={Boolean(connectionError) || submitting} /> : (busy || status.guest_system !== "macos" || !networkPending) && <div className="initialization-operation" role="status">{busy && <LoaderCircle size={22} className="spin" />}<p>{job.message || (status.vm_running ? "请完成客机连接和网络检查。" : "准备继续原安装，已有文件和磁盘会保留。")}</p>{!busy && !job.error && <button className="primary" disabled={Boolean(connectionError)} onClick={install}>{status.ready ? "重新启动并检查" : "继续安装"}</button>}{busy && <button onClick={stop} disabled={submitting}>停止安装</button>}</div>}
-            {job.error && !progress && !(status.guest_system === "macos" && networkPending) && <div className="initialization-notice" role="alert"><SafetyMessage message={job.error} />{!networkPending && <button className="primary" disabled={busy || Boolean(connectionError)} onClick={install}>继续安装</button>}</div>}
+            {exitCandidate && <section className="initialization-notice" aria-label="确认固定出口"><p>客机终端、浏览器和代理已测得一致出口。请确认是否将它绑定为固定出口。</p><button disabled={busy || Boolean(connectionError)} onClick={bindExit}>绑定检测到的固定出口 {exitCandidate}</button></section>}
+            {needsExitRestart && <section className="initialization-notice" aria-label="固定出口已保存"><p>固定出口已保存。重启客机并重新检测后才能进入工作台。</p><button className="primary" disabled={busy || Boolean(connectionError)} onClick={restart}>{status.vm_running ? "重启客机并重新检测" : "启动客机并重新检测"}</button></section>}
+            {progress ? <SetupProgress job={progress} onDetails={() => setDetails(true)} onStop={stop} onRetry={needsExitRestart ? restart : install} disconnected={Boolean(connectionError) || submitting} /> : (busy || status.guest_system !== "macos" || !networkPending) && <div className="initialization-operation" role="status">{busy && <LoaderCircle size={22} className="spin" />}<p>{job.message || (status.vm_running ? "请完成客机连接和网络检查。" : "准备继续原安装，已有文件和磁盘会保留。")}</p>{!busy && !job.error && !needsExitRestart && <button className="primary" disabled={Boolean(connectionError)} onClick={install}>{status.ready ? "重新启动并检查" : "继续安装"}</button>}{busy && <button onClick={stop} disabled={submitting}>停止安装</button>}</div>}
+            {job.error && !progress && !(status.guest_system === "macos" && networkPending) && <div className="initialization-notice" role="alert"><SafetyMessage message={job.error} />{!networkPending && !needsExitRestart && <button className="primary" disabled={busy || Boolean(connectionError)} onClick={install}>继续安装</button>}</div>}
             {status.guest_system === "macos" && status.vm_running && !status.ready && !busy && <section className="initialization-notice"><h2>连接虚拟 Mac</h2><p>{status.environment_update_error || "客机已经启动，尚未建立工作台连接。请先检查客机是否停在登录画面。"}</p><MacOSLogin onSessionClosed={() => pollNow.current?.()} /><button disabled={Boolean(connectionError)} onClick={install}>重新连接并检查</button></section>}
-            {status.ready && network.mode !== "open" && !busy && <>
-              {status.guest_system === "macos" && <InitializationChecks status={status} busy={Boolean(connectionError)} onWorkspace={setApprovalWorkspace} onCheck={checkNetwork} onStart={install} onRestart={restart} onBind={bindExit} onUpdate={() => run(() => api("/environment/update", {}))} onDiagnostics={() => setHelp(true)} />}
+            {status.ready && network.mode !== "open" && !busy && !needsExitRestart && <>
+              {status.guest_system === "macos" && <InitializationChecks status={status} busy={Boolean(connectionError)} onWorkspace={setApprovalWorkspace} onCheck={checkNetwork} onStart={install} onRestart={restart} onUpdate={() => run(() => api("/environment/update", {}))} onDiagnostics={() => setHelp(true)} />}
               <div className="initialization-network"><p>{status.safety?.error || job.error || status.network_error || "客机已经连接，请完成网络和隔离检查后进入工作台。"}</p><button disabled={Boolean(connectionError)} onClick={checkNetwork}>运行网络与隔离检查</button></div>
             </>}
             {(progress?.setup_progress.phase === "image" || (failed && !networkPending)) && <p>系统镜像和在主机上准备的 macOS 安装组件遵循主机代理设置。下载失败时，可在操作详情中查看当前文件和重试记录。客机内的联网请求使用 Cage 代理。</p>}

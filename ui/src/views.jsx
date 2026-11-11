@@ -21,6 +21,7 @@ import { sendFiles, shellFilePaths } from "./file-transfer";
 import { installRemoteInput } from "./remote-input";
 import { useWindowVisibility } from "./window-visibility";
 import { displayGeometry, displaySizeSync, watchPixelRatio } from "./remote-display.mjs";
+import { installLocalCursorFallback } from "./remote-cursor.mjs";
 import { RefreshCw, Clipboard, ArrowUpRight } from "lucide-react";
 import { SessionAccount } from "./session-account";
 import "@xterm/xterm/css/xterm.css";
@@ -91,6 +92,8 @@ export const RemoteView = forwardRef(function RemoteView(
           { credentials: { password }, cageBrowserDisplay: !desktop, cageCursorFallback: desktop && guestPlatform === "windows" },
         );
         rfb.current = client;
+        installLocalCursorFallback(client._cursor,
+          !desktop && ["darwin", "macos"].includes(guestPlatform));
         client.scaleViewport = true;
         client.resizeSession = false;
         client.background = "#ffffff";

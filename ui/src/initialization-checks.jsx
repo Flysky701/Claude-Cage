@@ -12,7 +12,7 @@ export function initializationRecovery(status) {
   return { workspace };
 }
 
-export function InitializationChecks({ status, busy, onWorkspace, onCheck, onStart, onRestart, onUpdate, onDiagnostics, onBind }) {
+export function InitializationChecks({ status, busy, onWorkspace, onCheck, onStart, onRestart, onUpdate, onDiagnostics }) {
   const recovery = initializationRecovery(status);
   const code = recovery?.recovery;
   const workspaceChecked = !code && status.safety?.report?.checks?.some(check => check.id === "filesystem_boundary" && check.state === "passed");
@@ -31,7 +31,6 @@ export function InitializationChecks({ status, busy, onWorkspace, onCheck, onSta
       </> : <button className="primary" disabled={busy || !status.ready} onClick={() => workspaceChecked ? onCheck() : onWorkspace(recovery?.workspace)}>{code === "project-approval" ? "打开工作区授权" : workspaceChecked ? "重试网络与隔离检查" : "连接工作区并继续检查"}</button>}
       {code === "project-directory" && <button disabled={busy} onClick={onDiagnostics}>查看诊断记录</button>}
     </div>
-    {status.safety?.macos_exit_candidate?.ip && <div className="initialization-notice"><p>三处检测取得了一致出口，但当前出口规则尚未确认。若你使用固定 IP，可确认绑定后重启并检查。</p><button disabled={busy} onClick={onBind}>确认固定出口 {status.safety.macos_exit_candidate.ip}</button><button disabled={busy} onClick={onRestart}>保存后重启并检查</button></div>}
     <p className="mac-setup-retention">检查通过前，客机外网保持关闭。授权与检查可以重试，已有安装和个人文件会保留。</p>
   </section>;
 }
