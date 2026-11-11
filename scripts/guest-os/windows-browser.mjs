@@ -360,15 +360,33 @@ export function createNativeBrowserService(options = {}) {
         capture.acks.add(frame.sessionId);
         captureMetrics.encoded_bytes += Buffer.byteLength(frame.data, "base64");
         if (streaming) {
+          capture.resizeDeadline ??= performance.now() + 250;
           const dimensions = jpegFrameSize(frame.data);
           if (!dimensions || dimensions.width !== Math.round(size.width * displayScale) || dimensions.height !== Math.round(size.height * displayScale)) {
             captureMetrics.invalid_frames++;
-            // Allow at most two stale compositor surfaces during startup.
-            // Drain only this bounded window; never drop forever.
-            if (!capture.latest && (capture.warmupFrames || 0) < 2) {
+            // Resizing can emit several valid old surfaces within one render
+            // tick. Give their geometry a short, bounded settling window;
+            // malformed JPEGs still get at most two startup retries.
+            let warmup = false;
+            if (dimensions) {
+              warmup = performance.now() < capture.resizeDeadline && (capture.resizeFrames || 0) < 16;
+              capture.resizeFrames = (capture.resizeFrames || 0) + 1;
+            } else if (!capture.latest) {
+              warmup = (capture.warmupFrames || 0) < 2;
               capture.warmupFrames = (capture.warmupFrames || 0) + 1;
+            }
+            if (warmup) {
               capture.acks.delete(frame.sessionId);
-              void connection.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {});
+              const acknowledge = () => connection.send("Page.screencastFrameAck", { sessionId: frame.sessionId });
+              if (dimensions && !capture.resizeRetried) {
+                // A pending native-window resize can overwrite the visible
+                // surface after setup. Reassert it once after observing that
+                // resize; waiting alone cannot repair a persistent old size.
+                capture.resizeRetried = true;
+                void sessions.get(tab.session).send("Emulation.setVisibleSize", {
+                  width: Math.round(size.width * displayScale), height: Math.round(size.height * displayScale),
+                }).then(acknowledge).catch(() => { capture.invalid = true; received(); });
+              } else void acknowledge().catch(() => {});
               return;
             }
             capture.invalid = true;

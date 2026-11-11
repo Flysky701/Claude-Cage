@@ -915,3 +915,51 @@ integration("startup invalid frames have a bounded recovery window", async t => 
     assert(persistent ? stats.screenshots > 0 : stats.streamed_frames > 0);
   }
 });
+
+integration("startup stale sizes recover beyond two frames and remain bounded", async t => {
+  for (const persistent of [false, true]) {
+    const f = await fixture(t, {}, { continuousFrames: true }), { page } = await f.open();
+    const old = (await page.screenshot({ type: "jpeg", quality: 85 })).toString("base64");
+    await f.call("resize", { width: 800, height: 600 });
+    let count = 0;
+    interceptCapture(f.context(), frame => (++count <= 4 || persistent) ? { ...frame, data: old } : frame);
+    await page.evaluate(() => {
+      let n = 0;
+      window.animation = setInterval(() => document.body.style.backgroundColor = "hsl(" + (n++ * 19 % 360) + " 80% 50%)", 16);
+    });
+    const started = performance.now();
+    const frame = await f.call("frame", {}, "GET");
+    assert.equal(frame.width, 800); assert.equal(frame.height, 600);
+    const stats = (await f.call("health", {}, "GET")).capture;
+    assert.equal(stats.fallbacks, persistent ? 1 : 0);
+    assert(stats.invalid_frames >= 4 && stats.invalid_frames <= 17);
+    assert(performance.now() - started < 5000, "startup size recovery must finish before the frame deadline");
+    assert(persistent ? stats.screenshots > 0 : stats.streamed_frames > 0);
+  }
+});
+
+integration("a late native resize during startup retains the last valid image", { timeout: 10000 }, async t => {
+  const f = await fixture(t, {}, { continuousFrames: true }), { page } = await f.open();
+  const old = (await page.screenshot({ type: "jpeg", quality: 85 })).toString("base64");
+  await f.call("resize", { width: 800, height: 600 });
+  let valid = false, stale = 0, signal;
+  const observed = new Promise(resolve => { signal = resolve; });
+  interceptCapture(f.context(), frame => {
+    if (!valid) return frame;
+    if (stale++ < 2) { if (stale === 2) signal(); return { ...frame, data: old }; }
+    return frame;
+  });
+  await page.evaluate(() => {
+    let n = 0;
+    window.animation = setInterval(() => document.body.style.backgroundColor = "hsl(" + (n++ * 19 % 360) + " 80% 50%)", 16);
+  });
+  await f.call("frame", {}, "GET");
+  valid = true;
+  await observed;
+  const frame = await f.call("frame", {}, "GET");
+  assert.equal(frame.width, 800); assert.equal(frame.height, 600);
+  const stats = (await f.call("health", {}, "GET")).capture;
+  assert(stats.invalid_frames >= 2);
+  assert.equal(stats.fallbacks, 0);
+  assert.equal(stats.screenshots, 0);
+});
