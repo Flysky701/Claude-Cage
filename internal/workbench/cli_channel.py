@@ -109,7 +109,8 @@ def clip_text(text, limit):
 
 
 def channel_message(text):
-    match = re.match(r'^<channel\s+[^>]*cage_request="([0-9a-f-]{36})"[^>]*>\n?', text)
+    # Read historical receipts without adding their old field to new messages.
+    match = re.match(r'^<channel\s+[^>]*\b(?:request_id|cage_request)="([0-9a-f-]{36})"[^>]*>\n?', text)
     if not match or not text.endswith("</channel>"):
         return None
     # Only remove the framing newline. The user's text can itself contain XML
@@ -688,7 +689,7 @@ def launch(request):
         if not account["has_status_line"](account["profile"](prefix[4])):
             settings["statusLine"] = {"type": "command", "command": prefix[2] + " statusline " + prefix[4]}
     save(folder / "settings.json", settings)
-    config = {"mcpServers": {"cage": {"command": sys.executable, "args": [*(["-X", "utf8"] if os.name == "nt" else []), "-I", str(Path(__file__).resolve()), "serve", connection]}}}
+    config = {"mcpServers": {connection: {"command": sys.executable, "args": [*(["-X", "utf8"] if os.name == "nt" else []), "-I", str(Path(__file__).resolve()), "serve", connection]}}}
     save(folder / "mcp.json", config)
     with state_file(connection) as state:
         if live(state.get("pid")) and not state.get("closed"):
@@ -719,7 +720,7 @@ def launch(request):
             state["blocked"] = False
         state["policy_unavailable"] = policy_available is False
     args = [*request["prefix"], "--settings", str(folder / "settings.json"), "--mcp-config", str(folder / "mcp.json"),
-            "--dangerously-load-development-channels", "server:cage"]
+            "--dangerously-load-development-channels", "server:" + connection]
     if request.get("resume_transcript"):
         expected = ROOT.parent / "cli-account-switches" / identifier(request["switch_id"]) / "history.jsonl"
         if Path(request["resume_transcript"]) != expected or not expected.is_file():
@@ -786,7 +787,7 @@ def serve(connection):
                             # Persist admission before writing to the CLI. A lost
                             # acknowledgement must never replay a channel event.
                             save(ROOT / connection / "state.json", state)
-                            emit({"method": "notifications/claude/channel", "params": {"content": text, "meta": {"cage_request": request_id}}})
+                            emit({"method": "notifications/claude/channel", "params": {"content": text, "meta": {"request_id": request_id}}})
                     elif action == "approve":
                         pending = state.get("approvals", [])
                         if not pending or pending[0]["id"] != request["approval_id"] or type(request["allow"]) is not bool:
@@ -807,7 +808,7 @@ def serve(connection):
                             save(ROOT / connection / "state.json", state)
                             emit({"method": "notifications/claude/channel", "params": {
                                 "content": Path(__file__).with_suffix(".account-resume.md" if state.get("account_resume") else ".resume.md").read_text(encoding="utf-8"),
-                                "meta": {"cage_resume": "true"}}})
+                                "meta": {"resume": "true"}}})
                     else:
                         raise ValueError("unsupported operation")
                     state["updated_at"] = time.time()
@@ -837,9 +838,8 @@ def serve(connection):
                 message = json.loads(line)
                 method = message.get("method")
                 if method == "initialize":
-                    emit({"id": message["id"], "result": {"protocolVersion": "2024-11-05", "serverInfo": {"name": "cage", "version": "1"},
-                          "capabilities": {"experimental": {"claude/channel": {}, "claude/channel/permission": {}}},
-                          "instructions": "The user is viewing this same Claude Code conversation from Cage on a phone. Respond normally in the conversation. Cage synchronizes the transcript."}})
+                    emit({"id": message["id"], "result": {"protocolVersion": "2024-11-05", "serverInfo": {"name": "session", "version": "1"},
+                          "capabilities": {"experimental": {"claude/channel": {}, "claude/channel/permission": {}}}}})
                 elif method == "notifications/initialized":
                     with state_file(connection) as state:
                         state["channel_pid"] = os.getpid()
