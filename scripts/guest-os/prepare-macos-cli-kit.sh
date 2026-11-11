@@ -47,8 +47,10 @@ download python.tar.gz https://github.com/astral-sh/python-build-standalone/rele
 python_pid=$!
 download git.tar.gz https://github.com/desktop/dugite-native/releases/download/v2.56.0-2/dugite-native-v2.56.0-a44aeca-macOS-arm64.tar.gz 1110de343de11cc6f469b782b60f36217b9199b5e06875dd65baa26dd60563c7 https://api.github.com/repos/desktop/dugite-native/releases/assets/677615273 &
 git_pid=$!
+download gh.zip https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_macOS_arm64.zip d700207eae9ae98fe2b89535c2c087c07823d4628c56364695a5a07ef311c062 https://api.github.com/repos/cli/cli/releases/assets/679195704 &
+gh_pid=$!
 failed=0
-for pid in "$claude_pid" "$uv_pid" "$python_pid" "$git_pid"; do wait "$pid" || failed=1; done
+for pid in "$claude_pid" "$uv_pid" "$python_pid" "$git_pid" "$gh_pid"; do wait "$pid" || failed=1; done
 [[ $failed == 0 ]] || { echo 'Could not download and verify all macOS CLI packages.' >&2; exit 1; }
 for file in internal/cage/claude-account.py internal/workbench/{cli_channel.py,cli_channel.resume.md,claude_account_resume.md}; do
     name=${file##*/}

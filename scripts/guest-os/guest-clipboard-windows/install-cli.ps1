@@ -61,7 +61,7 @@ function Check-Package($Entry) {
     return $path
 }
 $packages = @{}
-foreach ($name in @('uv','python','claude','git')) { $packages[$name] = Check-Package $manifest.$name }
+foreach ($name in @('uv','python','claude','git','gh')) { $packages[$name] = Check-Package $manifest.$name }
 foreach ($name in @('claude','git')) {
     $signature = Get-AuthenticodeSignature -FilePath $packages[$name]
     if ($signature.Status -ne 'Valid') { throw 'An official Windows executable has an invalid Authenticode signature.' }
@@ -107,6 +107,18 @@ if (-not (Test-Path (Join-Path $gitDir 'bin\bash.exe'))) {
     if ($extract.ExitCode -ne 0) { throw 'Portable Git extraction failed.' }
 }
 $bash = Join-Path $gitDir 'bin\bash.exe'; Assert-NoReparse $bash
+$ghDir = Join-Path $tools ('gh\' + $manifest.gh.version)
+New-PrivateDirectory $ghDir
+if (-not (Test-Path (Join-Path $ghDir 'bin\gh.exe'))) { Expand-Archive -LiteralPath $packages.gh -DestinationPath $ghDir }
+$gh = Join-Path $ghDir 'bin\gh.exe'; Assert-NoReparse $gh
+$ghZip = [IO.Compression.ZipFile]::OpenRead($packages.gh)
+try {
+    $entry = $ghZip.GetEntry('bin/gh.exe')
+    if ($null -eq $entry) { throw 'The fixed GitHub CLI archive has no native executable.' }
+    $reader = $entry.Open(); $hasher = [Security.Cryptography.SHA256]::Create()
+    try { $expected = ([BitConverter]::ToString($hasher.ComputeHash($reader))).Replace('-','').ToLowerInvariant() } finally { $reader.Dispose(); $hasher.Dispose() }
+    if ((Get-FileHash $gh -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'The Cage-owned GitHub CLI executable changed.' }
+} finally { $ghZip.Dispose() }
 $claudeDir = Join-Path $tools ('claude\' + $manifest.claude.version)
 New-PrivateDirectory $claudeDir
 $claude = Join-Path $claudeDir 'claude.exe'
@@ -115,6 +127,8 @@ if ((Get-FileHash -LiteralPath $claude -Algorithm SHA256).Hash.ToLowerInvariant(
 # The official native binary is used as a versioned custom launcher. No default
 # Claude account, existing installer, project, settings or history is replaced.
 $receipt = [ordered]@{version=1;python=$python;python_version=$manifest.python.version;python_sha256=(Get-FileHash $python -Algorithm SHA256).Hash.ToLowerInvariant();claude=$claude;claude_version=$manifest.claude.version;claude_sha256=$manifest.claude.sha256;git_bash=$bash;git_bash_sha256=(Get-FileHash $bash -Algorithm SHA256).Hash.ToLowerInvariant();uv_version=$manifest.uv.version}
+$receipt.gh=$gh
+$receipt.gh_sha256=(Get-FileHash $gh -Algorithm SHA256).Hash.ToLowerInvariant()
 Assert-NoReparse $bridge
 if ($WorkbenchSetup) {
     # The provisioning process owns this file and its directory. The paired

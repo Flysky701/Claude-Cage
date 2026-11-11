@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import zipfile
 from unittest.mock import patch
 
 
@@ -77,7 +78,8 @@ class NativeMaintenance(unittest.TestCase):
                 ('native-browser/macos-phone-browser.mjs', 'usr/local/libexec/cage-workbench-browser-4.145.0-pw1.65.0/controller/macos-phone-browser.mjs')):
             self.write('kit/' + source, 'current-' + source)
             files.append((source, target))
-        for label, source in (('claude-window', 'register-macos-claude-window.sh'), ('clipboard', 'register-macos-clipboard.sh')):
+        for label, source in (('claude-window', 'register-macos-claude-window.sh'), ('clipboard', 'register-macos-clipboard.sh'),
+                              ('browser', 'register-macos-browser.sh')):
             # Source deliberately has mode 0644, as the clipboard source does.
             self.write('kit/' + source, '''#!/bin/sh
 if [ -n "${CAGE_TEST_HOLD:-}" ]; then
@@ -136,6 +138,39 @@ ps() { :; }
         env = {**os.environ, 'BASH_ENV': str(self.root / 'environment.sh'), 'CAGE_TEST_FAIL_REGISTER': '1' if fail else '0'}
         return subprocess.run(['/bin/bash', str(self.kit / 'maintain-macos-workbench.sh'), str(self.kit), 'cage', 'components'],
                               capture_output=True, text=True, env=env, timeout=15)
+
+    def test_cli_tool_update_adds_github_and_preserves_login(self):
+        self.prepare_installer()
+        script = (self.kit / 'install-macos-cli.sh').read_text()
+        # Keep the real installer, ZIP layout, executable and hash checks.
+        # Large already-installed runtime packages use small fixed fixtures.
+        for name in ('claude', 'uv.tar.gz', 'python.tar.gz', 'git.tar.gz'):
+            package = self.write('kit/' + name, 'runtime-package-fixture')
+            checksum = hashlib.sha256(package.read_bytes()).hexdigest()
+            script = re.sub(r'check [a-f0-9]{64} ' + re.escape(name) + r'\n', f'check {checksum} {name}\n', script)
+        archive = self.kit / 'gh.zip'
+        with zipfile.ZipFile(archive, 'w') as output:
+            info = zipfile.ZipInfo('gh_2.103.3_macOS_arm64/bin/gh')
+            info.external_attr = 0o100755 << 16
+            output.writestr(info, '#!/bin/sh\nprintf "gh version 2.103.3 (fixture)\\n"\n')
+            output.writestr('gh_2.103.3_macOS_arm64/LICENSE', 'license-fixture')
+        checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
+        script = re.sub(r'check [a-f0-9]{64} gh.zip\n', f'check {checksum} gh.zip\n', script)
+        self.write('kit/install-macos-cli.sh', script)
+        auth = self.write('Users/cage/.config/gh/hosts.yml', 'login-marker', 0o600)
+        env = {**os.environ, 'BASH_ENV': str(self.root / 'environment.sh')}
+        for _ in range(2):
+            result = subprocess.run(['/bin/bash', str(self.kit / 'install-macos-cli.sh'), str(self.kit)],
+                                    capture_output=True, text=True, env=env, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            gh = self.root / 'usr/local/libexec/cage-cli/bin/gh'
+            self.assertIn('gh version 2.103.3', subprocess.check_output([gh], text=True))
+            self.assertEqual(auth.read_text(), 'login-marker')
+            self.assertEqual((self.root / 'usr/local/libexec/cage-gh-2.103.3/LICENSE').read_text(), 'license-fixture')
+        result = self.run_install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.root / 'usr/local/libexec/cage-cli/bin/gh').is_file())
+        self.assertEqual(auth.read_text(), 'login-marker')
 
     def test_existing_guest_failure_rollback_retry_and_new_helpers(self):
         manifest = self.prepare_installer()

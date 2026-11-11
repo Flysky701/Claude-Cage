@@ -258,6 +258,8 @@ func RequiredToolVersions() map[string]string {
 			result["mise"] = value
 		case "CAGE_CLAUDE_VERSION":
 			result["claude"] = value
+		case "CAGE_GH_VERSION":
+			result["gh"] = value
 		}
 	}
 	return result
@@ -272,6 +274,7 @@ cage_install_chromium
 sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get install -y --no-install-recommends python3-xlib </dev/null || echo 'python3-xlib is unavailable; displays keep their full refresh rate.' >&2
 sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get install -y --no-install-recommends xsettingsd </dev/null || echo 'xsettingsd is unavailable; displays keep their configured density.' >&2
 cage_install_tool mise
+cage_install_tool gh
 cage_install_tool code-server
 cage_install_tool claude
 printf 'Cage tool packages are ready; applying browser and editor components.\n'

@@ -26,15 +26,17 @@ trap 'rm -rf "$work"' EXIT
 cd "$work"
 cp "$kit"/{macos-cli.py,cli_channel.py,cli_channel.resume.md,claude_account_resume.md,claude-account.py} .
 runtime="$base/cage-cli-runtime-2.1.311-py3.13.18-git2.56.0"
+github="$base/cage-gh-2.103.3"
 if [[ $components == --components ]]; then
     [[ -x $runtime/bin/python3 && -x $runtime/bin/claude && -x $runtime/bin/git ]] || { echo '请先更新环境工具，再同步组件。' >&2; exit 1; }
 else
-cp "$kit"/{claude,uv.tar.gz,python.tar.gz,git.tar.gz} .
+cp "$kit"/{claude,uv.tar.gz,python.tar.gz,git.tar.gz,gh.zip} .
 check() { [[ $(shasum -a 256 "$2" | cut -d' ' -f1) == "$1" ]]; }
 check 85d8c08707fcfd1e78ffa0204eefbc6ec9e4fe22f375fb2767ef85d957ed3161 claude
 check 81b811b57e4624df7ed3aac148e0359100d9962f3d9dce00aec533dc2e086731 uv.tar.gz
 check 8392b6ea51d94391befb2c31ebe75463f045d0b69dfcf5e1bb3234e1f5fa3405 python.tar.gz
 check 1110de343de11cc6f469b782b60f36217b9199b5e06875dd65baa26dd60563c7 git.tar.gz
+check d700207eae9ae98fe2b89535c2c087c07823d4628c56364695a5a07ef311c062 gh.zip
 chmod 755 claude
 codesign --verify --strict --architecture arm64 -R '=anchor apple generic and identifier "com.anthropic.claude-code" and certificate leaf[subject.OU] = "Q6L2SF6YDW"' claude
 fi
@@ -43,6 +45,17 @@ fi
 publish_dir() {
     /usr/bin/perl -e 'rename($ARGV[0], $ARGV[1]) || -d $ARGV[1] || die "publish: $!"' "$1" "$2"
 }
+if [[ $components != --components ]]; then
+    /usr/bin/ditto -x -k gh.zip github-archive
+    mv github-archive/gh_2.103.3_macOS_arm64 github
+    [[ $(github/bin/gh --version | head -n 1) == 'gh version 2.103.3 '* ]]
+    if [[ -d $github ]]; then
+        cmp github/bin/gh "$github/bin/gh"
+    else
+        chmod -R a+rX,go-w github
+        publish_dir github "$github"
+    fi
+fi
 if [[ ! -d $runtime ]]; then
     tar -xzf uv.tar.gz --no-same-owner
     mkdir -p tools/bin
@@ -71,7 +84,7 @@ GIT
     chmod -R a+rX,go-w tools
     publish_dir tools "$runtime"
 fi
-revision=$(shasum -a 256 macos-cli.py cli_channel.py cli_channel.resume.md claude_account_resume.md claude-account.py | shasum -a 256 | cut -c1-16)
+revision=$({ shasum -a 256 macos-cli.py cli_channel.py cli_channel.resume.md claude_account_resume.md claude-account.py; if [[ -x $github/bin/gh ]]; then echo gh-2.103.3; fi; } | shasum -a 256 | cut -c1-16)
 target="$base/cage-cli-2.1.311-git2.56.0-$revision"
 if [[ -d $target ]]; then
     intact=yes
@@ -83,6 +96,7 @@ if [[ -d $target ]]; then
     for name in python3 claude git; do
         if [[ ! -L $target/bin/$name || $(readlink "$target/bin/$name") != "$runtime/bin/$name" ]]; then intact=no; fi
     done
+    if [[ -x $github/bin/gh ]] && [[ ! -L $target/bin/gh || $(readlink "$target/bin/gh") != "$github/bin/gh" ]]; then intact=no; fi
     if [[ $intact == no ]]; then
         # Keep the damaged directory available for rollback while publishing a
         # fresh helper set for the same application revision.
@@ -92,6 +106,7 @@ fi
 if [[ ! -d $target ]]; then
     mkdir -p helpers/bin
     for name in python3 claude git; do ln -s "$runtime/bin/$name" "helpers/bin/$name"; done
+    if [[ -x $github/bin/gh ]]; then ln -s "$github/bin/gh" helpers/bin/gh; fi
     install -m 644 macos-cli.py cli_channel.py cli_channel.resume.md helpers/
     install -m 644 claude_account_resume.md helpers/cli_channel.account-resume.md
     sed "1s@.*@#!$runtime/bin/python3 -I@" claude-account.py > helpers/bin/cage-claude-account
@@ -108,7 +123,8 @@ mv -fh "$work/current" "$current"
 account=/usr/local/bin/cage-claude-account
 if [[ ! -e $account && ! -L $account ]]; then ln -s "$current/bin/cage-claude-account" "$account"; fi
 [[ -L $account && $(readlink "$account") == "$current/bin/cage-claude-account" ]]
-for name in claude git; do
+for name in claude git gh; do
+    [[ -x $current/bin/$name ]] || continue
     if [[ ! -e /usr/local/bin/$name && ! -L /usr/local/bin/$name ]]; then ln -s "$current/bin/$name" "/usr/local/bin/$name"; fi
 done
 "$current/bin/claude" --version

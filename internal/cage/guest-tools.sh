@@ -198,6 +198,13 @@ cage_install_tool() (
   arch="$(dpkg --print-architecture)"
   case "$arch" in arm64|amd64) ;; *) echo 'Cage tool packages support arm64 and amd64.' >&2; exit 1 ;; esac
   case "$tool" in
+    gh)
+      wanted="$CAGE_GH_VERSION"
+      if command -v gh >/dev/null; then current="$(gh --version | awk '$1 == "gh" && $2 == "version" { print $3 }' | cage_tool_version)" || current=''; fi
+      url="https://github.com/cli/cli/releases/download/v$wanted/gh_${wanted}_linux_${arch}.deb"
+      if [ "$arch" = arm64 ]; then checksum="$CAGE_GH_ARM64_SHA256"; else checksum="$CAGE_GH_AMD64_SHA256"; fi
+      artifact=gh.deb
+      ;;
     code-server)
       wanted="$CAGE_CODE_SERVER_VERSION"
       if command -v code-server >/dev/null; then current="$(code-server --version | cage_tool_version)" || current=''; fi

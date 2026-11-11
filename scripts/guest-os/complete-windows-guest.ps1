@@ -285,7 +285,7 @@ try {
         else { $null=New-Item -ItemType Directory $path }
         $path
     }
-    foreach ($file in @($zipPath,$files.desktop,$files.winfsp,$files.sshfs,$files.uv,$files.python,$files.claude,$files.git)) {
+    foreach ($file in @($zipPath,$files.desktop,$files.winfsp,$files.sshfs,$files.uv,$files.python,$files.claude,$files.git,$files.gh)) {
         Copy-Item -LiteralPath $file -Destination $guestStage -ToSession $session -Force
     }
     $installer=Join-Path $PSScriptRoot 'install-windows-workbench-components.ps1'

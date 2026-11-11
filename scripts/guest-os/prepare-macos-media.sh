@@ -45,7 +45,7 @@ if [[ ${CAGE_REFRESH_TOOLS:-} != 1 ]]; then
     download claude.dmg https://downloads.claude.ai/releases/darwin/universal/4.23118.0/Claude-8175c354eda704cea00fdeddfa69cea329dd321a.dmg 0e3d86a8b7ac6d7e6a3de011134db1717716fa6ecbe323f5ea4a5356fba62810
 fi
 download chrome.dmg https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg ''
-if [[ ! -f $media/cli/git.tar.gz || ${CAGE_REFRESH_TOOLS:-} == 1 ]]; then
+if [[ ! -f $media/cli/git.tar.gz || ! -f $media/cli/gh.zip || ${CAGE_REFRESH_TOOLS:-} == 1 ]]; then
     fresh=$(mktemp -d "$media/.cli-repair.XXXXXXXX")
     if ! bash "$src/prepare-macos-cli-kit.sh" "$fresh/cli" "$media/cli"; then
         rmdir "$fresh"

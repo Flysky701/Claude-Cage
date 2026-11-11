@@ -93,3 +93,13 @@ func TestGuestServiceScriptCaptureProcess(t *testing.T) {
 	fmt.Printf("%x", sha256.Sum256(data))
 	os.Exit(17)
 }
+
+func TestContainerInstallsGitHubCLIByDefault(t *testing.T) {
+	script, err := containerInstallScript("tools")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(script, "export AGENT_VM_INSTALL_GH=1\n") {
+		t.Fatal("fresh cloud environments would omit GitHub CLI")
+	}
+}

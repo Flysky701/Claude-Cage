@@ -8,7 +8,7 @@ if ([guid](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Virtual Machine\Guest\Para
     $Bridge -ne (Join-Path $env:ProgramFiles ("Cage Guest Bridge\"+$VMId)) -or $Stage -ne (Join-Path $Bridge 'setup-packages')) {
     throw 'Incorrect guest installation target.'
 }
-foreach ($file in @($Packages.desktop,$Packages.winfsp,$Packages.sshfs,$CLI.uv,$CLI.python,$CLI.claude,$CLI.git)) {
+foreach ($file in @($Packages.desktop,$Packages.winfsp,$Packages.sshfs,$CLI.uv,$CLI.python,$CLI.claude,$CLI.git,$CLI.gh)) {
     if ((Get-FileHash -LiteralPath (Join-Path $Stage $file.filename)).Hash -ne $file.sha256) { throw ('Guest package digest mismatch: '+$file.filename) }
 }
 $extras=Join-Path $Stage 'extras.zip'
@@ -99,7 +99,7 @@ try {
     } finally { $handle.Dispose() }
     if ($value.version -ne 1 -or $value.claude_sha256 -ne $CLI.claude.sha256) { throw 'Invalid Claude Code version or hash.' }
     $result=[ordered]@{version=1}
-    foreach ($name in @('python','claude','git_bash')) {
+    foreach ($name in @('python','claude','git_bash','gh')) {
         $hash=$name+'_sha256'
         if (![IO.Path]::IsPathRooted($value.$name) -or $value.$hash -notmatch '^[a-fA-F0-9]{64}$') { throw 'Invalid Claude tool record.' }
         $result[$name]=$value.$name
@@ -121,7 +121,7 @@ Start-ScheduledTask -TaskName $taskName
 
 # Packages have been verified and installed. The instance-scoped host cache
 # permits repairs; the guest does not need a second copy of the installers.
-foreach ($package in @($Packages.desktop,$Packages.winfsp,$Packages.sshfs,$CLI.uv,$CLI.python,$CLI.claude,$CLI.git)) {
+foreach ($package in @($Packages.desktop,$Packages.winfsp,$Packages.sshfs,$CLI.uv,$CLI.python,$CLI.claude,$CLI.git,$CLI.gh)) {
     [IO.File]::Delete((Join-Path $Stage $package.filename))
 }
 [IO.File]::Delete($extras)
