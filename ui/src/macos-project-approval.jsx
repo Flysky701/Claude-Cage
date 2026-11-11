@@ -10,12 +10,12 @@ const permissionMessages = {
   requires_gui_login: "请先登录并解锁虚拟 Mac 的普通账户，然后重新打开项目。",
 };
 
-export function InitializationProjectApproval({ workspace, jobRunning, onClose }) {
+export function InitializationProjectApproval({ workspace, jobRunning, onClose, onApproved = onClose }) {
   const [pending, setPending] = useState(null);
   const [error, setError] = useState("");
   const [requesting, setRequesting] = useState(false);
-  const close = useRef(onClose);
-  close.current = onClose;
+  const approved = useRef(onApproved);
+  approved.current = onApproved;
 
   useEffect(() => {
     if (jobRunning || pending || error) return;
@@ -26,7 +26,7 @@ export function InitializationProjectApproval({ workspace, jobRunning, onClose }
         const result = await api("/projects/open", { workspace, add: false, activate: false });
         if (!live) return;
         if (result.approval) setPending({ workspace: result.workspace, grant: result.approval });
-        else close.current();
+        else approved.current();
       } catch (e) {
         if (!live) return;
         if (e.recovery === "project-operation-busy") timer = setTimeout(open, 1200);
@@ -42,7 +42,7 @@ export function InitializationProjectApproval({ workspace, jobRunning, onClose }
   if (pending) return <MacOSProjectApproval pending={pending} onClose={onClose} onCheck={async () => {
     const result = await api("/projects/open", { workspace, add: false, activate: false });
     if (result.approval) setPending({ workspace: result.workspace, grant: result.approval });
-    else onClose();
+    else onApproved();
   }} />;
   return <Modal title="允许客机访问所选项目" onClose={requesting ? undefined : onClose} footer={<>
     <button disabled={requesting} onClick={onClose}>取消</button>

@@ -48,30 +48,6 @@ enum MacMaintenance {
             code != nil && requirement != nil && SecCodeCheckValidity(code!, [], requirement!) == errSecSuccess
     }
 
-    private static func passwordFocused(_ app: NSRunningApplication, window: CGRect) -> Bool {
-        guard let bundle = app.bundleIdentifier, applications.contains(bundle), AXIsProcessTrusted() else { return false }
-        let application = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(application, 0.5)
-        func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
-            var value: CFTypeRef?
-            return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
-        }
-        guard let value = attribute(application, kAXFocusedUIElementAttribute), CFGetTypeID(value) == AXUIElementGetTypeID() else { return false }
-        let field = value as! AXUIElement
-        var pid: pid_t = 0
-        guard AXUIElementGetPid(field, &pid) == .success, pid == app.processIdentifier,
-              attribute(field, kAXSubroleAttribute) as? String == kAXSecureTextFieldSubrole,
-              attribute(field, kAXEnabledAttribute) as? Bool == true,
-              let rawWindow = attribute(field, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { return false }
-        let owner = rawWindow as! AXUIElement
-        var origin = CGPoint.zero, size = CGSize.zero
-        guard let position = attribute(owner, kAXPositionAttribute), let extent = attribute(owner, kAXSizeAttribute),
-              CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(extent) == AXValueGetTypeID(),
-              AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(extent as! AXValue, .cgSize, &size) else { return false }
-        return abs(origin.x - window.minX) < 1 && abs(origin.y - window.minY) < 1 &&
-            abs(size.width - window.width) < 1 && abs(size.height - window.height) < 1
-    }
-
     static func run(_ operation: String, purpose: String) throws -> [String: Any] {
         try requireGuest()
         let session = try consoleSession()
@@ -119,7 +95,7 @@ enum MacMaintenance {
                 }
                 return ["version": 1, "session": session, "user": NSUserName(), "pid": front.processIdentifier,
                     "window": id, "bundle": front.bundleIdentifier!,
-                    "password_focused": passwordFocused(front, window: bounds),
+                    "password_focused": MacSetupPassword.passwordFocused(front, window: bounds),
                     "rect": [region.minX, region.minY, region.width, region.height],
                     "display": [display.minX, display.minY, display.width, display.height]]
             }

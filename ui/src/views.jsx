@@ -20,7 +20,8 @@ import { terminalClipboardText } from "./terminal-clipboard.mjs";
 import { sendFiles, shellFilePaths } from "./file-transfer";
 import { installRemoteInput } from "./remote-input";
 import { useWindowVisibility } from "./window-visibility";
-import { displayGeometry, displaySizeSync } from "./remote-display.mjs";
+import { displayGeometry, displaySizeSync, watchPixelRatio } from "./remote-display.mjs";
+import { installLocalCursorFallback } from "./remote-cursor.mjs";
 import { RefreshCw, Clipboard, ArrowUpRight } from "lucide-react";
 import { SessionAccount } from "./session-account";
 import "@xterm/xterm/css/xterm.css";
@@ -65,6 +66,7 @@ export const RemoteView = forwardRef(function RemoteView(
     let disposed = false,
       client,
       resizeObserver,
+      unwatchDensity,
       sizeSync,
       reconnectTimer;
     setConnection("connecting");
@@ -80,14 +82,18 @@ export const RemoteView = forwardRef(function RemoteView(
     };
     const desktopPrefix = desktop ? "/claude-desktop" : "";
     api(`${desktopPrefix}/vnc-credentials`)
-      .then(({ password, display_scale }) => {
+      .then(({ password, display_scale, dynamic_scale }) => {
         if (disposed) return;
+        // Such a guest renders at the density of the screen showing it.
+        let followScreen = dynamic_scale === true;
         client = new RFB(
           container,
           runtimeSocketURL(`${desktopPrefix}/vnc`),
-          { credentials: { password }, cageBrowserDisplay: !desktop },
+          { credentials: { password }, cageBrowserDisplay: !desktop, cageCursorFallback: desktop && guestPlatform === "windows" },
         );
         rfb.current = client;
+        installLocalCursorFallback(client._cursor,
+          !desktop && ["darwin", "macos"].includes(guestPlatform));
         client.scaleViewport = true;
         client.resizeSession = false;
         client.background = "#ffffff";
@@ -98,18 +104,27 @@ export const RemoteView = forwardRef(function RemoteView(
           failures.current = 0;
           setConnection("connected");
           sizeSync = displaySizeSync(
-            (size) => api(desktop ? "/claude-desktop/resize" : "/browser/resize", size),
+            async (size) => {
+              const reply = await api(desktop ? "/claude-desktop/resize" : "/browser/resize", size);
+              // The guest kept its own density: size the display for that one.
+              if (size.scale !== undefined && reply?.scale !== size.scale && followScreen) {
+                followScreen = false;
+                resize();
+              }
+            },
             { onError: () => setSizeError(true), onSuccess: () => setSizeError(false) },
           );
           const resize = () => {
             if (disposed) return;
-            sizeSync.update(displayGeometry(
-              container.getBoundingClientRect(), { desktop, zoom: current.current.zoom, density: display_scale },
-            ));
+            sizeSync.update(displayGeometry(container.getBoundingClientRect(), {
+              desktop, zoom: current.current.zoom, density: display_scale,
+              pixelRatio: followScreen ? window.devicePixelRatio : undefined,
+            }));
           };
           displayResize.current = { update: resize, retry: () => sizeSync.retry() };
           resizeObserver = new ResizeObserver(resize);
           resizeObserver.observe(container);
+          unwatchDensity = watchPixelRatio(resize);
           resize();
           const preparePaste = () => {
             const id = current.current.tabId;
@@ -211,6 +226,7 @@ export const RemoteView = forwardRef(function RemoteView(
           input.current = null;
           sizeSync?.dispose();
           resizeObserver?.disconnect();
+          unwatchDensity?.();
           displayResize.current = null;
           retry();
         });
@@ -227,6 +243,7 @@ export const RemoteView = forwardRef(function RemoteView(
       displayResize.current = null;
       clearTimeout(reconnectTimer);
       resizeObserver?.disconnect();
+      unwatchDensity?.();
       input.current?.dispose();
       input.current = null;
       client?.disconnect();

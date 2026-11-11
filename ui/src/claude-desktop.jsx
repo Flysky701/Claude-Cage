@@ -222,6 +222,7 @@ export function ClaudeDesktop({
             zoom={zoom}
             visible={visible}
             keyboard={status.keyboard}
+            guestPlatform={status.guest_system?.startsWith("windows") ? "windows" : status.guest_system}
             onStatus={onStatus}
             onFallback={onFallback}
           />

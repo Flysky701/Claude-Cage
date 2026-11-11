@@ -30,6 +30,7 @@ type guestCredentials struct {
 	Token        string  `json:"token"`
 	VNCPassword  string  `json:"-"`
 	DisplayScale float64 `json:"display_scale"`
+	DynamicScale bool    `json:"dynamic_scale"`
 }
 
 func (s *Server) workspaceLocked() string {
@@ -312,6 +313,7 @@ func (s *Server) runCage(args ...string) error {
 func (s *Server) startEnvironment(syncTimezone bool) error {
 	s.desktopViews.reset()
 	s.browserViews.reset()
+	s.controlSession.close()
 	s.desktopStatus.invalidate()
 	defer s.desktopStatus.invalidate()
 	if err := s.requireStorageReady(); err != nil {

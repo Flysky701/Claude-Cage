@@ -319,10 +319,10 @@ export function MacOSLogin({ disabled, initialSetup = false, maintenance = "", l
           }
         }}>
         <div className="mac-login-panel">
-        {!initialSetup && <header className="mac-login-heading">
-          <h2>{maintenance ? "恢复客机系统权限" : "登录 macOS 客机"}</h2>
-          <p>{maintenance ? "在当前系统设置窗口中完成授权。切换到其他客机应用或锁定后，画面会结束。" : "输入客机账户密码，按回车登录。"}</p>
-        </header>}
+        <header className="mac-login-heading">
+          <h2>{initialSetup ? "虚拟 Mac 的系统设置" : maintenance ? "恢复客机系统权限" : "登录 macOS 客机"}</h2>
+          <p>{initialSetup ? "按下方提示完成当前授权，Cage 会自动检查。可以随时返回设置指引继续处理。" : maintenance ? "在当前系统设置窗口中完成授权。切换到其他客机应用或锁定后，画面会结束。" : "输入客机账户密码，按回车登录。"}</p>
+        </header>
         <div className="mac-login-tools" role="toolbar" aria-label="画面工具">
           <button ref={back} onClick={() => end()}><ArrowLeft size={16} aria-hidden="true" />{initialSetup ? "返回设置指引" : "返回工作台"}</button>
           <button aria-pressed={!zoomed} onClick={() => changeZoom(false)}><Maximize size={16} aria-hidden="true" />{initialSetup || maintenance ? "适配" : "完整画面"}</button>

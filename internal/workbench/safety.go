@@ -754,6 +754,11 @@ func (s *Server) runSafetyCheck() (returned error) {
 			return errors.New("请先在 macOS 工作台连接默认工作区或已授权的主机项目，再验证文件边界")
 		}
 		if e = s.ensureProjectShare(approved); e != nil {
+			set("filesystem_boundary", cage.CheckUnknown, e.Error(), "先完成客机登录、文件系统扩展或工作区访问授权，再重新运行检查")
+			var failure *projectShareError
+			if errors.As(e, &failure) {
+				return &projectShareError{Path: approved, Recovery: failure.Recovery, Message: failure.Message}
+			}
 			return e
 		}
 		shareRoot = approved

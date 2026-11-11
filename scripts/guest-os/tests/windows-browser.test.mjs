@@ -484,7 +484,7 @@ integration("pixel wheel preserves distance and still rejects stale targets and 
 });
 
 integration("continuous HiDPI frames preserve pixels, click coordinates and resize without screenshot polling", async t => {
-  const f = await fixture(t), { id, page } = await f.open();
+  const f = await fixture(t, {}, { continuousFrames: true }), { id, page } = await f.open();
   await page.evaluate(() => {
     document.body.innerHTML = '<style>body{margin:0}section{height:240px;border-bottom:1px solid #aaa}button{margin:24px;width:200px;height:40px}</style>' +
       Array.from({ length: 40 }, (_, i) => `<section style="background:${i % 2 ? '#cef' : '#fed'}"><button onclick="this.textContent='clicked'">Marker ${i}</button></section>`).join('');
@@ -795,4 +795,123 @@ nativeUI("headed Chrome exposes owned window proof and CDP shortcuts alone do no
   assert.equal(after.native.window.windowId, before.native.window.windowId);
   assert.equal(after.native.document, before.native.document);
   assert.equal(after.native.id, one.id);
+});
+
+function interceptCapture(context, mutate) {
+  const create = context.newCDPSession.bind(context);
+  context.newCDPSession = async (...args) => {
+    const session = await create(...args), on = session.on.bind(session), off = session.off.bind(session);
+    const listeners = new Map();
+    session.on = (event, callback) => {
+      if (event !== "Page.screencastFrame") return on(event, callback);
+      const wrapped = frame => callback(mutate(frame));
+      listeners.set(callback, wrapped);
+      return on(event, wrapped);
+    };
+    session.off = (event, callback) => off(event, listeners.get(callback) || callback);
+    return session;
+  };
+}
+
+integration("slow viewers bound compositor encoding during continuous animation", async t => {
+  const f = await fixture(t, {}, { continuousFrames: true }), { page } = await f.open();
+  await f.call("resize", { width: 800, height: 600 });
+  await page.evaluate(() => {
+    let n = 0;
+    window.animation = setInterval(() => document.body.style.backgroundColor = "hsl(" + (n++ * 19 % 360) + " 80% 50%)", 16);
+  });
+  await f.call("frame", {}, "GET");
+  const start = performance.now(), before = (await f.call("health", {}, "GET")).capture;
+  for (let i = 0; i < 8; i++) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await f.call("frame", {}, "GET");
+  }
+  const after = (await f.call("health", {}, "GET")).capture;
+  const frames = after.damage_frames - before.damage_frames;
+  assert(frames <= 20, "encoding must follow the eight viewer requests, not the 60 Hz animation: " + frames);
+  assert.equal(after.fallbacks, 0);
+  t.diagnostic(JSON.stringify({ viewerRequests: 8, elapsedMs: Math.round(performance.now()-start), encodedFrames: frames, encodedBytes: after.encoded_bytes - before.encoded_bytes }));
+});
+
+integration("mismatched compositor frames fall back and restore input on resize and reconnect", async t => {
+  const f = await fixture(t, {}, { continuousFrames: true }), { id, page } = await f.open();
+  let corrupt = false;
+  interceptCapture(f.context(), frame => corrupt ? { ...frame, data: Buffer.from("bad jpeg").toString("base64") } : frame);
+  await f.call("frame", {}, "GET");
+  corrupt = true;
+  await page.evaluate(() => document.body.style.background = "red");
+  await new Promise(resolve => setTimeout(resolve, 120));
+  let frame = await f.call("frame", {}, "GET");
+  let stats = (await f.call("health", {}, "GET")).capture;
+  assert.equal(stats.fallbacks, 1);
+  assert(stats.invalid_frames > 0);
+  assert(stats.screenshots > 0);
+  await f.click(id, page, "#first");
+  await page.keyboard.insertText("restored");
+  assert.equal(await page.locator("#first").inputValue(), "restored");
+  await f.call("resize", { width: 1800, height: 1000 });
+  frame = await f.call("frame", {}, "GET");
+  assert.equal(frame.width, 1800); assert.equal(frame.height, 1000);
+  await new Promise(resolve => setTimeout(resolve, 1700));
+  frame = await f.call("frame", {}, "GET");
+  assert.equal(frame.width, 1800);
+  await f.click(id, page, "#second");
+  await page.keyboard.insertText("reconnected");
+  assert.equal(await page.locator("#second").inputValue(), "reconnected");
+});
+
+integration("stopping continuous capture restores ordinary input before the next viewer", async t => {
+  const f = await fixture(t, {}, { continuousFrames: true }), { id, page } = await f.open();
+  await f.call("frame", {}, "GET");
+  await new Promise(resolve => setTimeout(resolve, 1800));
+  assert.equal((await f.call("health", {}, "GET")).resources.captures, 0);
+  await f.click(id, page, "#second");
+  await page.keyboard.insertText("after expiry");
+  assert.equal(await page.locator("#second").inputValue(), "after expiry");
+  await f.call("frame", {}, "GET");
+  await f.click(id, page, "#first");
+  await page.keyboard.insertText("after reconnect");
+  assert.equal(await page.locator("#first").inputValue(), "after reconnect");
+});
+
+integration("default HiDPI capture retains the unscaled screenshot path", async t => {
+  for (const continuousFrames of [undefined, false]) {
+    const f = await fixture(t, {}, { continuousFrames }), { page } = await f.open();
+    await f.call("frame", {}, "GET");
+    const stats = (await f.call("health", {}, "GET")).capture;
+    assert.equal(stats.streamed_frames, 0);
+    assert(stats.screenshots > 0);
+    assert.equal(await page.evaluate(() => devicePixelRatio), 2);
+  }
+});
+
+integration("default one-to-one frames stream without screenshot polling", async t => {
+  const f = await fixture(t, {}, { displayScale: 1 }), { id, page } = await f.open();
+  const frame = await f.call("frame", {}, "GET");
+  assert.equal(frame.width, 1140); assert.equal(frame.height, 700);
+  const stats = (await f.call("health", {}, "GET")).capture;
+  assert.equal(stats.screenshots, 0); assert(stats.streamed_frames > 0);
+  await f.click(id, page, "#first");
+  await page.keyboard.insertText("native pixels");
+  assert.equal(await page.locator("#first").inputValue(), "native pixels");
+});
+
+
+integration("startup invalid frames have a bounded recovery window", async t => {
+  for (const persistent of [false, true]) {
+    const f = await fixture(t, {}, { continuousFrames: true }), { page } = await f.open();
+    let count = 0;
+    interceptCapture(f.context(), frame => (++count <= 2 || persistent) ?
+      { ...frame, data: Buffer.from("bad jpeg").toString("base64") } : frame);
+    await page.evaluate(() => {
+      let n = 0;
+      window.animation = setInterval(() => document.body.style.backgroundColor = "hsl(" + (n++ * 19 % 360) + " 80% 50%)", 16);
+    });
+    const frame = await f.call("frame", {}, "GET");
+    assert(frame.width > 0);
+    const stats = (await f.call("health", {}, "GET")).capture;
+    assert.equal(stats.fallbacks, persistent ? 1 : 0);
+    assert.equal(stats.invalid_frames, persistent ? 3 : 2);
+    assert(persistent ? stats.screenshots > 0 : stats.streamed_frames > 0);
+  }
 });
