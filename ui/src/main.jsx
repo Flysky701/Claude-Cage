@@ -423,10 +423,12 @@ function App() {
       tabs.find((t) => t.kind !== "terminal");
     return tab ? select(tab.id) : newPage();
   };
-  const newTerminal = (path = workspace, anchor = terminalTrigger.current) =>
+  const newTerminal = (path = workspace, anchor = terminalTrigger.current) => {
+    if (!path) { setProjectDialog({}); return; }
     setTerminalChoice((previous) =>
       previous?.anchor === anchor ? null : { path, anchor },
     );
+  };
   const createTerminal = async (path, kind, loginAccountId) => {
     setTerminalChoice(null);
     const result = await api("/terminals", {
@@ -507,6 +509,7 @@ function App() {
       onSelect={(kind) => createTerminal(terminalChoice.path, kind).catch((e) => notify(e.message))} />
   );
   const openEditor = async (path = workspace) => {
+    if (!path) { setProjectDialog({}); return; }
     browserDismissed.current = false;
     const result = await action("/browser/editor", { workspace: path });
     if (result) {
@@ -1079,7 +1082,7 @@ function App() {
     desktopOpen,
     terminalChoice,
   ]);
-  const project = projectName(contentWorkspace, status?.environment_directory);
+  const project = projectName(contentWorkspace);
   const tabLayoutKey = status?.environment_identity_directory || status?.environment_directory || status?.workspace;
   const metadata = { ...(savedTabs[tabLayoutKey] || {}), ...(privateTabMetadata[tabLayoutKey] || {}) };
   for (const tab of tabs) {
@@ -1196,7 +1199,7 @@ function App() {
     const detail = tab?.terminalKind === "claude-login" ? `登录 · ${account || "新账号"}`
       : account ? `Claude · ${account}${tab.claude_account_source === "default" ? "（启动时账号）" : ""}` : "";
     const location = split && tab ? `heading-${tab.id}` : "heading";
-    return <TerminalHeader tab={tab} project={projectName(path, status?.environment_directory)} metadata={metadata}
+    return <TerminalHeader tab={tab} project={projectName(path)} metadata={metadata}
       contentWorkspace={path} terminalDetail={detail} terminalDetailHint={tab?.claude_account_source === "default"
         ? "此终端按启动时的普通终端登录标记。若普通终端已换号，请重新打开工作会话确认身份。" : detail}
       busy={busy} onHome={() => setHome(true)}
@@ -1358,7 +1361,6 @@ function App() {
             updateAction={<AppUpdateButton updates={appUpdates} />}
             workspace={selectedProject || status.workspace}
             guestSystem={account?.guest_system || status.guest_system || guestSystem?.guest_system || "debian-13"}
-            defaultWorkspace={status.environment_directory}
             projects={projects}
             tabs={displayTabs}
             sessions={cliSessions.sessions.map(session => ({ ...session,
@@ -1619,7 +1621,7 @@ function App() {
                               clone_key: guestSystem.clone_key,
                               editor_terms: guestSystem.editor_terms,
                             } : {});
-                          else if (status.environment_workspace)
+                          else if (!workspace)
                             setProjectDialog({ path: "" });
                           else newTerminal(workspace, event.currentTarget);
                         }}
@@ -1632,7 +1634,7 @@ function App() {
                           <Power size={16} />
                         ) : !status.ready ? (
                           <RefreshCw size={16} />
-                        ) : status.environment_workspace ? (
+                        ) : !workspace ? (
                           <FolderOpen size={16} />
                         ) : (
                           <TerminalSquare size={16} />
@@ -1646,7 +1648,7 @@ function App() {
                                 guestSystem && guestSystem.guest_system !== "debian-13" ? "安装客户机" : "启动 Cage 环境"
                             : !status.ready
                               ? "恢复浏览器"
-                              : status.environment_workspace
+                              : !workspace
                                 ? "打开项目"
                                 : "新建终端"}
                       </button>
@@ -1682,7 +1684,7 @@ function App() {
                       打开项目后，在终端输入 <code>claude</code>
                       ，按提示登录你的账户。
                       <br />
-                      {isRemoteClient() ? "默认工作区和打开的项目位于云端，编辑和删除会直接影响云端文件。" : "默认工作区和打开的项目与本机共享，编辑和删除文件会同步。"}
+                      {isRemoteClient() ? "打开的项目位于云端，编辑和删除会直接影响云端文件。" : "打开的项目与本机共享，编辑和删除文件会同步。"}
                     </p>
                   )}
                   </>}
@@ -1694,7 +1696,7 @@ function App() {
                         <ul className="project-connection-errors">
                           {status.project_errors.map(({ path, message, recovery }) => (
                             <li key={path}>
-                              <strong>{projectName(path, status.environment_directory)}</strong>
+                              <strong>{projectName(path)}</strong>
                               <span className="project-error-path">{path}</span>
                               <p>{message}</p>
                               <ProjectRecovery recovery={recovery} disabled={!status.ready || busy}
