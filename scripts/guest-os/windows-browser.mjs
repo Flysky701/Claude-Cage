@@ -977,6 +977,10 @@ export function createNativeBrowserService(options = {}) {
     if (input.target !== (split?.generation ?? tab.geometry)) throw failure("target_changed", "Input target changed");
     if (input.kind === "pointer") {
       if (!Number.isInteger(input.mask) || input.mask < 0 || input.mask > 127 || ![input.x, input.y].every(Number.isFinite) || input.x < 0 || input.y < 0 || input.x >= viewport.width * displayScale || input.y >= viewport.height * displayScale) throw failure("invalid_input", "指针位置无效");
+      // Frames announce pixelWheel; a viewer may then send the scrolled
+      // distance in pixels in place of one fixed step per event.
+      const pixelWheel = input.deltaX !== undefined || input.deltaY !== undefined;
+      if (pixelWheel && (![input.deltaX, input.deltaY].every(v => Number.isInteger(v) && Math.abs(v) <= 2048) || (input.mask & 7) || !(input.mask & 120))) throw failure("invalid_input", "滚动距离无效");
       const x = Math.max(0, Math.min(tab.page.viewportSize().width - 1, (input.x - xOffset) / displayScale)), y = input.y / displayScale, mask = input.mask & 7;
       const modifiers = Number.isInteger(input.modifiers) && input.modifiers >= 0 && input.modifiers <= 15 ? input.modifiers : 0;
       const buttons = ((mask & 1) ? 1 : 0) | ((mask & 2) ? 4 : 0) | ((mask & 4) ? 2 : 0);
@@ -990,8 +994,8 @@ export function createNativeBrowserService(options = {}) {
         if (down) lastClick = { button, x, y, count, time: now };
       }
       signal?.throwIfAborted();
-      await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, buttons, modifiers }, tab.session);
-      const deltaY = (input.mask & 8 ? -80 : 0) + (input.mask & 16 ? 80 : 0), deltaX = (input.mask & 32 ? -80 : 0) + (input.mask & 64 ? 80 : 0);
+      if (!pixelWheel) await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, buttons, modifiers }, tab.session);
+      const deltaY = pixelWheel ? input.deltaY : (input.mask & 8 ? -80 : 0) + (input.mask & 16 ? 80 : 0), deltaX = pixelWheel ? input.deltaX : (input.mask & 32 ? -80 : 0) + (input.mask & 64 ? 80 : 0);
       if (deltaX || deltaY) await cdp("Input.dispatchMouseEvent", { type: "mouseWheel", x, y, deltaX, deltaY, buttons, modifiers }, tab.session);
       rfbMask = mask; if (!mask) rfbPane = undefined; return { ok: true, active };
     }
@@ -1243,7 +1247,7 @@ export function createNativeBrowserService(options = {}) {
           panes.push({ jpeg, x, y: 0, width, height, id, document }); x += width;
         }
         if (bytes > 8 << 20) throw failure("frame_limit", "浏览器画面过大，请缩小窗口后重试");
-        return { sequence, target: generation, width: x, height: Math.round(viewport.height * displayScale), scale: displayScale, panes, active, native: await nativeFrameProof() };
+        return { sequence, target: generation, width: x, height: Math.round(viewport.height * displayScale), scale: displayScale, panes, active, pixelWheel: true, native: await nativeFrameProof() };
       }
       const geometry = tab.geometry, document = tab.document;
       const captured = await captureFrame(tab);
@@ -1251,7 +1255,7 @@ export function createNativeBrowserService(options = {}) {
       if (tab.id !== active || tab.geometry !== geometry || tab.document !== document) throw failure("target_changed", "Input target changed");
       if (input.after === sequence) return { unchanged: true, sequence, ...(input.nativeProof ? { native: await nativeFrameProof() } : {}) };
       if (Buffer.byteLength(captured.jpeg, "base64") > 8 << 20) throw failure("frame_limit", "浏览器画面过大，请缩小窗口后重试");
-      return { ...(mac ? {url: page.url(), title: await page.title()} : {}), sequence, id: tab.id, document, jpeg: captured.jpeg, target: geometry, width: Math.round(viewport.width * displayScale), height: Math.round(viewport.height * displayScale), cssWidth: viewport.width, cssHeight: viewport.height, scale: displayScale, native: await nativeFrameProof() };
+      return { ...(mac ? {url: page.url(), title: await page.title()} : {}), sequence, id: tab.id, document, jpeg: captured.jpeg, target: geometry, width: Math.round(viewport.width * displayScale), height: Math.round(viewport.height * displayScale), cssWidth: viewport.width, cssHeight: viewport.height, scale: displayScale, pixelWheel: true, native: await nativeFrameProof() };
     }
     if (action === "activate") return activate(tab.id);
     if (action === "close") { await page.close(); if (!tabs.size) await addPage(await context.newPage()); if (active) await activate(active); return { ok: true }; }

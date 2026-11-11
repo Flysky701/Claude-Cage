@@ -15,6 +15,7 @@ import { BrowserExtensions, extensionUploadLimit } from "./browser-extensions.mj
 import { BrowserClipboard } from "./browser-clipboard.mjs";
 import { BrowserVisibility } from "./browser-visibility.mjs";
 import { nativeInput } from "./native-input.mjs";
+import { createDisplaySettings, displayDensity } from "./display-density.mjs";
 import { DownloadManager } from "./browser-downloads.mjs";
 import { UploadManager, uploadLimit } from "./browser-uploads.mjs";
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -23,6 +24,9 @@ const config = JSON.parse(
   readFileSync("/etc/claude-cage/browser-control.json", "utf8"),
 );
 const displayScale = config.display_scale === 1.5 ? 1.5 : 2;
+// Started before Chromium, which then opens at this density.
+const displaySettings = createDisplaySettings({ file: "/home/cage-browser/.cache/cage-display/xsettings.conf", initial: displayScale });
+process.on("exit", () => displaySettings.close());
 const selectionFile = "/home/cage-browser/workbench-state.json";
 const homepageFile = "/home/cage-browser/homepage.json";
 let homeURL = "https://www.bing.com/";
@@ -78,7 +82,7 @@ const flags = [
   "--disable-quic",
   "--disable-session-crashed-bubble",
   "--window-size=1440,900",
-  `--force-device-scale-factor=${displayScale}`,
+  ...(displaySettings.available ? [] : [`--force-device-scale-factor=${displayScale}`]),
   `--lang=${process.env.CAGE_LANGUAGE || "en-US"}`,
   `--accept-lang=${process.env.CAGE_LANGUAGE || "en-US"}`,
 ];
@@ -640,21 +644,25 @@ setInterval(() => {
   for (const stream of events) stream.write(": heartbeat\n\n");
 }, 10000).unref();
 let displaySize = "";
-async function resizeDisplay(width, height) {
+async function resizeDisplay(width, height, density) {
+  // A viewer that names no density sized its display for the configured one.
+  const scale = density === undefined || !displaySettings.available ? displayScale : displayDensity(density);
   if (
+    scale === null ||
     !Number.isInteger(width) ||
     !Number.isInteger(height) ||
-    width < 160 * displayScale ||
-    height < 240 * displayScale ||
+    width < 160 * scale ||
+    height < 240 * scale ||
     width > 8192 ||
     height > 8192
   )
     throw new Error("Invalid display size");
+  const result = { ok: true, ...(displaySettings.available ? { scale: displaySettings.set(scale) } : {}) };
   const name = `cage-${width}x${height}`;
   if (displaySize === name) {
     // A viewer attaching at an unchanged size still restores the full rate.
     await runFile("/usr/bin/xrandr", ["--output", "VNC-0", "--mode", name]).catch(() => {});
-    return { ok: true };
+    return result;
   }
   const { stdout } = await runFile("/usr/bin/xrandr", ["--query"]);
   if (!stdout.includes(name)) {
@@ -685,7 +693,7 @@ async function resizeDisplay(width, height) {
       );
       await runFile("/usr/bin/xrandr", ["--rmmode", old[1]]).catch(() => {});
     }
-  return { ok: true };
+  return result;
 }
 let mutations = Promise.resolve();
 function mutate(fn) {
@@ -887,7 +895,7 @@ const server = http.createServer(async (req, res) => {
         return { ok: true };
       }
       if (req.url === "/resize")
-        return resizeDisplay(input.width, input.height);
+        return resizeDisplay(input.width, input.height, input.scale);
       if (req.url === "/new") return newTab(input.url || undefined, input.incognito === true);
       if (req.url === "/editor") return editor(input.workspace || config.workspace);
       if (req.url === "/editor-restart") return restartEditor(input.workspace);

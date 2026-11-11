@@ -56,6 +56,8 @@ cage stop          Stop the shared Cage environment
 cage list          List this cage profile's VMs
 cage doctor        Diagnose the VM
 cage diagnostics --json PATH.zip   Export a redacted diagnostic bundle
+cage version       Print this build's version. --min VERSION fails if older
+cage licenses      Print third-party license notices
 
 Configuration: ~/.claude-cage/config.json (override CLAUDE_CAGE_CONFIG).
 Each configuration directory is an independent cage profile.
@@ -96,9 +98,14 @@ func run() int {
 		}
 		return 0
 	}
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
+	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
 		fmt.Print(help)
 		return 0
+	}
+	// These read only this build's own metadata. Answering them before the
+	// profile is opened keeps `cage version --min` usable on a fresh install.
+	if args[0] == "version" || args[0] == "--version" || args[0] == "-V" || args[0] == "licenses" {
+		return cli.Main(args, cli.Stdio())
 	}
 	if args[0] == "agent" {
 		return runAgent(args[1:], os.Stdin, os.Stdout)

@@ -160,7 +160,7 @@ export function installRemoteInput(
   let hoverTimer;
   let hovered = false;
   const probeHover = () => {
-    if (!hovered || !isActive() || disposed || document.visibilityState === "hidden" ||
+    if (guestPlatform() !== "windows" || !hovered || !isActive() || disposed || document.visibilityState === "hidden" ||
         (!document.hasFocus() && !nativeOwned)) return;
     if (caretPending) { hoverTimer = setTimeout(probeHover, caretPollFast); return; }
     lastHoverProbe = Date.now();
@@ -169,7 +169,7 @@ export function installRemoteInput(
   listeners.push(() => clearTimeout(hoverTimer));
   on(container, "pointerleave", () => { hovered = false; clearTimeout(hoverTimer); });
   on(container, "pointermove", () => {
-    if (!isActive() || disposed || document.visibilityState === "hidden" ||
+    if (guestPlatform() !== "windows" || !isActive() || disposed || document.visibilityState === "hidden" ||
         (!document.hasFocus() && !nativeOwned)) return;
     acted();
     hovered = true;

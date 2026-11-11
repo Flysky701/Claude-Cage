@@ -82,6 +82,7 @@ type Server struct {
 	diagnosticCount                                  int
 	tickets                                          map[string]time.Time
 	browserControl                                   *browserClient
+	controlSession                                   guestSession
 	windowsBrowserControl                            *windowsBrowserClient
 	nativeDownloads                                  map[string]*nativeDownload
 	nativeDownloadSlots                              chan struct{}
@@ -453,7 +454,7 @@ func (s *Server) handler() http.Handler {
 			http.Error(w, "环境尚未就绪", 409)
 			return
 		}
-		jsonReply(w, map[string]any{"password": s.credentials.VNCPassword, "display_scale": s.credentials.DisplayScale})
+		jsonReply(w, map[string]any{"password": s.credentials.VNCPassword, "display_scale": s.credentials.DisplayScale, "dynamic_scale": s.credentials.DynamicScale})
 	})
 	mux.HandleFunc("GET /api/vnc", s.vnc)
 	mux.HandleFunc("GET /api/claude-desktop", s.claudeDesktopStatus)

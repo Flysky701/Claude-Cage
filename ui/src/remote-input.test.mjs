@@ -829,6 +829,7 @@ test('hover after toolbar focus refreshes cursor without activating native IME',
     caretRect: async () => ({ available: true, cursor, rect: [20, 20, 1, 20] }),
     native: async (...args) => { calls.push(args); return true; },
   });
+  f.setGuestPlatform("windows");
   try {
     f.doc.activeElement = {};
     f.win.cageNativeIMEAvailable = true;
@@ -842,3 +843,26 @@ test('hover after toolbar focus refreshes cursor without activating native IME',
     assert.equal(calls.filter(([name, value]) => name === 'remoteInput' && value.operation === 'activate').length, 0);
   } finally { f.controller.dispose(); }
 });
+
+for (const platform of ["linux", "darwin"]) {
+  test(platform + " toolbar hover makes no cursor query and keeps focused IME polling", async () => {
+    const clock = fakeClock();
+    let readings = 0;
+    const f = fixture(false, true, { ...clock, caretRect: async () => {
+      readings++;
+      return { available: true, context: "a".repeat(32) };
+    } });
+    f.setGuestPlatform(platform);
+    try {
+      f.doc.activeElement = f.local;
+      await clock.advance(1000);
+      const before = readings;
+      f.container.dispatchEvent(new Event("pointermove"));
+      await clock.advance(1000);
+      assert.equal(readings, before);
+      f.rfb.focus();
+      await clock.advance(2500);
+      assert.ok(readings > before);
+    } finally { f.controller.dispose(); }
+  });
+}

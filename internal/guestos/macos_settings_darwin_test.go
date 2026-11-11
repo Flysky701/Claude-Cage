@@ -16,7 +16,10 @@ func TestMacSettingsRoutesOpenSpecificPermissionPanes(t *testing.T) {
 struct Failure: Error { init(_ code: Int, _ reason: String) {} }
 func consoleUser() throws -> String { throw Failure(1,"unused") }
 func requireGuest() throws { throw Failure(1,"unused") }
-enum MacSetupPassword { static func runStream() -> Never { fatalError("unused") } }
+enum MacSetupPassword {
+    static func runStream() -> Never { fatalError("unused") }
+    static func passwordFocused(_ app: NSRunningApplication, window: CGRect) -> Bool { false }
+}
 @main struct Check {
     @MainActor static func main() {
         for purpose in ["projects", "screen", "input"] {

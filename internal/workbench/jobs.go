@@ -21,6 +21,8 @@ type Job struct {
 	Running       bool           `json:"running"`
 	Message       string         `json:"message"`
 	Error         string         `json:"error,omitempty"`
+	Recovery      string         `json:"recovery,omitempty"`
+	Workspace     string         `json:"workspace,omitempty"`
 	Log           string         `json:"log,omitempty"`
 }
 
@@ -164,6 +166,11 @@ func (m *jobManager) finishLocked(execution *jobExecution, err error) {
 		diagnostics.Log("info", "task", m.state.Kind+" canceled")
 	case err != nil:
 		m.state.Error = usererror.Display(jobName(m.state.Kind), err, "打开“操作详情”查看失败记录；仍无法处理时，"+failureHelp).Error()
+		var projectFailure *projectShareError
+		if errors.As(err, &projectFailure) {
+			m.state.Recovery = projectFailure.Recovery
+			m.state.Workspace = projectFailure.Path
+		}
 		m.state.Message = jobName(m.state.Kind) + "失败"
 		var networkFailure networkCheckError
 		if m.state.Kind == "start" && errors.As(err, &networkFailure) {

@@ -472,6 +472,22 @@ integration("a scrolled browser viewport stays visible while a web font is loadi
   } finally { clearTimeout(timer); releaseFont(); }
 });
 
+integration("pixel wheel preserves distance and still rejects stale targets and invalid bounds", async t => {
+  const f = await fixture(t), { page } = await f.open();
+  await page.evaluate(() => { document.body.style.height = "6000px"; document.documentElement.style.scrollBehavior = "auto"; });
+  const frame = await f.call("frame", {}, "GET");
+  const wheel = { kind: "pointer", target: frame.target, x: 600, y: 600, mask: 16, deltaX: 0, deltaY: 720 };
+  await f.call("input", wheel);
+  await page.waitForFunction(() => scrollY >= 700);
+  assert.equal(await page.evaluate(() => scrollY), 720);
+  await f.call("input", { ...wheel, mask: 8, deltaY: -360 });
+  await page.waitForFunction(() => scrollY === 360);
+  await assert.rejects(f.call("input", { ...wheel, target: "stale" }), /target changed/);
+  await assert.rejects(f.call("input", { ...wheel, deltaY: 2049 }), /滚动距离/);
+  await assert.rejects(f.call("input", { ...wheel, mask: 17 }), /滚动距离/);
+  assert.equal(await page.evaluate(() => scrollY), 360);
+});
+
 integration("audit reads configured browser state separately from expected values and preserves actual HTTP failures", async t => {
   const f = await fixture(t, { timezone: "Pacific/Honolulu", language: "ja-JP", diagnostic: true }), one = await f.open();
   await f.context().addCookies([{ name: "private_fixture", value: "test-only", domain: "198.18.0.254", path: "/" }]);
