@@ -780,7 +780,7 @@ export function createNativeBrowserService(options = {}) {
       const status = await caret(tab);
       if (!status.available || input.context !== status.context) throw failure("target_changed", "Input target changed");
       composition = { id: tab.id, document: tab.document, context: status.context, session: input.session, sequence: input.sequence };
-      return { ok: true };
+      return { ...status, ok: true };
     }
     if (!composition || composition.id !== tab.id || composition.document !== tab.document || composition.session !== input.session || input.sequence <= composition.sequence)
       throw failure("target_changed", "Input target changed");
@@ -796,7 +796,7 @@ export function createNativeBrowserService(options = {}) {
     } else if (input.mode === "cancel") {
       await cdp("Input.imeSetComposition", { text: "", selectionStart: 0, selectionEnd: 0 }, tab.session); composition = undefined;
     } else throw failure("invalid_input", "输入法组合状态无效");
-    return { ok: true };
+    return { ...status, ok: true };
   }
   function checkTransfer(input) {
     const transfer = transfers.get(input.transfer);

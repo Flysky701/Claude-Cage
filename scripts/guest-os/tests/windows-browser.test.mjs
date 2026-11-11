@@ -337,9 +337,15 @@ integration("physical frame geometry, RFB key/pointer and composition reject lat
   assert.equal(await one.page.locator("#first").inputValue(), "ab");
   const status = await f.call("ime", { id: one.id, target: "browser", mode: "status" }); assert(status.available); assert(status.rect[3] > 0);
   const session = "d".repeat(32), common = { id: one.id, target: "browser", session };
-  await f.call("ime", { ...common, mode: "begin", sequence: 0, context: status.context });
-  await f.call("ime", { ...common, mode: "update", sequence: 1, text: "nihao", selectionStart: 5, selectionEnd: 5 });
-  await f.call("ime", { ...common, mode: "commit", sequence: 2, text: "你好🙂" });
+  for (const value of [
+    { mode: "begin", sequence: 0, context: status.context },
+    { mode: "update", sequence: 1, text: "nihao", selectionStart: 5, selectionEnd: 5 },
+    { mode: "commit", sequence: 2, text: "你好🙂" },
+  ]) {
+    const reply = await f.call("ime", { ...common, ...value });
+    assert.equal(reply.available, true, "the viewer requires an explicit focused-input receipt");
+    assert.equal(reply.context, status.context);
+  }
   assert.equal(await one.page.locator("#first").inputValue(), "ab你好🙂");
   const next = await f.call("ime", { id: one.id, target: "browser", mode: "status" });
   await f.call("ime", { ...common, mode: "begin", sequence: 3, context: next.context });
