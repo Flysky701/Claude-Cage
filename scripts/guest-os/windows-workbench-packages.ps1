@@ -10,7 +10,16 @@ function Get-PinnedPackage($Spec, [string]$Cache) {
     }
     $tmp = $file+'.'+[guid]::NewGuid()+'.download'
     try {
-        Invoke-WebRequest -UseBasicParsing -Uri $Spec.url -OutFile $tmp
+        # Installed apps share the host downloader with macOS: proxy resolution,
+        # bounded ranges, persistent partial files and fixed SHA-256 validation.
+        $downloader = Join-Path (Split-Path $PSScriptRoot -Parent) 'cage.exe'
+        if (Test-Path -LiteralPath $downloader -PathType Leaf) {
+            & $downloader host-download $Spec.url $tmp $Spec.filename '*/*' (Join-Path $Cache '.downloads') $Spec.sha256 | ForEach-Object { [Console]::WriteLine($_) }
+            if ($LASTEXITCODE -ne 0) { throw ('Package download failed: '+$Spec.filename) }
+        } else {
+            # Standalone source scripts can run without a built application.
+            Invoke-WebRequest -UseBasicParsing -Uri $Spec.url -OutFile $tmp
+        }
         if ((Get-FileHash -LiteralPath $tmp).Hash -ne $Spec.sha256) { throw ('Package verification failed: '+$Spec.filename) }
         if ($cached) { [IO.File]::Replace($tmp,$file,[Management.Automation.Language.NullString]::Value) }
         else { [IO.File]::Move($tmp,$file) }

@@ -7,68 +7,6 @@ cage_tool_version() {
   awk '$1 ~ /^v?[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$/ && !found { print $1; found=1 }'
 }
 
-# curl flushes every received chunk with --no-buffer. Watch actual file growth,
-# including single bytes, instead of imposing a minimum speed or total duration.
-# Keep curl's HTTP status output and exit codes for the caller's retry policy.
-cage_curl_download() {
-  python3 - "$@" <<'CAGE_DOWNLOAD_IDLE'
-import os
-import signal
-import subprocess
-import sys
-import time
-
-artifact = sys.argv[1]
-idle_timeout = 60
-
-def size():
-    try:
-        return os.stat(artifact).st_size
-    except FileNotFoundError:
-        return 0
-
-def stop(signum, frame):
-    sys.exit(128 + signum)
-
-signal.signal(signal.SIGTERM, stop)
-received = size()
-name = os.path.basename(artifact).removesuffix(".part").removesuffix(".mirror")
-show_progress = os.environ.get("CAGE_SETUP_PROGRESS") == "1"
-def report(count):
-    if show_progress:
-        print(f"CAGE_TOOL_BYTES {name} {count}", file=sys.stderr, flush=True)
-report(received)
-last_received = time.monotonic()
-meter = ["--silent", "--show-error"] if show_progress else []
-process = subprocess.Popen(["curl", "--no-buffer", *meter, *sys.argv[2:]], stdin=subprocess.DEVNULL)
-try:
-    while True:
-        try:
-            status = process.wait(timeout=min(1, idle_timeout))
-            report(size())
-            break
-        except subprocess.TimeoutExpired:
-            current = size()
-            if current > received:
-                report(current)
-                last_received = time.monotonic()
-            received = current
-            if time.monotonic() - last_received >= idle_timeout:
-                print("Download received no data for 60 seconds; retrying with saved partial data.", file=sys.stderr)
-                status = 28
-                break
-finally:
-    if process.poll() is None:
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-sys.exit(status if status >= 0 else 128 - status)
-CAGE_DOWNLOAD_IDLE
-}
-
 # The caller holds the checksum directory lock. Partial files survive a failed
 # attempt; only a complete checksum-verified artifact is eligible for install.
 cage_download_tool() (
@@ -99,10 +37,12 @@ cage_download_tool() (
     if [ "$status" = 0 ] || [ "$http" = 416 ]; then
       if printf '%s  %s\n' "$checksum" "$part" | "$hash" --check --status; then
         mv -f "$part" "$artifact" || return 1
+        rm -rf "$artifact.part.ranges" "$artifact.mirror.part.ranges"
         rm -f "$artifact.mirror.part"
         return 0
       fi
       rm -f "$part"
+      rm -rf "$part.ranges"
       if [ "$url" != "$upstream" ]; then
         echo 'Mirror checksum mismatch; retrying from the official source.' >&2
         continue

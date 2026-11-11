@@ -68,6 +68,10 @@ func TestToolDownloadWithRealCurlAndTLS(t *testing.T) {
 	data := "complete download bytes"
 	var calls atomic.Int32
 	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.Header().Set("Content-Length", fmt.Sprint(len(data)))
+			return
+		}
 		if calls.Add(1) == 1 {
 			w.Header().Set("Content-Length", fmt.Sprint(len(data)))
 			fmt.Fprint(w, data[:5])
@@ -119,6 +123,10 @@ func TestToolDownloadIdleTimeoutAndManualResume(t *testing.T) {
 			var calls atomic.Int32
 			var recovered atomic.Bool
 			s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodHead {
+					w.Header().Set("Content-Length", fmt.Sprint(len(data)))
+					return
+				}
 				call := calls.Add(1)
 				offset := 0
 				if mode == "stalled" {
@@ -223,6 +231,7 @@ func TestClaudeNativeCacheUsesGuestArchitectureAndIntegrity(t *testing.T) {
 				"claude": "#!/bin/sh\necho 1.0.0\n",
 				"flock":  "#!/bin/sh\nexit 0\n",
 				"curl": `#!/bin/sh
+for arg in "$@"; do [ "$arg" != --head ] || exit 0; done
 while [ "$#" -gt 0 ]; do
   case "$1" in
     https://cdn.npmmirror.com/packages/%40anthropic-ai/"$TEST_PACKAGE"/2.1.314/"$TEST_PACKAGE"-2.1.314.tgz)

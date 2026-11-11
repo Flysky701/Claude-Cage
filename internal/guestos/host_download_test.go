@@ -29,7 +29,7 @@ func TestMacMediaUsesHostDownloaderForEveryPackage(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"macos-cli.py", "install-macos-cli.sh", "claude-account.py", "cli_channel.py", "cli_channel.resume.md", "claude_account_resume.md"} {
+	for _, name := range []string{"macos-cli.py", "install-macos-cli.sh", "claude-account.py", "cli_channel.py", "cli_channel.resume.md", "claude_account_resume.md", "client_runtime.py"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("fixture"), 0600); err != nil {
 			t.Fatal(err)
 		}
