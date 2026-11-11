@@ -700,6 +700,33 @@ func (s *Server) runSafetyCheck() (returned error) {
 		}
 		s.mu.Unlock()
 	}()
+	if cfg.ExitPolicy.NeedsBinding() {
+		s.setMessage("正在首次绑定此出口节点的 IP 或地区…")
+		loc, err := probeLocation(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		cfg.ExitPolicy = cfg.ExitPolicy.BindMissing(loc.exitLocation())
+		observed := loc.exitLocation()
+		if result, message := cfg.ExitPolicy.Evaluate(loc.IP, &observed); result != cage.CheckPassed {
+			return errors.New(message)
+		}
+		if err := s.saveExitPolicyConfig(cfg); err != nil {
+			return err
+		}
+		// Completing an empty anchor changes the fingerprint. Revoke the first
+		// check and collect all evidence again under the bound configuration.
+		s.safetyOp.Lock()
+		_, err = client.SyncProxyRevision(ctx)
+		if err == nil {
+			state, err = client.BeginCheck(ctx)
+		}
+		s.safetyOp.Unlock()
+		if err != nil {
+			return err
+		}
+		s.publishGate(state)
+	}
 	report := cage.SafetyReport{Policy: cage.SafetyPolicyVersion, ID: randomToken()[:32], RunID: state.RunID, CheckID: state.CheckID, Configuration: cfg.Fingerprint(), CreatedAt: time.Now()}
 	defer func() {
 		// Preserve partial reports too: cancellation or a transport failure must

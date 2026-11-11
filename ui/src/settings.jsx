@@ -266,7 +266,12 @@ export function SettingsPanel({
                   onConfirm={onConfirm}
                   onApplied={async () => {
                     setProbe(null);
-                    onSaved();
+                    const applied = await api("/settings");
+                    if (JSON.stringify(canonicalExitPolicy(applied.exit_policy)) !==
+                        JSON.stringify(canonicalExitPolicy(current.exit_policy))) {
+                      setDraft(previous => ({ ...previous, exit_policy: applied.exit_policy }));
+                    }
+                    await onSaved();
                   }}
                 />
                 <label>
