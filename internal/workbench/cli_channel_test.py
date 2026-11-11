@@ -27,7 +27,7 @@ class ChannelTests(unittest.TestCase):
         # macOS /var and /private/var identify one directory. Match the
         # production config resolver so catalog order cannot duplicate it.
         self.home = Path(temporary.name).resolve()
-        self.env = {**os.environ, "HOME": str(self.home), "CLAUDE_CONFIG_DIR": str(self.home / ".claude")}
+        self.env = {**os.environ, "HOME": str(self.home), "CLAUDE_CONFIG_DIR": str(self.home / ".claude"), "TMPDIR": str(self.home)}
         environment = patch.dict(os.environ, self.env)
         environment.start()
         self.addCleanup(environment.stop)
@@ -138,6 +138,10 @@ class ChannelTests(unittest.TestCase):
         selected = args[args.index("--dangerously-load-development-channels") + 1]
         self.assertEqual(selected, "server:" + connection)
         self.assertEqual(list(config["mcpServers"]), [connection])
+        settings = channel.read_json(Path(args[args.index("--settings") + 1]))
+        self.assertNotIn("cage", json.dumps(config).lower())
+        self.assertNotIn("cage", json.dumps(settings).lower())
+        self.assertFalse(any(key.upper().startswith("CAGE_") for key in execute.call_args.args[2]))
 
     def test_handoff_preserves_executing_tools(self):
         request = {"cli_id":self.session, "config":str(self.home / ".claude"), "workspace":self.project}
