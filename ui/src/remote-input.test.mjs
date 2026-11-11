@@ -821,7 +821,8 @@ test('remote hover shape updates even without an editable focus and rejects arbi
   } finally { f.controller.dispose(); }
 });
 
-test('hover after toolbar focus refreshes cursor without activating native IME', async () => {
+for (const platform of ["windows", "windows-11"]) {
+test(platform + ' hover after toolbar focus refreshes cursor without activating native IME', async () => {
   const changes = [], calls = [];
   let cursor = 'default';
   const f = fixture(true, false, {
@@ -829,7 +830,7 @@ test('hover after toolbar focus refreshes cursor without activating native IME',
     caretRect: async () => ({ available: true, cursor, rect: [20, 20, 1, 20] }),
     native: async (...args) => { calls.push(args); return true; },
   });
-  f.setGuestPlatform("windows");
+  f.setGuestPlatform(platform);
   try {
     f.doc.activeElement = {};
     f.win.cageNativeIMEAvailable = true;
@@ -843,6 +844,7 @@ test('hover after toolbar focus refreshes cursor without activating native IME',
     assert.equal(calls.filter(([name, value]) => name === 'remoteInput' && value.operation === 'activate').length, 0);
   } finally { f.controller.dispose(); }
 });
+}
 
 for (const platform of ["linux", "darwin"]) {
   test(platform + " toolbar hover makes no cursor query and keeps focused IME polling", async () => {

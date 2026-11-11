@@ -59,6 +59,7 @@ export function installRemoteInput(
     (nativeOwned || container.contains(document.activeElement) ||
       document.activeElement === target);
   const macGuest = () => ["darwin", "macos"].includes(guestPlatform());
+  const windowsGuest = () => ["windows", "windows-11"].includes(guestPlatform());
   const sharedClipboard = () => systemClipboard() && window.cageSharedClipboardActive;
   const shortcutModifier = () => {
     if (macGuest()) return physical.has("MetaRight") ? [0xffec, "MetaRight"] : [0xffeb, "MetaLeft"];
@@ -160,7 +161,7 @@ export function installRemoteInput(
   let hoverTimer;
   let hovered = false;
   const probeHover = () => {
-    if (guestPlatform() !== "windows" || !hovered || !isActive() || disposed || document.visibilityState === "hidden" ||
+    if (!windowsGuest() || !hovered || !isActive() || disposed || document.visibilityState === "hidden" ||
         (!document.hasFocus() && !nativeOwned)) return;
     if (caretPending) { hoverTimer = setTimeout(probeHover, caretPollFast); return; }
     lastHoverProbe = Date.now();
@@ -169,7 +170,7 @@ export function installRemoteInput(
   listeners.push(() => clearTimeout(hoverTimer));
   on(container, "pointerleave", () => { hovered = false; clearTimeout(hoverTimer); });
   on(container, "pointermove", () => {
-    if (guestPlatform() !== "windows" || !isActive() || disposed || document.visibilityState === "hidden" ||
+    if (!windowsGuest() || !isActive() || disposed || document.visibilityState === "hidden" ||
         (!document.hasFocus() && !nativeOwned)) return;
     acted();
     hovered = true;
