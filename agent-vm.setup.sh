@@ -333,7 +333,7 @@ fi
 if [[ "$INSTALL_CLAUDE" == "1" ]]; then
   echo "Installing Claude Code..."
   if [[ "${CLAUDE_CAGE:-}" == "1" ]]; then
-    # Official npm distribution; lock the first cage release to a known version.
+    # Resolve the official npm latest version when the guest installs it.
     # npm retries interrupted package transfers and verifies registry integrity.
     cage_install_tool claude
   else

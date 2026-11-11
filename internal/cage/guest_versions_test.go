@@ -327,12 +327,17 @@ dpkg() {
 }
 claude() { echo '9.9.9 (Claude Code)'; }
 npm() {
+  printf '%s\n' "$*" >> "$HOME/npm-calls"
   test "$*" = 'view --registry=https://registry.npmjs.org @anthropic-ai/claude-code@latest version --json' || return 98
   printf '%s' "$TEST_METADATA"
 }
 cage_install_tool claude`)
 			cmd.Env = append(os.Environ(), "HOME="+dir, "TEST_METADATA="+metadata)
 			out, err := cmd.CombinedOutput()
+			calls, readErr := os.ReadFile(filepath.Join(dir, "npm-calls"))
+			if readErr != nil || string(calls) != "view --registry=https://registry.npmjs.org @anthropic-ai/claude-code@latest version --json\n" {
+				t.Fatalf("resolution reached cache/install or repeated the lookup: %q %v", calls, readErr)
+			}
 			if metadata == `"9.8.7"` {
 				if err != nil || !strings.Contains(string(out), "already meets required version 9.8.7") {
 					t.Fatalf("newer install changed or latest not resolved: %v %s", err, out)
