@@ -324,6 +324,7 @@ func serveWindowsWindowRFB(stream io.ReadWriter, initial windowsWindowFrame, req
 	useTight := false
 	useTightPNG := false
 	var nextFrame time.Time
+	var desktopPacing windowsFramePacing
 	var compressed bytes.Buffer
 	var compressor *zlib.Writer
 	defer func() {
@@ -396,7 +397,8 @@ func serveWindowsWindowRFB(stream io.ReadWriter, initial windowsWindowFrame, req
 			if delay := time.Until(nextFrame); delay > 0 {
 				time.Sleep(delay)
 			}
-			nextFrame = time.Now().Add(time.Second / 30)
+			captureStarted := time.Now()
+			nextFrame = captureStarted.Add(desktopPacing.interval())
 			input := map[string]any{"action": "frame"}
 			if update[0] != 0 {
 				input["after"] = frame.Sequence
@@ -405,6 +407,7 @@ func serveWindowsWindowRFB(stream io.ReadWriter, initial windowsWindowFrame, req
 			if err = request(input, &next); err != nil {
 				return err
 			}
+			desktopPacing.observe(time.Since(captureStarted), next.Unchanged)
 			if next.Unchanged {
 				if update[0] == 0 || frame.Sequence == "" || next.Sequence != frame.Sequence {
 					return errors.New("应用画面更新标识无效")

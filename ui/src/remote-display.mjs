@@ -2,9 +2,14 @@
 // while noVNC fits the resulting framebuffer into the available CSS area.
 export function displayGeometry({ width, height }, { desktop = false, zoom = 1, density = 2 } = {}) {
   if (width < (desktop ? 320 : 160) || height < 240) return null;
-  const scale = density === 1.5 ? 1.5 : 2;
-  const ratio = scale / zoom;
-  const limit = Math.min(1, 8192 / (width * ratio), 8192 / (height * ratio));
+  const scale = desktop && Number.isFinite(density) && density >= 1 && density <= 8
+    ? density : density === 1.5 ? 1.5 : 2;
+  const automatic = desktop && zoom === "auto";
+  const ratio = scale / (automatic ? 1 : Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
+  // Automatic mode follows native guest DPI and the viewport, with a pixel
+  // budget for very large displays. Never stretch one dimension independently.
+  const limit = Math.min(1, 8192 / (width * ratio), 8192 / (height * ratio),
+    automatic ? Math.sqrt(12_000_000 / (width * height * ratio * ratio)) : 1);
   return {
     width: Math.max(desktop ? 320 : 160 * scale, Math.floor(width * ratio * limit)),
     height: Math.max(desktop ? 240 : 240 * scale, Math.floor(height * ratio * limit)),

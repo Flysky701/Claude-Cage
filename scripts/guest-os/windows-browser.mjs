@@ -747,7 +747,32 @@ export function createNativeBrowserService(options = {}) {
   async function ime(input) {
     const tab = target(input);
     if (input.target !== "browser") throw failure("input_unavailable", "Windows 客机桌面输入法应通过原生窗口通道操作");
-    if (input.mode === "status") return caret(tab);
+    if (input.mode === "status") {
+      const state = await caret(tab);
+      if (rfbPointer?.tab === tab && rfbPointer.document === tab.document) {
+        const { x, y } = rfbPointer;
+        const result = await cdp("Runtime.evaluate", {
+          expression: `(() => {
+            let element = document.elementFromPoint(${JSON.stringify(x)}, ${JSON.stringify(y)});
+            while (element?.shadowRoot) {
+              const child = element.shadowRoot.elementFromPoint(${JSON.stringify(x)}, ${JSON.stringify(y)});
+              if (!child || child === element) break;
+              element = child;
+            }
+            if (!element) return 'default';
+            const cursor = getComputedStyle(element).cursor;
+            if (cursor !== 'auto') return cursor;
+            const editable = element.isContentEditable || element.tagName === 'TEXTAREA' ||
+              (element.tagName === 'INPUT' && ['text','search','url','tel','email','password','number'].includes(element.type));
+            return editable ? 'text' : 'default';
+          })()`,
+          returnByValue: true,
+        }, tab.session);
+        const cursor = result.result?.value;
+        state.cursor = ["text", "pointer", "default"].includes(cursor) ? cursor : "default";
+      }
+      return state;
+    }
     input = { text: "", selectionStart: 0, selectionEnd: 0, ...input };
     if (!tokenPattern.test(input.session || "") || !Number.isSafeInteger(input.sequence) || input.sequence < 0 || typeof input.text !== "string" || Buffer.byteLength(input.text) > 8192)
       throw failure("invalid_input", "输入法组合状态无效");

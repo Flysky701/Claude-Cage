@@ -13,6 +13,21 @@ test("normal size preserves logical pixels; zoom changes workspace, large displa
   assert.equal(displayGeometry({ width: 0, height: 700 }), null);
 });
 
+test("native desktop honors its actual DPI instead of silently doubling 100% and 125% guests", () => {
+  for (const density of [1, 1.25, 1.5, 1.75, 2, 2.5, 3]) {
+    assert.deepEqual(displayGeometry({ width: 1200, height: 800 }, { desktop: true, density }),
+      { width: 1200 * density, height: 800 * density });
+  }
+});
+
+test("automatic desktop fits the window at native readable scale and bounds large allocations", () => {
+  assert.deepEqual(displayGeometry({ width: 1200, height: 800 }, { desktop: true, zoom: "auto", density: 1 }),
+    { width: 1200, height: 800 });
+  const large = displayGeometry({ width: 6000, height: 4000 }, { desktop: true, zoom: "auto", density: 3 });
+  assert.ok(large.width * large.height <= 12_000_000);
+  assert.ok(Math.abs(large.width / large.height - 1.5) < 0.002);
+});
+
 test("a slow guest applies the newest size last without concurrent requests", async () => {
   const requests = [];
   let release;
