@@ -62,7 +62,7 @@ try {
     }
     & (Join-Path $PSScriptRoot 'build-windows.ps1') -Release:$Release
     Invoke-BuildTool $windowsPowerShell @('-NoProfile', '-NonInteractive', '-File', 'scripts/guest-os/windows-host-enrollment.tests.ps1')
-    foreach ($test in @('windows-iso-setup.tests.ps1', 'windows-host-image.tests.ps1', 'new-windows-test-vm.tests.ps1')) {
+    foreach ($test in @('windows-iso-setup.tests.ps1', 'windows-host-image.tests.ps1', 'new-windows-test-vm.tests.ps1', 'windows-workbench-packages.tests.ps1', 'claude-desktop-windows.tests.ps1')) {
         Invoke-BuildTool $windowsPowerShell @('-NoProfile', '-NonInteractive', '-File', "scripts/guest-os/$test")
     }
     Invoke-BuildTool 'go' @('test', './internal/guestos', '-run', '^TestWindows(HostEnrollment|UserToolACL)', '-count=1')
