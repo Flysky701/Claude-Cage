@@ -29,12 +29,12 @@ jobs:
       image: ubuntu:22.04
       # docker-default AppArmor denies bubblewrap's private mount namespace.
       # Relax only this disposable outer container; WebKit keeps its sandbox.
-      options: --security-opt seccomp=unconfined --security-opt systempaths=unconfined --security-opt apparmor=unconfined
+      options: --init --security-opt seccomp=unconfined --security-opt systempaths=unconfined --security-opt apparmor=unconfined
     steps:
       - name: Install build and test dependencies
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libjson-glib-dev dpkg-dev curl ca-certificates git software-properties-common qemu-system-x86 qemu-utils ovmf openssh-client iproute2 dbus-x11 xvfb xauth fonts-noto-cjk zsh sudo
+          DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libjson-glib-dev dpkg-dev curl ca-certificates git software-properties-common qemu-system-x86 qemu-utils ovmf openssh-client iproute2 dbus-x11 xvfb xauth fonts-noto-cjk zsh sudo tzdata
           # The supported 22.04 ABI predates safe.bareRepository. Use the Git
           # project's documented Ubuntu packages, preserving the runtime gate.
           add-apt-repository -y ppa:git-core/ppa

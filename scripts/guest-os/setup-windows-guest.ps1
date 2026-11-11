@@ -91,6 +91,8 @@ finally { if ($progressStream) { $progressStream.Dispose() } }
     try{
         if($context){Wait-CageHostEnrollment $context $worker}
         $process=Start-Process -FilePath (Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell/v1.0/powershell.exe') -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','RemoteSigned','-EncodedCommand',$encoded) -Verb RunAs -PassThru
+        # Windows PowerShell 5.1 must retain a handle before waiting to read ExitCode.
+        $null=$process.Handle
         if($context){Set-CageHostEnrollmentAdmin $context $process}
         Wait-CageWindowsInstaller $process $progressFile
         if($process.ExitCode -ne 0){throw 'Windows setup did not complete; existing VM and data were preserved.'}
