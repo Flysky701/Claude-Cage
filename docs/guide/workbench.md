@@ -3,7 +3,7 @@ title: 项目、终端与文件
 description: 在同一工作台运行 Claude Code、编辑代码、传递附件，并弄清关闭和退出对任务的影响。
 group: 日常工作
 order: 3
-keywords: 项目 Claude Code 编辑器 code-server 文件 复制 粘贴 快捷键 分屏 标签 localhost
+keywords: 项目 Claude Code 编辑器 code-server Git GitHub gh 提交 推送 文件 复制 粘贴 快捷键 分屏 标签 localhost
 ---
 ## 打开项目与编辑文件
 
@@ -23,6 +23,41 @@ keywords: 项目 Claude Code 编辑器 code-server 文件 复制 粘贴 快捷�
   <a href="../../www/public/docs/screenshots/first-start.jpg" target="_blank" rel="noopener"><img src="../../www/public/docs/screenshots/first-start.jpg" alt="工作台侧栏、默认项目与终端入口（环境未启动）" width="2560" height="1764" loading="lazy" decoding="async" /></a>
   <figcaption>工作台侧栏、默认项目与终端入口（环境未启动）。截图版本：0.1.6-alpha-preview（开发构建） · macOS 原生应用 · 2026-11-07。<a href="../../www/public/docs/screenshots/first-start.jpg" target="_blank" rel="noopener">查看原图（2560 × 1764） ↗</a></figcaption>
 </figure>
+
+## Git 提交与 GitHub 登录
+
+Git 可以在已共享的可写项目中暂存、提交和切换分支。首次提交前，在 Cage 的普通终端中检查提交者信息；没有配置时，填写自己希望出现在提交记录中的姓名和邮箱。GitHub 的隐私邮箱也可使用。
+
+```sh
+git config --global --get user.name
+git config --global --get user.email
+git config --global user.name "你的提交者姓名"
+git config --global user.email "你的提交者邮箱"
+```
+
+全局设置作用于当前环境内的所有项目。单个项目需要不同身份时，在项目目录中用 `--local` 代替 `--global`。仓库已有的本地设置优先；若提交要求 GPG 或 SSH 签名，需要在环境内另行配置签名工具与密钥。
+
+推送私有仓库、管理 PR 或关闭 Issue 还需要 GitHub 授权。GitHub CLI（`gh`）随环境工具安装；旧环境提示找不到命令时，先到“设置 → 环境版本”更新环境工具，再新建普通终端。macOS、Windows 和 Linux 使用相同的登录命令：
+
+```sh
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git --hostname github.com
+gh auth status --hostname github.com
+```
+
+按终端提示打开 GitHub 授权页，输入一次性代码并由本人确认授权；浏览器没有自动打开时，也可手动访问终端显示的地址。`gh auth setup-git` 让 HTTPS Git 操作使用这次登录。具体行为见 [GitHub 登录说明](https://cli.github.com/manual/gh_auth_login)和 [Git 凭据配置说明](https://cli.github.com/manual/gh_auth_setup-git)。
+
+登录保存在当前环境中，重启和更新继续保留；本机 Chrome 的登录、SSH 私钥与 Git 凭据不会自动导入。`gh` 优先使用系统凭据存储，不可用时会保存到环境内的配置文件，可用 `gh auth status` 查看存储位置。浏览器登录和命令行授权分别管理。
+
+登录完成后，检查项目的远端地址。HTTPS 授权不会替 SSH 地址完成认证；若 `origin` 仍使用 `git@github.com:…`，可在确认仓库地址后改为 HTTPS：
+
+```sh
+git remote -v
+git remote set-url origin https://github.com/仓库所有者/仓库名.git
+git push
+```
+
+登录账户仍需拥有目标仓库的写入权限；组织 SSO、分支保护和工作流权限继续由 GitHub 管理。
 
 ## 新建 Claude 终端
 

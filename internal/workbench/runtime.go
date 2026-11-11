@@ -437,7 +437,7 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 		bound := cfg.ExitPolicy.BindMissing(loc.exitLocation())
 		if bound != cfg.ExitPolicy {
 			cfg.ExitPolicy = bound
-			if err = writePrivate(s.configPath, cfg); err != nil {
+			if err = s.saveExitPolicyConfig(cfg); err != nil {
 				return err
 			}
 		}
@@ -608,7 +608,12 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 			return err
 		}
 	}
-	if err = writePrivate(s.configPath, v.Config); err != nil {
+	if v.Config.RequireManagedProxy(s.profile) == nil {
+		err = s.saveExitPolicyConfig(v.Config)
+	} else {
+		err = writePrivate(s.configPath, v.Config)
+	}
+	if err != nil {
 		return err
 	}
 	if err = writePrivate(filepath.Join(s.profile, "workbench.json"), v.Preferences); err != nil {
