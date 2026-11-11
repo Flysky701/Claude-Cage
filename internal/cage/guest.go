@@ -269,12 +269,11 @@ func RequiredToolVersions() map[string]string {
 			result["code_server"] = value
 		case "CAGE_MISE_VERSION":
 			result["mise"] = value
-		case "CAGE_CLAUDE_VERSION":
-			result["claude"] = value
 		case "CAGE_GH_VERSION":
 			result["gh"] = value
 		}
 	}
+	result["claude"] = "官方最新版（下载时解析）"
 	return result
 }
 
