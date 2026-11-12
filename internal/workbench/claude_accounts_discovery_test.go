@@ -322,6 +322,52 @@ func TestClaudeDuplicateLoginRecoveryFailureKeepsOriginalBinding(t *testing.T) {
 	}
 }
 
+func TestClaudeDuplicateLoginRecoveryKeepsTerminalExclusion(t *testing.T) {
+	for _, scenario := range []string{"running", "login", "operation_busy", "completed", "other_account"} {
+		t.Run(scenario, func(t *testing.T) {
+			s := testServer(t)
+			id := strings.Repeat("a", 24)
+			reading := claudeGuestSnapshot{LoggedIn: true, Email: "same@example.org", Organization: "work"}
+			list := claudeAccountList{Accounts: []claudeAccount{{ID: id, Source: "managed", Email: reading.Email, Organization: reading.Organization, Status: "signed_out"}}}
+			if err := s.saveClaudeAccounts(list); err != nil {
+				t.Fatal(err)
+			}
+			login, err := s.selectClaudeAccount("", true, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.claudeAccounts.probe = func(context.Context, string) (claudeGuestSnapshot, error) { return reading, nil }
+			var restored bool
+			s.claudeAccounts.recoverLogin = func(context.Context, string, string, string) (claudeGuestSnapshot, error) {
+				restored = true
+				return reading, nil
+			}
+			session := &terminalSession{kind: "claude", claudeAccountID: id, done: make(chan struct{})}
+			switch scenario {
+			case "login":
+				session.kind = "claude-login"
+			case "completed":
+				close(session.done)
+			case "other_account":
+				session.claudeAccountID = strings.Repeat("b", 24)
+			case "operation_busy":
+				close(session.done)
+				s.op.Lock()
+				defer s.op.Unlock()
+			}
+			s.terminals.sessions = map[string]*terminalSession{"original": session}
+			if err := s.confirmClaudeLogin(context.Background(), login.ID); err != nil {
+				t.Fatal(err)
+			}
+			allowed := scenario == "completed" || scenario == "other_account"
+			got, err := s.loadClaudeAccounts()
+			if err != nil || restored != allowed || (got.Accounts[0].Status == "ready") != allowed || got.Accounts[0].guestID() != id {
+				t.Fatalf("original terminal exclusion changed: restored=%v, %+v, %v", restored, got, err)
+			}
+		})
+	}
+}
+
 func TestClaudeDefaultConcurrentDiscoverySingleProbe(t *testing.T) {
 	s := testServer(t)
 	s.ready = true

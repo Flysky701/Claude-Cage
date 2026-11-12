@@ -366,7 +366,7 @@ func (s *Server) runClaudeRefresh(parent context.Context, id, guestID string, ca
 					} else {
 						// Rebinding ProfileID would strand conversations pinned to
 						// the old directory. Recover its missing login in the guest.
-						recovered, recoveryErr := s.recoverClaudeLogin(ctx, existing.guestID(), id, reading.subject())
+						recovered, recoveryErr := s.recoverClaudeLogin(ctx, existing.ID, existing.guestID(), id, reading.subject())
 						if epoch.Err() != nil {
 							err = errClaudeAccessLost
 							return
@@ -411,7 +411,18 @@ func (s *Server) runClaudeRefresh(parent context.Context, id, guestID string, ca
 	}
 }
 
-func (s *Server) recoverClaudeLogin(ctx context.Context, target, source, subject string) (claudeGuestSnapshot, error) {
+func (s *Server) recoverClaudeLogin(ctx context.Context, accountID, target, source, subject string) (claudeGuestSnapshot, error) {
+	// Refresh holds the account lock. TryLock preserves terminal admission's
+	// op -> account lock order and keeps the original login exclusion in force.
+	if !s.op.TryLock() {
+		return claudeGuestSnapshot{}, errTerminalBusy
+	}
+	defer s.op.Unlock()
+	if login, err := s.terminals.existingClaudeLogin(accountID, true); err != nil {
+		return claudeGuestSnapshot{}, err
+	} else if login != nil {
+		return claudeGuestSnapshot{}, errors.New("请先完成原账号的登录")
+	}
 	if recover := s.claudeAccounts.recoverLogin; recover != nil {
 		return recover(ctx, target, source, subject)
 	}
