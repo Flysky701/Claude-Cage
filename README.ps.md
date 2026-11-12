@@ -31,6 +31,8 @@ Claude Cage ټرمینل، براوزر، سمونګر او رسمي Claude Desk
 | :---: | :---: |
 | <a href="assets/network-checks.png"><img src="assets/network-checks.png" alt="د شبکې او جلاوالي کتنې" width="400" /></a> | <a href="assets/community-browser-check.png"><img src="assets/community-browser-check-cropped.png" alt="د ټولنې د براوزر کتنه" width="400" /></a> |
 
+[FuckClaude](https://fuck-claude.vercel.app/) · [LinXiaoTao / GitHub](https://github.com/LinXiaoTao/FuckClaude)
+
 **د Cage اصلي انٹرفیس:**
 
 ![Cage](www/public/workbench-2026-11.jpg)

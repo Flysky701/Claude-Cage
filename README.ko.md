@@ -31,6 +31,8 @@ Claude Cage는 터미널, 브라우저, 편집기와 공식 Claude Desktop을 �
 | :---: | :---: |
 | <a href="assets/network-checks.png"><img src="assets/network-checks.png" alt="네트워크 및 격리 검사" width="400" /></a> | <a href="assets/community-browser-check.png"><img src="assets/community-browser-check-cropped.png" alt="커뮤니티 브라우저 검사" width="400" /></a> |
 
+[FuckClaude](https://fuck-claude.vercel.app/) · [LinXiaoTao / GitHub](https://github.com/LinXiaoTao/FuckClaude)
+
 **Cage의 기본 인터페이스:**
 
 ![Cage](www/public/workbench-2026-11.jpg)
