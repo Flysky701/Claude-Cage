@@ -1,7 +1,7 @@
-name: 解决方案分享
+name: 方案贡献（Contribution）
 description: 通过 Issue 分享修复方案、实现代码或补丁，供维护者评估整合。
-title: "[Solution] "
-labels: [solution]
+title: "[Contribution] "
+labels: [contribution]
 body:
   - type: markdown
     attributes:
