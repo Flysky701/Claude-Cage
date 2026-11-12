@@ -22,7 +22,7 @@ const guideLabels: Record<CageLocale, string> = {
   ps: 'لارښود · 中文', prs: 'راهنما · 中文', am: 'መመሪያ · 中文', so: 'Hagaha · 中文', ti: 'መምርሒ · 中文', fr: 'Documentation · 中文',
 };
 const guideLabel = guideLabels[locale];
-const docHref = (href: string) => href.replace('https://lee-xeo.github.io/Claude-Cage/docs/', `${base}docs/`);
+const docHref = (href: string) => href.replace('https://claude-cage.com/docs/', `${base}docs/`);
 const platforms = [
   { name: 'macOS', icon: 'apple', requirements: 'Apple Silicon · macOS 14+', format: '.dmg',
     url: published.downloadURL, version: published.version, notes: published.releaseURL, guideURL: `${repo}/blob/main/docs/getting-started.md` },
