@@ -8,7 +8,7 @@
 
 [![Release](https://img.shields.io/github/v/release/Lee-xeo/Claude-Cage?include_prereleases)](https://github.com/Lee-xeo/Claude-Cage/releases) [![CI](https://github.com/Lee-xeo/Claude-Cage/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Lee-xeo/Claude-Cage/actions/workflows/ci.yml) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<a href="https://trendshift.io/repositories/339051#achievements"><img src="https://trendshift.io/api/badge/trendshift/repositories/339051/daily?language=Go" alt="Trendshift — Go Repository of the Day" width="250" height="55" /></a>
+<a href="https://trendshift.io/repositories/339051#achievements"><img src="https://trendshift.io/api/badge/trendshift/repositories/339051/daily?language=Go" alt="Trendshift — Go Repository of the Day" width="250" height="55" /></a> <a href="https://trendshift.io/repositories/339051#achievements"><img src="https://trendshift.io/api/badge/trendshift/repositories/339051/weekly?language=Go" alt="Trendshift — Go Repository of the Week" width="250" height="55" /></a>
 
 **[ပရောဂျက်ဝက်ဘ်ဆိုက်](https://lee-xeo.github.io/Claude-Cage/) · [အက်ပ်ကို ဒေါင်းလုဒ်လုပ်ရန်](https://lee-xeo.github.io/Claude-Cage/my/#download) · [စတင်လုပ်ဆောင်ခြင်း။](docs/getting-started.md) · [FAQ](docs/troubleshooting.md) · [အသုံးပြုမှုလမ်းညွှန် (တရုတ်ဘာသာ)](https://lee-xeo.github.io/Claude-Cage/docs/)**
 
