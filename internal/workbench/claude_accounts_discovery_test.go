@@ -329,7 +329,7 @@ func TestClaudeDuplicateLoginRecoveryFailureKeepsOriginalBinding(t *testing.T) {
 }
 
 func TestClaudeDuplicateLoginRecoveryKeepsTerminalExclusion(t *testing.T) {
-	for _, scenario := range []string{"running", "login", "operation_busy", "completed", "other_account"} {
+	for _, scenario := range []string{"running", "login", "operation_busy", "completed", "other_account", "mobile_running", "mobile_completed", "mobile_other_account"} {
 		t.Run(scenario, func(t *testing.T) {
 			s := testServer(t)
 			id := strings.Repeat("a", 24)
@@ -360,12 +360,21 @@ func TestClaudeDuplicateLoginRecoveryKeepsTerminalExclusion(t *testing.T) {
 				close(session.done)
 				s.op.Lock()
 				defer s.op.Unlock()
+			case "mobile_running", "mobile_completed", "mobile_other_account":
+				close(session.done)
+				run := &mobileRun{record: &mobileRecord{Account: claudeSelection{ID: id}}, cancel: func() {}, done: session.done}
+				if scenario == "mobile_completed" {
+					run.cancel = nil
+				} else if scenario == "mobile_other_account" {
+					run.record.Account.ID = strings.Repeat("b", 24)
+				}
+				s.mobileCLI.active = map[string]*mobileRun{"mobile": run}
 			}
 			s.terminals.sessions = map[string]*terminalSession{"original": session}
 			if err := s.confirmClaudeLogin(context.Background(), login.ID); err != nil {
 				t.Fatal(err)
 			}
-			allowed := scenario == "completed" || scenario == "other_account"
+			allowed := scenario == "completed" || scenario == "other_account" || scenario == "mobile_completed" || scenario == "mobile_other_account"
 			got, err := s.loadClaudeAccounts()
 			if err != nil || restored != allowed || (got.Accounts[0].Status == "ready") != allowed || got.Accounts[0].guestID() != id {
 				t.Fatalf("original terminal exclusion changed: restored=%v, %+v, %v", restored, got, err)
