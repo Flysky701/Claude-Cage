@@ -123,12 +123,35 @@ printf '%s\\n' "$@"
                 helper.recover_login("claude", target, SECOND, self.subject)
         self.assertEqual(destination.read_bytes(), b"concurrent original login")
 
-    def test_duplicate_login_recovery_rolls_back_failed_verification(self):
+    def test_duplicate_login_recovery_preserves_credentials_on_failed_verification(self):
         target, source, credential, reading = self.recovery_profiles()
         with patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=[{"logged_in": False}, reading, {"logged_in": False}]):
             self.assertFalse(helper.recover_login("claude", target, SECOND, self.subject)["logged_in"])
-        self.assertFalse((target / "config/.credentials.json").exists())
-        self.assertTrue(credential.exists())
+        self.assertEqual((target / "config/.credentials.json").read_bytes(), credential.read_bytes())
+
+    def test_duplicate_login_recovery_preserves_credentials_on_verification_error(self):
+        target, source, credential, reading = self.recovery_profiles()
+        with patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=[{"logged_in": False}, reading, ValueError("unexpected auth status")]):
+            with self.assertRaises(ValueError):
+                helper.recover_login("claude", target, SECOND, self.subject)
+        self.assertEqual((target / "config/.credentials.json").read_bytes(), credential.read_bytes())
+
+    def test_duplicate_login_recovery_preserves_replacement_at_publication(self):
+        target, source, credential, reading = self.recovery_profiles()
+        destination = target / "config/.credentials.json"
+        original_link = os.link
+
+        def publish_then_replace(src, dst):
+            original_link(src, dst)
+            replacement = target / "concurrent-login"
+            replacement.write_bytes(b"concurrent login credentials")
+            replacement.chmod(0o600)
+            replacement.replace(dst)
+
+        with patch.dict(os.environ, self.env), patch.object(helper.os, "link", side_effect=publish_then_replace), patch.object(helper, "identity", side_effect=[{"logged_in": False}, reading, {"logged_in": False}]):
+            self.assertFalse(helper.recover_login("claude", target, SECOND, self.subject)["logged_in"])
+        self.assertEqual(destination.read_bytes(), b"concurrent login credentials")
+        self.assertEqual(credential.read_bytes(), b"opaque-private-fixture")
 
     def test_duplicate_login_recovery_does_not_remove_a_concurrent_replacement(self):
         target, source, credential, reading = self.recovery_profiles()
@@ -170,6 +193,29 @@ printf '%s\\n' "$@"
         self.assertNotIn("must-not-appear", result.stdout + result.stderr)
         self.assertNotEqual(self.run_helper("recover-login", FIRST, FIRST, self.subject, check=False).returncode, 0)
         self.assertNotEqual(self.run_helper("recover-login", FIRST, "../outside", self.subject, check=False).returncode, 0)
+
+    def test_duplicate_login_recovery_command_copies_missing_login(self):
+        target, source, credential, reading = self.recovery_profiles()
+        fake = self.home / ".local/bin/claude"
+        original = fake.read_text()
+        fake.write_text(original.replace(
+            '  method=claude.ai;',
+            '''  if [ ! -f "$CLAUDE_CONFIG_DIR/.credentials.json" ]; then
+    printf '{"configDirectory":"%s","loggedIn":false}' "$CLAUDE_CONFIG_DIR"
+    exit 1
+  fi
+  method=claude.ai;''',
+        ))
+        history = target / "config/history.jsonl"
+        history.write_bytes(b"original conversation\n")
+        result = self.run_helper("recover-login", FIRST, SECOND, self.subject)
+        self.assertEqual(json.loads(result.stdout), reading)
+        destination = target / "config/.credentials.json"
+        self.assertEqual(destination.read_bytes(), credential.read_bytes())
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(history.read_bytes(), b"original conversation\n")
+        self.assertNotIn("opaque-private-fixture", result.stdout + result.stderr)
+        self.assertNotIn("must-not-appear", result.stdout + result.stderr)
 
     def test_missing_window_keeps_its_observation_time(self):
         now = int(time.time())

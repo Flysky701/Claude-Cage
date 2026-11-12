@@ -134,24 +134,11 @@ def recover_login(binary, target, source_id, expected):
         temporary.flush()
         os.fsync(temporary.fileno())
         os.link(temporary.name, destination)
-    published = destination.stat()
-    recovered = None
-    try:
-        recovered = identity(binary, env, Path.home())
-        if subject(recovered) == expected:
-            return recovered
-        return {"logged_in": False}
-    finally:
-        # On verification failure, undo only our unchanged new file. Never
-        # remove a credential refreshed or replaced by another CLI process.
-        if recovered is None or subject(recovered) != expected:
-            try:
-                now = destination.lstat()
-            except FileNotFoundError:
-                pass
-            else:
-                if (now.st_dev, now.st_ino, now.st_mtime_ns, now.st_size) == (published.st_dev, published.st_ino, published.st_mtime_ns, published.st_size):
-                    destination.unlink()
+    # The CLI can refresh or replace this path independently of the controller.
+    # Retain published credentials on failure: checking file identity before an
+    # unlink cannot prevent deleting a concurrent login's replacement.
+    recovered = identity(binary, env, Path.home())
+    return recovered if subject(recovered) == expected else {"logged_in": False}
 
 
 def json_file(path):

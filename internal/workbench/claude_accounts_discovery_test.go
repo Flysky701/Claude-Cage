@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/sylvinus/agent-vm/internal/guestos"
 )
 
 func TestClaudeDefaultDiscoveryJoinAndLiveIdentity(t *testing.T) {
@@ -273,7 +275,7 @@ func TestClaudeDuplicateLoginRecoversOriginalManagedProfile(t *testing.T) {
 }
 
 func TestClaudeDuplicateLoginRecoveryFailureKeepsOriginalBinding(t *testing.T) {
-	for _, scenario := range []string{"unsupported", "wrong_identity", "locked", "cancelled"} {
+	for _, scenario := range []string{"unsupported", "windows", "wrong_identity", "locked", "cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
 			s := testServer(t)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -302,6 +304,10 @@ func TestClaudeDuplicateLoginRecoveryFailureKeepsOriginalBinding(t *testing.T) {
 				default:
 					return claudeGuestSnapshot{}, errors.New("keychain-backed login")
 				}
+			}
+			if scenario == "windows" {
+				s.windowsGuest = &guestos.WindowsProfile{}
+				s.claudeAccounts.recoverLogin = nil
 			}
 			err = s.confirmClaudeLogin(ctx, login.ID)
 			if (err != nil) != (scenario == "locked" || scenario == "cancelled") {
