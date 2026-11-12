@@ -21,9 +21,18 @@ export function cageWheelPacket(x, y, dx, dy) {
     return packet;
 }
 
+// A notched wheel reports whole steps: its legacy delta is a multiple of 120.
+// A trackpad and a free-spinning wheel report the distance they moved.
+export function cageWheelNotched(event) {
+    if (event.deltaMode !== 0) return true;
+    const steps = event.wheelDeltaY || event.wheelDeltaX || 0;
+    return Math.abs(steps) >= 120 && steps % 120 === 0;
+}
+
 // A trackpad reports many small distances, and each message is a round trip
 // to the guest. The first goes out at once; later ones are added up and sent
 // once per frame. Distance beyond the limit of one message stays for the next.
+// A send that returns a promise is followed only after it has settled.
 export default class CageWheel {
     constructor(send, schedule = callback => requestAnimationFrame(callback),
                 cancel = handle => cancelAnimationFrame(handle)) {
@@ -32,6 +41,7 @@ export default class CageWheel {
         this._cancel = cancel;
         this._x = this._y = this._dx = this._dy = 0;
         this._frame = null;
+        this._busy = null;
     }
 
     add(x, y, dx, dy) {
@@ -39,24 +49,43 @@ export default class CageWheel {
         this._y = y;
         this._dx += dx;
         this._dy += dy;
-        if (this._frame === null) this._flush();
+        if (this._frame === null && !this._busy) this._flush();
+    }
+
+    // The distance not sent yet, which the caller now delivers another way.
+    take() {
+        const rest = { dx: this._dx, dy: this._dy };
+        this._dx = this._dy = 0;
+        return rest;
     }
 
     _flush() {
-        this._frame = null;
         const dx = Math.max(-cageWheelLimit, Math.min(cageWheelLimit, Math.round(this._dx)));
         const dy = Math.max(-cageWheelLimit, Math.min(cageWheelLimit, Math.round(this._dy)));
         // Less than a pixel waits for the next event.
         if (!dx && !dy) return;
         this._dx -= dx;
         this._dy -= dy;
-        this._send(this._x, this._y, dx, dy);
-        this._frame = this._schedule(() => this._flush());
+        const sent = this._send(this._x, this._y, dx, dy);
+        if (sent && typeof sent.then === 'function') {
+            const settled = () => {
+                if (this._busy !== sent) return;
+                this._busy = null;
+                if (this._frame === null) this._flush();
+            };
+            this._busy = sent;
+            sent.then(settled, settled);
+        }
+        this._frame = this._schedule(() => {
+            this._frame = null;
+            if (!this._busy) this._flush();
+        });
     }
 
     stop() {
         if (this._frame !== null) this._cancel(this._frame);
         this._frame = null;
+        this._busy = null;
         this._dx = this._dy = 0;
     }
 }
