@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import CageWheel, { cageWheelLimit, cageWheelMessage, cageWheelNotched, cageWheelPacket } from "../vendor/novnc/core/cage-wheel.js";
+import CageWheel, { cageWheelLimit, cageWheelMessage, cageWheelNotched, cageWheelPacket, cageWheelPending } from "../vendor/novnc/core/cage-wheel.js";
 
 function fixture() {
   const sent = [], frames = [];
@@ -57,34 +57,38 @@ test("a message carries its position and signed distances", () => {
   assert.deepEqual([view.getUint16(2), view.getUint16(4), view.getInt32(6), view.getInt32(10)], [513, 1026, -720, 2048]);
 });
 
-test("a send that reports back is followed only after its answer", async () => {
+test("a few sends may be under way, and more distance waits for an answer", async () => {
   const sent = [], frames = [], answers = [];
   const wheel = new CageWheel((...message) => { sent.push(message); return new Promise(resolve => answers.push(resolve)); },
     callback => frames.push(callback), handle => { frames[handle - 1] = null; });
   const frame = () => { for (const callback of frames.splice(0)) callback?.(); };
+  // A distant guest answers slower than frames pass: it still gets one per frame.
   wheel.add(1, 2, 0, 10);
-  wheel.add(1, 2, 0, 5);
-  // Frames pass while the guest has not answered: nothing is sent twice.
-  frame();
-  frame();
+  for (const distance of [5, 6]) { wheel.add(1, 2, 0, distance); frame(); }
+  assert.deepEqual(sent, [[1, 2, 0, 10], [1, 2, 0, 5], [1, 2, 0, 6]]);
+  assert.equal(cageWheelPending, 3);
+  // The limit is reached: frames pass and nothing more is sent.
   wheel.add(1, 2, 0, 7);
-  assert.deepEqual(sent, [[1, 2, 0, 10]]);
+  frame();
+  wheel.add(1, 2, 0, 8);
+  frame();
+  assert.equal(sent.length, 3);
   answers.shift()(true);
   await Promise.resolve();
-  assert.deepEqual(sent, [[1, 2, 0, 10], [1, 2, 0, 12]]);
+  assert.deepEqual(sent[3], [1, 2, 0, 15]);
   // An answer ahead of the frame waits for the frame.
   wheel.add(1, 2, 0, 3);
   answers.shift()(true);
   await Promise.resolve();
-  assert.equal(sent.length, 2);
+  assert.equal(sent.length, 4);
   frame();
-  assert.deepEqual(sent[2], [1, 2, 0, 3]);
-  // A failed send does not stop the next one.
-  answers.shift()(Promise.reject(new Error("gone")));
+  assert.deepEqual(sent[4], [1, 2, 0, 3]);
+  // A failed send does not hold the following ones back.
+  for (const answer of answers.splice(0)) answer(Promise.reject(new Error("gone")));
   await new Promise(resolve => setTimeout(resolve));
   frame();
   wheel.add(1, 2, 0, 4);
-  assert.deepEqual(sent[3], [1, 2, 0, 4]);
+  assert.deepEqual(sent[5], [1, 2, 0, 4]);
 });
 
 test("the distance not yet sent can be taken for another delivery", () => {
