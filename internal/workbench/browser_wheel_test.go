@@ -60,7 +60,7 @@ func TestBrowserWheelReachesTheLinuxControllerWithItsDistance(t *testing.T) {
 
 func TestBrowserWheelIsOfferedOnlyByLinuxGuests(t *testing.T) {
 	offered := func(s *Server) bool {
-		w := request(s, "GET", "/api/vnc-credentials", "", "", true)
+		w := windowsBrowserRequestForTest(s, http.MethodGet, "/api/vnc-credentials", nil)
 		var reply struct {
 			Wheel bool `json:"pixel_wheel"`
 		}
@@ -79,8 +79,16 @@ func TestBrowserWheelIsOfferedOnlyByLinuxGuests(t *testing.T) {
 	if offered(s) {
 		t.Fatal("native guest offers a controller wheel")
 	}
-	// Its routes do not include the controller's wheel at all.
-	if w := request(s, "POST", "/api/browser/wheel", s.origin, `{"x":1,"y":1,"deltaY":5}`, true); w.Code != 403 && w.Code != 400 {
+	// Authenticated native requests must reject the controller's wheel.
+	if w := windowsBrowserRequestForTest(s, http.MethodPost, "/api/browser/wheel", []byte(`{"x":1,"y":1,"deltaY":5}`)); w.Code != http.StatusBadRequest {
 		t.Fatal("native guest accepted a controller wheel", w.Code)
+	}
+	s.windowsGuest = nil
+	s.macosGuest = &guestos.MacOSProfile{}
+	if offered(s) {
+		t.Fatal("macOS guest offers a controller wheel")
+	}
+	if w := windowsBrowserRequestForTest(s, http.MethodPost, "/api/browser/wheel", []byte(`{"x":1,"y":1,"deltaY":5}`)); w.Code != http.StatusBadRequest {
+		t.Fatal("macOS guest accepted a controller wheel", w.Code)
 	}
 }
