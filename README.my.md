@@ -31,6 +31,8 @@ Claude Cage သည် terminal၊ browser၊ editor နှင့် တရား
 | :---: | :---: |
 | <a href="assets/network-checks.png"><img src="assets/network-checks.png" alt="ကွန်ရက်နှင့် သီးခြားခွဲထားမှု စစ်ဆေးချက်များ" width="400" /></a> | <a href="assets/community-browser-check.png"><img src="assets/community-browser-check-cropped.png" alt="အသိုင်းအဝိုင်း၏ ဘရောက်ဇာ စစ်ဆေးချက်" width="400" /></a> |
 
+[FuckClaude](https://fuck-claude.vercel.app/) · [LinXiaoTao / GitHub](https://github.com/LinXiaoTao/FuckClaude)
+
 **Cage ၏ အဓိက အင်တာဖေ့စ်**
 
 ![Cage](www/public/workbench-2026-11.jpg)

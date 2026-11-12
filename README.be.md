@@ -31,6 +31,8 @@ Claude Cage аб’ядноўвае тэрмінал, браўзер, рэдак
 | :---: | :---: |
 | <a href="assets/network-checks.png"><img src="assets/network-checks.png" alt="Праверка сеткі і ізаляцыі" width="400" /></a> | <a href="assets/community-browser-check.png"><img src="assets/community-browser-check-cropped.png" alt="Праверка браўзера ад супольнасці" width="400" /></a> |
 
+[FuckClaude](https://fuck-claude.vercel.app/) · [LinXiaoTao / GitHub](https://github.com/LinXiaoTao/FuckClaude)
+
 **Асноўны інтэрфейс Cage:**
 
 ![Cage](www/public/workbench-2026-11.jpg)

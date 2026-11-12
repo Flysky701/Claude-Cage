@@ -24,8 +24,8 @@ const diagnostics = [
   },
   {
     name: "浏览器信息",
-    source: "fuck-claude.com",
-    url: "https://fuck-claude.com/",
+    source: "fuck-claude.vercel.app",
+    url: "https://fuck-claude.vercel.app/",
     description: "查看时区、语言、字体等浏览器信号的社区评估。",
     attribution: "原项目 FuckClaude 由 LinXiaoTao 创建并持续维护。",
     links: [

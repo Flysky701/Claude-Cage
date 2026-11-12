@@ -31,6 +31,8 @@ Claude Cage 让你在熟悉的系统里与 Claude 一起工作：Mac 上用 macO
 | :---: | :---: |
 | <a href="assets/network-checks.png"><img src="assets/network-checks.png" alt="网络与隔离检查" width="400" /></a> | <a href="assets/community-browser-check.png"><img src="assets/community-browser-check-cropped.png" alt="浏览器环境检测（社区参考）" width="400" /></a> |
 
+[FuckClaude](https://fuck-claude.vercel.app/) · [LinXiaoTao / GitHub](https://github.com/LinXiaoTao/FuckClaude)
+
 **Cage 运行主界面：**
 
 ![Cage](www/public/workbench-2026-11.jpg)

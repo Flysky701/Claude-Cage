@@ -31,6 +31,8 @@ Claude Cage reúne terminal, navegador, editor y Claude Desktop oficial en un mi
 | :---: | :---: |
 | <a href="assets/network-checks.png"><img src="assets/network-checks.png" alt="Comprobación de red y aislamiento" width="400" /></a> | <a href="assets/community-browser-check.png"><img src="assets/community-browser-check-cropped.png" alt="Comprobación del navegador de la comunidad" width="400" /></a> |
 
+[FuckClaude](https://fuck-claude.vercel.app/) · [LinXiaoTao / GitHub](https://github.com/LinXiaoTao/FuckClaude)
+
 **Interfaz principal de Cage:**
 
 ![Cage](www/public/workbench-2026-11.jpg)
