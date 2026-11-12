@@ -115,7 +115,8 @@ Para consultar el índice completo, consulte [Índice de documentación](docs/RE
 El proyecto está evolucionando rápidamente. Únase al grupo comunitario para compartir comentarios; Los mantenedores de la comunidad son bienvenidos.
 
 <p align="center">
-  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ · 1134250870" width="240" /></a>
+  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ #2 · 1127457578" width="240" /></a>
+  <br />QQ #2 · 1127457578
 </p>
 
 ## Orígenes y licencias

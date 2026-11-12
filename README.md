@@ -123,7 +123,8 @@ macOS 和已签名 Windows 版本支持通过所选代理更新；Windows 未签
 本项目仍在快速迭代中，欢迎加入交流群提意见，欢迎社区大佬一起维护
 
 <p align="center">
-  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="Claude Cage QQ 交流群二维码（群号：1134250870）" width="240" /></a>
+  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ 二群 · 1127457578" width="240" /></a>
+  <br />QQ 二群 · 1127457578
 </p>
 
 ## 来源与许可

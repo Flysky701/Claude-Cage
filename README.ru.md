@@ -115,7 +115,8 @@ macOS и подписанные версии Windows обновляются че
 Проект быстро развивается. Присоединяйтесь к группе сообщества, чтобы поделиться отзывами; сопровождающие сообщества приветствуются.
 
 <p align="center">
-  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ · 1134250870" width="240" /></a>
+  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ #2 · 1127457578" width="240" /></a>
+  <br />QQ #2 · 1127457578
 </p>
 
 ## Происхождение и лицензирование
