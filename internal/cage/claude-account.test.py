@@ -83,6 +83,94 @@ printf '%s\\n' "$@"
         self.assertNotEqual(self.run_helper("run", FIRST, env=other_env, check=False).returncode, 0)
         self.assertNotEqual(self.run_helper("quotas", "../outside", check=False).returncode, 0)
 
+    def recovery_profiles(self):
+        with patch.dict(os.environ, self.env):
+            target, source = helper.profile(FIRST), helper.profile(SECOND)
+        for base in (target, source):
+            base.mkdir(mode=0o700, parents=True)
+            (base / "config").mkdir(mode=0o700)
+        credential = source / "config/.credentials.json"
+        credential.write_bytes(b"opaque-private-fixture")
+        credential.chmod(0o600)
+        reading = {"logged_in": True, "email": self.email, "organization": "test-org", "plan": "pro"}
+        return target, source, credential, reading
+
+    def test_duplicate_login_recovers_missing_credentials_without_moving_history(self):
+        target, source, credential, reading = self.recovery_profiles()
+        history = target / "config/history.jsonl"
+        history.write_bytes(b"original private conversation\n")
+        with patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=[{"logged_in": False}, reading, reading]):
+            result = helper.recover_login("claude", target, SECOND, self.subject)
+        destination = target / "config/.credentials.json"
+        self.assertEqual(result, reading)
+        self.assertEqual(destination.read_bytes(), credential.read_bytes())
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(history.read_bytes(), b"original private conversation\n")
+        self.assertNotIn("opaque-private-fixture", json.dumps(result))
+        self.assertEqual(set(p.name for p in destination.parent.iterdir()), {".credentials.json", "history.jsonl"})
+
+    def test_duplicate_login_recovery_refuses_other_identities_and_existing_credentials(self):
+        target, source, credential, reading = self.recovery_profiles()
+        destination = target / "config/.credentials.json"
+        other = {**reading, "email": "other@example.test"}
+        for observations in ([other], [{"logged_in": False}, other], [{"logged_in": False}, {**reading, "organization": "another-org"}]):
+            with self.subTest(observations=observations), patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=observations):
+                self.assertFalse(helper.recover_login("claude", target, SECOND, self.subject)["logged_in"])
+                self.assertFalse(destination.exists())
+        destination.write_bytes(b"concurrent original login")
+        with patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=[{"logged_in": False}, reading]):
+            with self.assertRaises(FileExistsError):
+                helper.recover_login("claude", target, SECOND, self.subject)
+        self.assertEqual(destination.read_bytes(), b"concurrent original login")
+
+    def test_duplicate_login_recovery_rolls_back_failed_verification(self):
+        target, source, credential, reading = self.recovery_profiles()
+        with patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=[{"logged_in": False}, reading, {"logged_in": False}]):
+            self.assertFalse(helper.recover_login("claude", target, SECOND, self.subject)["logged_in"])
+        self.assertFalse((target / "config/.credentials.json").exists())
+        self.assertTrue(credential.exists())
+
+    def test_duplicate_login_recovery_does_not_remove_a_concurrent_replacement(self):
+        target, source, credential, reading = self.recovery_profiles()
+        destination = target / "config/.credentials.json"
+        def changed_login(*args, **kwargs):
+            replacement = target / "replacement"
+            replacement.write_bytes(b"another login finished meanwhile")
+            replacement.replace(destination)
+            return {"logged_in": False}
+        observations = iter([{"logged_in": False}, reading])
+        def observe(*args, **kwargs):
+            return next(observations, None) or changed_login()
+        with patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=observe):
+            self.assertFalse(helper.recover_login("claude", target, SECOND, self.subject)["logged_in"])
+        self.assertEqual(destination.read_bytes(), b"another login finished meanwhile")
+
+    def test_duplicate_login_recovery_preserves_valid_original_and_rejects_unsafe_source(self):
+        target, source, credential, reading = self.recovery_profiles()
+        with patch.dict(os.environ, self.env), patch.object(helper, "identity", return_value=reading) as probe:
+            self.assertEqual(helper.recover_login("claude", target, SECOND, self.subject), reading)
+            self.assertEqual(probe.call_count, 1)
+        self.assertFalse((target / "config/.credentials.json").exists())
+        credential.chmod(0o644)
+        with patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=[{"logged_in": False}, reading]):
+            with self.assertRaises(ValueError):
+                helper.recover_login("claude", target, SECOND, self.subject)
+        credential.chmod(0o600)
+        credential.rename(source / "private-backup")
+        credential.symlink_to(source / "private-backup")
+        with patch.dict(os.environ, self.env), patch.object(helper, "identity", side_effect=[{"logged_in": False}, reading]):
+            with self.assertRaises(ValueError):
+                helper.recover_login("claude", target, SECOND, self.subject)
+
+    def test_duplicate_login_recovery_command_exports_only_status(self):
+        result = self.run_helper("recover-login", FIRST, SECOND, self.subject)
+        status = json.loads(result.stdout)
+        self.assertTrue(status["logged_in"])
+        self.assertEqual(status["email"], self.email)
+        self.assertNotIn("must-not-appear", result.stdout + result.stderr)
+        self.assertNotEqual(self.run_helper("recover-login", FIRST, FIRST, self.subject, check=False).returncode, 0)
+        self.assertNotEqual(self.run_helper("recover-login", FIRST, "../outside", self.subject, check=False).returncode, 0)
+
     def test_missing_window_keeps_its_observation_time(self):
         now = int(time.time())
         with patch.dict(os.environ, self.env):
