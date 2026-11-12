@@ -41,6 +41,7 @@ import { BrowserDownloads, useDownloadNotifications, useDesktopFiles } from "./b
 import { BrowserUploads } from "./browser-uploads";
 import { BrowserSettingsPage } from "./browser-settings";
 import { AudioControls, useAudioOutput } from "./audio";
+import { EnvironmentClock } from "./environment-clock";
 import { ProjectDialog } from "./project-dialog";
 import {
   readLocal,
@@ -1772,6 +1773,7 @@ function App() {
             />
             <span className="status-spacer" />
             <AudioControls audio={audio} />
+            <EnvironmentClock timezone={settings.timezone} />
             <span className="status-feedback" role="status">
               <SafetyMessage message={toast ||
                 (busy
