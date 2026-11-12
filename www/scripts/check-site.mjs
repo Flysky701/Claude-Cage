@@ -13,6 +13,20 @@ const codes = [...menu.matchAll(/\]\(README(?:\.([\w-]+))?\.md\)/g)].map(m => m[
 assert.equal(codes[0], 'zh');
 assert.ok(!codes.includes('en'));
 const dist = path.join(root,'www/dist');
+const measurementId = process.env.PUBLIC_GA_MEASUREMENT_ID?.trim();
+const htmlFiles = fs.readdirSync(dist, { recursive: true }).filter(file => file.endsWith('.html'));
+for (const file of htmlFiles) {
+  const html = fs.readFileSync(path.join(dist, file), 'utf8');
+  if (file !== path.join('privacy', 'index.html')) {
+    assert.ok(html.includes('href="/Claude-Cage/privacy/"'), `${file}: analytics disclosure link is missing`);
+  }
+  const tags = [...html.matchAll(/<script\b[^>]*src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=([^"]+)"[^>]*>/g)];
+  assert.equal(tags.length, measurementId ? 1 : 0, `${file}: expected one analytics tag only when configured`);
+  if (measurementId) {
+    assert.equal(tags[0][1], measurementId, `${file}: incorrect analytics destination`);
+    assert.ok(/\sasync(?:\s|>)/.test(tags[0][0]), `${file}: analytics must not block page rendering`);
+  }
+}
 const published = JSON.parse(fs.readFileSync(path.join(root, 'www/src/data/release.json'), 'utf8'));
 for (const code of codes) {
   const html = fs.readFileSync(path.join(dist,code === 'zh' ? '' : code,'index.html'),'utf8');
