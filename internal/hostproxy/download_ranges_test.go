@@ -106,10 +106,9 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 	var interrupted atomic.Bool
 	interrupted.Store(true)
 	var calls atomic.Int32
+	prefixesSent := make(chan struct{})
 	var resumed atomic.Bool
-	var prefixesReady atomic.Bool
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var start, end int64
 		if _, err := fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-%d", &start, &end); err != nil {
@@ -123,28 +122,7 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 			w.Write(data[start : start+4096])
 			w.(http.Flusher).Flush()
 			if calls.Add(1) == 4 {
-				// Sending a prefix does not mean the clients have written it.
-				// Observe the cache before cancelling, including on slower hosts.
-				go func() {
-					defer cancel()
-					for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-						parts, err := os.ReadDir(target + ".ranges")
-						ready := err == nil && len(parts) == 4
-						for _, part := range parts {
-							prefix, err := os.ReadFile(filepath.Join(target+".ranges", part.Name()))
-							ready = ready && err == nil && len(prefix) == 4096
-						}
-						if ready {
-							prefixesReady.Store(true)
-							return
-						}
-						select {
-						case <-ctx.Done():
-							return
-						case <-time.After(10 * time.Millisecond):
-						}
-					}
-				}()
+				close(prefixesSent)
 			}
 			<-r.Context().Done()
 			return
@@ -155,12 +133,39 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 		http.ServeContent(w, r, "package", time.Time{}, bytes.NewReader(data))
 	}))
 	defer server.Close()
-	err := downloadRanges(ctx, server.Client(), server.URL, target, "editor.tgz", "", io.Discard, 10*time.Second, 0, int64(len(data)))
+	done := make(chan error, 1)
+	go func() {
+		done <- downloadRanges(ctx, server.Client(), server.URL, target, "editor.tgz", "", io.Discard, 30*time.Second, 0, int64(len(data)))
+	}()
+	defer cancel() // Release waiting handlers before closing the test server.
+	select {
+	case <-prefixesSent:
+	case err := <-done:
+		t.Fatalf("download ended before the four prefixes were sent: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("range requests did not arrive")
+	}
+	// A flushed HTTP response can still be in transit. Cancel only once each
+	// worker has written its prefix, including the ranges reused on resume.
+	width := (len(data) + 3) / 4
+	deadline := time.Now().Add(10 * time.Second)
+	for start := 0; start < len(data); start += width {
+		part := filepath.Join(target+".ranges", fmt.Sprintf("%d-%d", start, min(start+width, len(data))-1))
+		for {
+			got, err := os.ReadFile(part)
+			if err == nil && bytes.Equal(got, data[start:start+4096]) {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("prefix was not written to %s: %d bytes, %v", part, len(got), err)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	cancel()
+	err := <-done
 	if err != context.Canceled {
 		t.Fatalf("cancel=%v", err)
-	}
-	if !prefixesReady.Load() {
-		t.Fatal("range prefixes were not written before cancellation")
 	}
 	info, err := os.Stat(target)
 	if err != nil || info.Size() != 4096 {

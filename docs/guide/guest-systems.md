@@ -22,6 +22,8 @@ keywords: 客机 客户机 克隆 本机 系统选择 macOS Windows Debian Ubunt
 
 选择与主机同类的系统，可以继续使用对应平台的应用、路径习惯和工具链。Debian 适合希望减少系统安装负担、主要使用命令行与 Linux 服务的用户；三个受支持的桌面平台都可以选择它。Intel Mac、Windows ARM64 和 Linux ARM64 暂不支持。
 
+有一点需要注意，Windows 11 客机需要 Hyper-V 平台和管理工具，而 Windows 家庭版（大部分同学可能都是家庭版）并没有这个功能，此时你有两个选择：1、继续使用 Windows 家庭版（如果你平时的主要工作是 Python、Git、bash、Node）。在「启用或关闭 Windows 功能」中勾选「Windows 虚拟机监控程序平台」，按提示重启之后，回到 Cage 选择 Debian 13 或 Ubuntu 22.04 即可。注意，「虚拟机平台」和「适用于 Linux 的 Windows 子系统」是 WSL 2 使用的功能，Cage 不需要。2、升级到 Windows 专业版。如果你的工作的确需要 Windows 环境，你需要 Windows 客机，那么你可以原地升级到 Windows 专业版（这并不难，不知道怎么升级的，多上网搜搜），或在有相应许可时升级到教育版。升级后，在「启用或关闭 Windows 功能」中启用 Hyper-V 平台和管理工具，按提示重启后，回到 Cage 创建 Windows 11 客机即可。
+
 客机系统决定项目中的程序实际在哪里运行。需要额外虚拟机的应用功能还受嵌套虚拟化等条件限制，Claude Desktop 的 Cowork 暂不支持。
 
 ## 当前开发构建的验证范围
@@ -53,7 +55,7 @@ keywords: 客机 客户机 克隆 本机 系统选择 macOS Windows Debian Ubunt
 
 首次创建时，从“客户机系统”选择 **Ubuntu 22.04**。此选项独立于主机发行版：Mac 下载 ARM64 镜像，Windows 和 Linux x86_64 主机下载 amd64 镜像。无需提供 ISO 或输入镜像摘要，Cage 使用固定版本的 Canonical 官方云镜像并校验 SHA-256。
 
-镜像约 669–697 MiB，创建前至少预留 17 GiB；虚拟磁盘按实际写入增长，后续项目和工具仍需额外空间。安装后使用同一工作台中的终端、Chrome for Testing、编辑器和按需安装的 Claude Desktop。
+镜像约 669–697 MiB，创建前至少预留 17 GiB；虚拟磁盘按实际写入增长，后续项目和工具仍需额外空间。安装后，工作台提供终端、Chromium 浏览器和编辑器，也可以按需安装 Claude Desktop。
 
 安装中断后继续使用原镜像、安装身份和磁盘。完成后普通启动仍为 Ubuntu；来源资料缺失或不一致时提示恢复原资料，不自动改用 Debian。已有环境不能通过这个选项直接覆盖或转换系统。当前开发构建的实机范围见本页上方的验证范围表，旧安装包仍以其发行说明为准。
 
@@ -72,7 +74,7 @@ keywords: 客机 客户机 克隆 本机 系统选择 macOS Windows Debian Ubunt
 
 在 macOS 上使用此选项需要 Apple Silicon 和 macOS 26.4 或更新版本，当前工作台的文件系统扩展依赖该版本提供的只读挂载能力。Windows 需要 Windows 11 x64 和完整 Hyper-V。Linux 支持 Debian 12/13、Ubuntu 22.04/24.04 x86_64。
 
-Ubuntu 22.04 主机选择“自动匹配本机系统版本”时，从官方校验过的云镜像创建全新的 Ubuntu 22.04 客机；不会复制主机的账户、文件或登录状态。Ubuntu 客机使用独立安装的 Chrome for Testing 和 noVNC，版本及摘要由 Cage 固定，浏览器保留沙箱、扩展和受控网络。
+Ubuntu 22.04 主机选择“自动匹配本机系统版本”时，从官方校验过的云镜像创建全新的 Ubuntu 22.04 客机；不会复制主机的账户、文件或登录状态。Ubuntu 客机从 Canonical 的稳定渠道安装 Chromium。已有环境升级时，浏览器继续使用原有资料目录，保留收藏和仍然有效的网站登录会话。若稳定版低于上次使用该目录的浏览器版本，Cage 会暂停切换，等稳定渠道更新后即可重试。
 
 Windows 在确认系统提权后自动创建磁盘、安装系统和建立客机账户。macOS 恢复完成后继续进入 Cage 的首次权限引导。工作台组件按需获取，完整离线安装需要系统材料和开发组件均已在本机准备好。
 
