@@ -31,11 +31,37 @@ body:
       placeholder: 版本号 / Commit SHA / 尚未确认适用版本
     validations:
       required: true
+  - type: dropdown
+    id: host-systems
+    attributes:
+      label: 涉及的主机系统
+      description: 主机是运行 Cage 的电脑，可多选；适用于所有平台时全部选中。Issue 会按所选系统添加标签，交给对应平台的维护者。
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - 不涉及或不确定
+    validations:
+      required: true
+  - type: dropdown
+    id: guest-systems
+    attributes:
+      label: 涉及的客机系统
+      description: 客机是 Cage 内运行的系统，可多选；适用于所有客机时全部选中。
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - 不涉及或不确定
+    validations:
+      required: true
   - type: textarea
     id: platforms
     attributes:
-      label: 适用的主机与客机系统
-      description: 说明方案涉及的系统、版本及架构；适用于所有平台时填写“全部平台”，不涉及客机时请注明。
+      label: 系统版本与架构
+      description: 说明方案涉及的系统版本及架构；没有版本或架构限制时填写“无限制”。
       placeholder: |
         主机：……
         客机：……

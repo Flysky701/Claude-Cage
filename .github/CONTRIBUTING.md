@@ -8,6 +8,14 @@ Cage 采用“贡献 Issue 审核 → 邀请成为协作者 → 提交 PR → �
 
 只有问题描述时使用“问题反馈”；尚无具体方案的功能需求使用“功能建议”。提交前先搜索已有 Issue，已有相关讨论时在贡献 Issue 中关联它。
 
+## 系统标签
+
+Issue 按涉及的系统带有六个标签：`macOS 主机`、`Windows 主机`、`Linux 主机`、`macOS 客机`、`Windows 客机`、`Linux 客机`。主机是运行 Cage 的电脑，客机是 Cage 内运行的系统；一条 Issue 可以同时带多个标签。各平台的维护者按标签筛选并认领自己负责的 Issue。
+
+新建 Issue 时，**Label issues by system** 工作流读取正文里标题含“主机”或“客机”的字段并添加对应标签。通过 GitHub CLI 或 API 创建时沿用表单的字段标题即可，例如 `### 主机系统` 下写 `macOS`，`### 客机系统` 下写 `Linux`。
+
+工作流只添加标签，维护者手动调整的标签会保留。正文修改后需要重新识别时，在 **Actions → Label issues by system** 选择 **Run workflow** 并填写 Issue 编号；识别有误或正文没有系统信息时由维护者手动修正。
+
 仓库管理员或具有 `maintain` 权限的维护者审核方案、确认愿意接纳本次贡献后，为仍处于打开状态的 `contribution` Issue 添加 `accepted` 标签。通过审核表示可以进入实现和 PR 审查阶段，最终合入仍取决于代码审查与验证结果。
 
 ## 接受协作者邀请
