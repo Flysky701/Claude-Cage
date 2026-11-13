@@ -45,6 +45,51 @@ jobs:
       ref: ${{ github.sha }}
       release: false
       artifact_name: cage-macos-arm64-test
+  windows-updates:
+    needs: workflow-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON((github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && '["windows-2025", "windows-2022"]' || '["windows-2025"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.403
+      - name: Install the verified NSIS compiler
+        run: ./scripts/install-nsis.ps1
+      - name: Install the verified WebView2 prerequisite
+        run: |
+          . ./scripts/windows-common.ps1
+          $dependency = (Get-Content packaging/windows/dependencies.json -Raw | ConvertFrom-Json).webview2
+          $cache = Join-Path $env:RUNNER_TEMP 'update-dependencies'
+          $runtime = Get-VerifiedDependency $dependency $cache
+          $signature = Get-AuthenticodeSignature -LiteralPath $runtime
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw 'WebView2 prerequisite signature is not trusted.' }
+          $start = [Diagnostics.ProcessStartInfo]::new($runtime)
+          $start.UseShellExecute = $false
+          $start.WorkingDirectory = $cache
+          $start.ArgumentList.Add('/silent'); $start.ArgumentList.Add('/install')
+          $process = [Diagnostics.Process]::Start($start)
+          try {
+            if (!$process.WaitForExit(180000)) { $process.Kill($true); throw 'WebView2 prerequisite installation timed out.' }
+            if ($process.ExitCode -ne 0) { throw "WebView2 prerequisite failed: $($process.ExitCode)" }
+          } finally { $process.Dispose() }
+      - name: Verify signed update, rejection and rollback transactions
+        run: ./scripts/test-windows-update-flow.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: updater-${{ matrix.os }}-reports
+          path: ${{ runner.temp }}/cage-smoke-update-*.json
+          if-no-files-found: ignore
   windows:
     needs: workflow-checks
     uses: ./.github/workflows/windows-build.yml
