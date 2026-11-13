@@ -23,7 +23,7 @@ if ($ManifestPath) {
         $manifestFile.Attributes -band [IO.FileAttributes]::ReparsePoint -or (Get-FileHash -LiteralPath $ManifestPath).Hash -ne $ManifestSHA256) {
         throw '组件清单无法核验，请从 Cage 重新继续安装。'
     }
-    $componentManifest=Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+    $componentManifest=Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($componentManifest.protocol -ne 1 -or $componentManifest.system -cne 'windows-11' -or $componentManifest.revision -notmatch '^[a-f0-9]{64}$') { throw '原生组件清单无效。' }
     $kitRoot=[IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')+'\'
     foreach ($entry in $componentManifest.files) {

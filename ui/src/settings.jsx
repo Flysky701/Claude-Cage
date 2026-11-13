@@ -59,7 +59,8 @@ export function SettingsPanel({
 }) {
   const [localKeyboard, setLocalKeyboard] = useState(() => clientKeyboard(current.keyboard));
   const [accountDirty, setAccountDirty] = useState(false);
-  const [proxyDirty, setProxyDirty] = useState(false);
+  const [proxyDraft, setProxyDraft] = useState("");
+  const proxyDirty = Boolean(proxyDraft);
   const [resourceDirty, setResourceDirty] = useState(false);
   const [draft, setDraft] = useState({ ...current }),
     [section, setSection] = useState(initialSection),
@@ -261,7 +262,7 @@ export function SettingsPanel({
             {section === "network" && (
               <>
                 <ProxySettings
-                  onDirty={setProxyDirty}
+                  onDraftChange={setProxyDraft}
                   status={status}
                   onConfirm={onConfirm}
                   onApplied={async () => {

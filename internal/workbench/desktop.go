@@ -161,7 +161,15 @@ func (c *controllerClient) callContext(ctx context.Context, method, path string,
 	if c.connectionID != "" {
 		req.Header.Set(connectionHeader, c.connectionID)
 	}
-	res, err := c.client.Do(req)
+	client := c.client
+	if path == desktopLocalStatusPath {
+		// Share the authenticated jar and transport, but keep this longer
+		// timeout local to the status request.
+		statusClient := *client
+		statusClient.Timeout = desktopLocalStatusTimeout
+		client = &statusClient
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}

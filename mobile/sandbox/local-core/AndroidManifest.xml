@@ -1,0 +1,26 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.leexeo.cage.localcore" android:versionCode="1" android:versionName="1">
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="35"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <queries><package android:name="top.niunaijun.cagetest"/></queries>
+    <application android:label="Cage 本地核心测试" android:allowBackup="false"
+        android:extractNativeLibs="true" android:debuggable="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name=".CoreActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="io.github.leexeo.cage.space.ENSURE_NETWORK"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+        <service android:name=".CoreService" android:foregroundServiceType="dataSync" android:exported="false"/>
+        <service android:name=".ExitCheckService" android:exported="true"
+            android:permission="top.niunaijun.cagetest.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
+    </application>
+</manifest>

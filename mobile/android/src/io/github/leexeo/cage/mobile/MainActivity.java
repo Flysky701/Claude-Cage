@@ -69,7 +69,7 @@ public final class MainActivity extends Activity {
             this.client=client; this.launch=launch; this.name=name;
         }
     }
-    private enum Page { HOME, SETTINGS, HOST, RELAY, PAIR, CODE }
+    private enum Page { HOME, SETTINGS, HOST, RELAY, PAIR, CODE, LOCAL_SANDBOX }
     private Page page = Page.HOME;
     private FrameLayout root;
     private LinearLayout form;
@@ -85,6 +85,19 @@ public final class MainActivity extends Activity {
     private MobileTheme palette;
     private SharedPreferences appearance;
     private static final int SCAN = 42;
+    private static final int PREPARE_NETWORK = 43;
+    private static final int SPACE_SETTINGS_RESULT = 44;
+    private static final String SPACE = "top.niunaijun.cagetest";
+    private static final String NETWORK = "io.github.leexeo.cage.localcore";
+    private static final String OPEN_CLAUDE = "io.github.leexeo.cage.space.OPEN_CLAUDE";
+    private static final String GOOGLE_SETTINGS = "io.github.leexeo.cage.space.GOOGLE_SETTINGS";
+    private static final String INSTALL_CLAUDE = "io.github.leexeo.cage.space.INSTALL_CLAUDE";
+    private static final String OPEN_STORE = "io.github.leexeo.cage.space.OPEN_STORE";
+    private static final String ENSURE_NETWORK = "io.github.leexeo.cage.space.ENSURE_NETWORK";
+    private boolean spaceFromSettings;
+    private String afterNetwork = OPEN_CLAUDE;
+
+    private boolean preview() { return getPackageName().endsWith(".preview"); }
 
     private void rememberRelay(String relay) {
         trust.edit().putString("preferred-relay", relay).apply();
@@ -144,11 +157,14 @@ public final class MainActivity extends Activity {
         credentials = new HostCredentials(trust);
         showSetup();
         if (state != null) {
+            spaceFromSettings = state.getBoolean("space-from-settings");
+            afterNetwork = state.getString("after-network", OPEN_CLAUDE);
             String restoredPage = state.getString("page", Page.HOME.name());
             Page restored = "ENVIRONMENT".equals(restoredPage) ? Page.HOME : Page.valueOf(restoredPage);
             if (restored == Page.PAIR || restored == Page.CODE) showPair(restored == Page.CODE);
             if (restored == Page.SETTINGS) showSettings(false);
             if (restored == Page.HOST || restored == Page.RELAY) showAdvanced(restored);
+            if (restored == Page.LOCAL_SANDBOX) showLocalSandbox();
         }
         worker.execute(() -> {
             try {
@@ -170,6 +186,8 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle saved) {
         super.onSaveInstanceState(saved);
         saved.putString("page", page.name());
+        saved.putBoolean("space-from-settings", spaceFromSettings);
+        saved.putString("after-network", afterNetwork);
     }
 
     private int dp(int value) { return Math.round(getResources().getDisplayMetrics().density * value); }
@@ -326,7 +344,13 @@ public final class MainActivity extends Activity {
         form.addView(title);
         LinearLayout.LayoutParams action = new LinearLayout.LayoutParams(-1, dp(60));
         action.topMargin = dp(8);
-        form.addView(connectComputerButton(v -> showPair(false)), action);
+        if (preview()) {
+            button(form, "打开 Claude", true, v -> openClaude()).setLayoutParams(action);
+            button(form, "连接电脑", false, v -> showPair(false));
+        } else {
+            form.addView(connectComputerButton(v -> showPair(false)), action);
+            button(form, "本机沙箱", false, v -> enterSpace(false));
+        }
         statusView();
         body.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             int height = bottom - top;
@@ -441,6 +465,75 @@ public final class MainActivity extends Activity {
         b.setBackground(pressable(palette.panel, 14, true));
         return b;
     }
+    private void enterSpace(boolean fromSettings) {
+        spaceFromSettings = fromSettings;
+        showLocalSandbox();
+    }
+
+    private void leaveSpace() {
+        if (spaceFromSettings) showSettings(false);
+        else showSetup();
+    }
+
+    private void showLocalSandbox() {
+        settingsPage(Page.LOCAL_SANDBOX, preview() ? "空间设置" : "本机沙箱", this::leaveSpace);
+        if (preview()) {
+            label("Google 套件", 16);
+            Intent settings = spaceIntent(GOOGLE_SETTINGS);
+            if (settings.resolveActivity(getPackageManager()) != null)
+                row("管理空间里的 Google 套件", v -> openSpacePage(GOOGLE_SETTINGS));
+            else label("请安装或更新实验包中的 Cage 空间组件。", 14);
+        }
+        label("本地代理", 16);
+        localComponent(NETWORK, "配置与启停代理", "代理助手");
+        label("应用空间", 16);
+        localComponent(SPACE, "打开沙箱", "沙箱组件");
+        statusView();
+    }
+
+    private Intent spaceIntent(String action) { return new Intent(action).setPackage(SPACE); }
+
+    private void openClaude() {
+        afterNetwork = OPEN_CLAUDE;
+        prepareSpaceNetwork();
+    }
+
+    private void prepareSpaceNetwork() {
+        Intent network = new Intent(ENSURE_NETWORK).setPackage(NETWORK);
+        if (spaceIntent(afterNetwork).resolveActivity(getPackageManager()) == null
+                || network.resolveActivity(getPackageManager()) == null) {
+            enterSpace(false);
+            status.setText("请安装本版配套的空间组件和代理助手，再打开 Claude。");
+            return;
+        }
+        try { startActivityForResult(network, PREPARE_NETWORK); }
+        catch (android.content.ActivityNotFoundException | SecurityException e) {
+            enterSpace(false);
+            status.setText("无法准备空间网络，请检查代理助手。");
+        }
+    }
+
+    private void openSpacePage(String action) {
+        try { startActivityForResult(spaceIntent(action), SPACE_SETTINGS_RESULT); }
+        catch (android.content.ActivityNotFoundException | SecurityException unavailable) {
+            enterSpace(false);
+            status.setText("空间组件无法打开，请安装或更新配套版本。");
+        }
+    }
+
+    private void localComponent(String pkg, String action, String component) {
+        Intent launch = getPackageManager().getLaunchIntentForPackage(pkg);
+        if (launch == null) {
+            label("未找到" + component + "，请安装实验包中配套的" + component + "。", 14);
+            return;
+        }
+        row(action, v -> {
+            try { startActivity(launch); }
+            catch (android.content.ActivityNotFoundException | SecurityException unavailable) {
+                status.setText(component + "无法打开，请检查组件是否已启用。");
+            }
+        });
+    }
     private static final String[] THEMES = {"system", "light", "dark"};
     private static final String[] THEME_NAMES = {"跟随系统", "浅色", "深色"};
     private void showSettings(boolean focusTheme) {
@@ -465,6 +558,7 @@ public final class MainActivity extends Activity {
             });
             choice.setSelected(i == index);
         }
+        if (preview()) row("空间设置", v -> enterSpace(true));
         label("远程连接", 14);
         row("已归档会话", v -> openArchivedSessions());
         row("中继设置", v -> showAdvanced(Page.RELAY));
@@ -565,6 +659,20 @@ public final class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
+        if (code == PREPARE_NETWORK) {
+            if (result == RESULT_OK) openSpacePage(afterNetwork);
+            return;
+        }
+        if (code == SPACE_SETTINGS_RESULT) {
+            if (result == RESULT_OK && data != null) {
+                String next = data.getAction();
+                if (OPEN_CLAUDE.equals(next) || INSTALL_CLAUDE.equals(next) || OPEN_STORE.equals(next)) {
+                    afterNetwork = next;
+                    prepareSpaceNetwork();
+                }
+            }
+            return;
+        }
         if (code == SCAN) {
             if(result==RESULT_OK && data!=null) pairScan(data.getStringExtra("code"));
             else if(data!=null && data.hasExtra("error"))status.setText(data.getStringExtra("error"));
@@ -838,6 +946,7 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (viewingWorkspace && browser != null) browser.onResume();
+        else if (page == Page.LOCAL_SANDBOX) showLocalSandbox();
     }
     @Override public void onBackPressed() {
         if (busy) return;
@@ -845,6 +954,7 @@ public final class MainActivity extends Activity {
         else if (viewingWorkspace) showSetup();
         else if (page == Page.CODE) showPair(false);
         else if (page == Page.RELAY || page == Page.HOST) showSettings(false);
+        else if (page == Page.LOCAL_SANDBOX) leaveSpace();
         else if (page != Page.HOME) showSetup();
         else super.onBackPressed();
     }

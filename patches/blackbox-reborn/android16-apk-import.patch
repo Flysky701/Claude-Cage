@@ -1,0 +1,24 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/pm/BPackageManagerService.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/pm/BPackageManagerService.java
+@@ -727,8 +727,8 @@
+     }
+ 
+     private PackageParser.Package parserApk(String file) {
+-        // Android 14+ (API 33+): PackageParser is removed. Use PackageParserFix.
+-        if (top.niunaijun.blackbox.utils.compat.PackageParserFix.needsFix()) {
++        // Android 16 retains the full parser, including the base APK path and intent filters.
++        if (android.os.Build.VERSION.SDK_INT != 36 && top.niunaijun.blackbox.utils.compat.PackageParserFix.needsFix()) {
+             return parserApkCompat(file);
+         }
+         try {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/utils/compat/PackageParserCompat.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/utils/compat/PackageParserCompat.java
+@@ -52,7 +52,7 @@
+ 
+     public static void collectCertificates(PackageParser parser, Package p, int flags) throws Throwable {
+         if (BuildCompat.isPie()) {
+-            BRPackageParserPie.getWithException().collectCertificates(p, true);
++            BRPackageParserPie.getWithException().collectCertificates(p, API_LEVEL != 36);
+         } else if (API_LEVEL >= N) {
+             BRPackageParserNougat.getWithException().collectCertificates(p, flags);
+         } else if (API_LEVEL >= M) {

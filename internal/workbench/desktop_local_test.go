@@ -5,13 +5,67 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestDesktopLocalReconnectWithSlowVMStatus(t *testing.T) {
+	s := testServer(t)
+	s.instanceID = randomToken()
+	s.identity = ControllerIdentity{Protocol: controlProtocol, PID: os.Getpid(), Build: randomToken()}
+	handler := s.handler()
+	var probes atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Connect takes a fresh authenticated snapshot during bootstrap.
+		// Delay that request past both the old 5s and 12s deadlines.
+		if r.URL.Path == desktopLocalStatusPath && probes.Add(1) == 2 {
+			select {
+			case <-time.After(13 * time.Second):
+			case <-r.Context().Done():
+				return
+			}
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	port := server.Listener.Addr().(*net.TCPAddr).Port
+	s.origin = "http://localhost:" + strconv.Itoa(port)
+	server.Start()
+	defer server.Close()
+	record := controlFile{Port: port, Token: s.token, PID: s.identity.PID, Controller: s.identity}
+	if err := writePrivate(filepath.Join(s.profile, "control.json"), record); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := openControllerLock(s.profile, os.O_CREATE|os.O_RDWR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	if err := lockController(lock); err != nil {
+		t.Fatal(err)
+	}
+	defer unlockController(lock)
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := NewDesktopLocalController(s.configPath, executable)
+	session, err := local.Connect(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if probes.Load() < 2 || session.Manifest.InstanceID != s.instanceID {
+		t.Fatal("slow status probe did not reconnect to the original workbench")
+	}
+}
 
 func TestDesktopLocalProbeLeavesColdProfileUntouched(t *testing.T) {
 	root := t.TempDir()

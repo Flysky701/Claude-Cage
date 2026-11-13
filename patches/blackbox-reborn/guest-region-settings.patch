@@ -1,0 +1,203 @@
+--- a/app/src/main/java/top/niunaijun/blackboxa/view/main/MainActivity.kt
++++ b/app/src/main/java/top/niunaijun/blackboxa/view/main/MainActivity.kt
+@@ -392,6 +392,7 @@
+     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+         try {
+             menuInflater.inflate(R.menu.menu_main, menu)
++            GuestRegionDialog.add(menu)
+             return true
+         } catch (e: Exception) {
+             Log.e(TAG, "Error creating options menu: ${e.message}")
+@@ -401,6 +402,7 @@
+ 
+     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+         try {
++            if (GuestRegionDialog.open(this, item, currentUser)) return true
+             when (item.itemId) {
+                 R.id.main_git -> {
+                     val intent =
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
+@@ -373,6 +373,7 @@
+         Object boundApplication = BRActivityThread.get(BlackBoxCore.mainThread()).mBoundApplication();
+ 
+         Context packageContext = createPackageContext(applicationInfo);
++        top.niunaijun.blackbox.region.GuestRegion.bind(BlackBoxCore.getContext(), getUserId(), packageContext);
+         Object loadedApk = BRContextImpl.get(packageContext).mPackageInfo();
+         BRLoadedApk.get(loadedApk)._set_mSecurityViolation(false);
+         
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/AppInstrumentation.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/AppInstrumentation.java
+@@ -125,18 +125,21 @@
+     @Override
+     public void callActivityOnCreate(Activity activity, Bundle icicle, PersistableBundle persistentState) {
+         checkActivity(activity);
++        top.niunaijun.blackbox.region.GuestRegion.apply(activity);
+         super.callActivityOnCreate(activity, icicle, persistentState);
+     }
+ 
+     @Override
+     public void callActivityOnCreate(Activity activity, Bundle icicle) {
+         checkActivity(activity);
++        top.niunaijun.blackbox.region.GuestRegion.apply(activity);
+         super.callActivityOnCreate(activity, icicle);
+     }
+ 
+     @Override
+     public void callApplicationOnCreate(Application app) {
+         checkHCallback();
++        top.niunaijun.blackbox.region.GuestRegion.apply(app);
+         super.callApplicationOnCreate(app);
+     }
+ 
+--- /dev/null
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/region/GuestRegion.java
+@@ -0,0 +1,82 @@
++package top.niunaijun.blackbox.region;
++
++import android.content.Context;
++import android.content.res.Configuration;
++import android.content.res.Resources;
++import android.os.LocaleList;
++import android.util.AtomicFile;
++import android.util.Log;
++import java.io.*;
++import java.util.*;
++
++public final class GuestRegion {
++    public final String language, zone;
++    private static GuestRegion bound;
++
++    public GuestRegion(String language, String zone) {
++        Locale locale;
++        try {
++            locale = new Locale.Builder().setLanguageTag(language.trim()).build();
++        } catch (IllformedLocaleException ex) {
++            throw new IllegalArgumentException("请输入有效的语言标签", ex);
++        }
++        if (locale.getLanguage().isEmpty()) throw new IllegalArgumentException("请输入有效的语言标签");
++        this.language = locale.toLanguageTag();
++        this.zone = zone.trim();
++        if (!Arrays.asList(TimeZone.getAvailableIDs()).contains(this.zone)) {
++            throw new IllegalArgumentException("请输入有效的时区名称");
++        }
++    }
++    private static AtomicFile file(Context host, int user) {
++        return new AtomicFile(new File(host.getNoBackupFilesDir(), "guest-region-" + user));
++    }
++    public static GuestRegion read(Context host, int user) throws IOException {
++        AtomicFile file = file(host, user);
++        try (DataInputStream input = new DataInputStream(file.openRead())) {
++            return new GuestRegion(input.readUTF(), input.readUTF());
++        } catch (FileNotFoundException absent) {
++            if (file.getBaseFile().exists()) throw absent;
++            return null;
++        }
++    }
++    public static void save(Context host, int user, GuestRegion region) throws IOException {
++        AtomicFile file = file(host, user);
++        if (region == null) {
++            file.delete();
++            if (file.getBaseFile().exists()) throw new IOException("无法清除来宾设置");
++            return;
++        }
++        FileOutputStream raw = file.startWrite();
++        try {
++            DataOutputStream out = new DataOutputStream(raw);
++            out.writeUTF(region.language);
++            out.writeUTF(region.zone);
++            out.flush();
++            file.finishWrite(raw);
++        } catch (IOException ex) {
++            file.failWrite(raw);
++            throw ex;
++        }
++    }
++    public static void bind(Context host, int user, Context guest) {
++        try {
++            bound = read(host, user);
++        } catch (IOException | IllegalArgumentException ex) {
++            bound = null;
++            Log.w("BlackBox", "Cannot load guest region", ex);
++        }
++        apply(guest);
++    }
++    public static void apply(Context guest) {
++        if (bound == null || guest == null) return;
++        LocaleList languages = LocaleList.forLanguageTags(bound.language);
++        Resources resources = guest.getResources();
++        Configuration config = new Configuration(resources.getConfiguration());
++        if (!languages.equals(config.getLocales())) {
++            config.setLocales(languages);
++            resources.updateConfiguration(config, resources.getDisplayMetrics());
++        }
++        LocaleList.setDefault(languages);
++        TimeZone.setDefault(TimeZone.getTimeZone(bound.zone));
++    }
++}
+--- /dev/null
++++ b/app/src/main/java/top/niunaijun/blackboxa/view/main/GuestRegionDialog.java
+@@ -0,0 +1,63 @@
++package top.niunaijun.blackboxa.view.main;
++
++import android.app.Activity;
++import android.app.AlertDialog;
++import android.view.Menu;
++import android.view.MenuItem;
++import android.widget.*;
++import java.io.IOException;
++import top.niunaijun.blackbox.region.GuestRegion;
++
++public final class GuestRegionDialog {
++    private static final int ID = 0x434752;
++    public static void add(Menu menu) {
++        if (menu != null) menu.add(Menu.NONE, ID, Menu.NONE, "来宾语言和时区");
++    }
++    public static boolean open(Activity host, MenuItem item, int user) {
++        if (item.getItemId() != ID) return false;
++        GuestRegion region;
++        try {
++            region = GuestRegion.read(host, user);
++        } catch (IOException | IllegalArgumentException ex) {
++            Toast.makeText(host, "读取来宾设置失败", Toast.LENGTH_LONG).show();
++            return true;
++        }
++        LinearLayout form = new LinearLayout(host);
++        form.setOrientation(LinearLayout.VERTICAL);
++        int pad = (int)(24 * host.getResources().getDisplayMetrics().density);
++        form.setPadding(pad, 0, pad, 0);
++        EditText language = field(host, form, "语言标签", "en-US", region == null ? "" : region.language);
++        EditText zone = field(host, form, "时区", "UTC", region == null ? "" : region.zone);
++        AlertDialog dialog = new AlertDialog.Builder(host).setTitle("来宾语言和时区")
++                .setMessage((region == null ? "当前跟随手机。" : "") + "设置用于当前来宾，下次冷启动应用时生效。")
++                .setView(form).setPositiveButton("保存", null).setNegativeButton("取消", null)
++                .setNeutralButton("跟随手机", null).create();
++        dialog.show();
++        dialog.getButton(-1).setOnClickListener(v -> {
++            try {
++                GuestRegion.save(host, user, new GuestRegion(language.getText().toString(), zone.getText().toString()));
++                dialog.dismiss();
++            } catch (IOException | IllegalArgumentException ex) {
++                Toast.makeText(host, "保存失败：" + ex.getMessage(), Toast.LENGTH_LONG).show();
++            }
++        });
++        dialog.getButton(-3).setOnClickListener(v -> {
++            try {
++                GuestRegion.save(host, user, null);
++                dialog.dismiss();
++            } catch (IOException ex) { Toast.makeText(host, "恢复失败", Toast.LENGTH_LONG).show(); }
++        });
++        return true;
++    }
++    private static EditText field(Activity host, LinearLayout layout, String label, String hint, String value) {
++        TextView title = new TextView(host);
++        title.setText(label);
++        layout.addView(title);
++        EditText text = new EditText(host);
++        text.setSingleLine(true);
++        text.setHint(hint);
++        text.setText(value);
++        layout.addView(text);
++        return text;
++    }
++}

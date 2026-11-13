@@ -94,7 +94,7 @@ for ($entry=Get-Item -LiteralPath $binding.relay_executable -Force; $entry; $ent
 } else {
     $vm=[pscustomobject]@{Id=[guid]$binding.vm_id}
 }
-$manifest=Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+$manifest=Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($manifest.protocol -ne 1 -or $manifest.system -cne 'windows-11' -or $manifest.revision -notmatch '^[a-f0-9]{64}$' -or @($manifest.files).Count -notin 1..10000) { throw '原生组件清单无效。' }
 $kit=[IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')+'\'
 foreach ($entry in $manifest.files) {

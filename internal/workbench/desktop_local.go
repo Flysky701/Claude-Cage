@@ -16,6 +16,14 @@ import (
 	"github.com/sylvinus/agent-vm/internal/remotehost"
 )
 
+// A local status response may wait for a full Hyper-V probe. Bootstrap also
+// needs time to discover the controller and exchange the launch ticket.
+const (
+	desktopLocalStatusPath       = "/api/desktop-local/status"
+	desktopLocalStatusTimeout    = windowsVMProbeTimeout + 5*time.Second
+	desktopLocalBootstrapTimeout = desktopLocalStatusTimeout + 12*time.Second
+)
+
 type desktopLocal struct {
 	config, profile, executable string
 	mu                          sync.Mutex
@@ -165,7 +173,7 @@ func (d *desktopLocal) Connect(ctx context.Context) (_ *remotehost.Session, retu
 			}
 		}()
 	}
-	bootstrap, cancel := context.WithTimeout(ctx, 12*time.Second)
+	bootstrap, cancel := context.WithTimeout(ctx, desktopLocalBootstrapTimeout)
 	defer cancel()
 	for {
 		c, err := openController(d.profile)

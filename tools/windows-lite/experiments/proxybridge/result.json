@@ -1,0 +1,527 @@
+{
+  "version": "4.3.0 Windows",
+  "release": "https://github.com/InterceptSuite/ProxyBridge/releases/tag/v4.3.0_Windows",
+  "installerSHA256": "64992b813e4b406466540f7cc01332ef90ffe3b234719694347175fd85a3f1f9",
+  "signatures": {
+    "installer": "Valid / Sourav Kalal",
+    "CLI and engine DLL": "Valid / Sourav Kalal",
+    "WinDivert64.sys": "Valid / 成都密思听科技有限公司",
+    "WinDivert.dll": "NotSigned; authenticated as a member of the digest-verified distribution"
+  },
+  "acceptance": "BLOCKED: official WinDivert 2.2 failed during SCM startup before any ProxyBridge rule became operational",
+  "SCM": {
+    "systemEventRegistered": 7045,
+    "systemEventFailed": 7000,
+    "nativeError": "%%1450",
+    "standaloneDriverTest": {
+      "started": false,
+      "stopped": false,
+      "serviceInstalled": false,
+      "driverOnly": true,
+      "createOutput": [
+        "[SC] CreateService 成功"
+      ],
+      "createExit": 0,
+      "startOutput": [
+        "[SC] StartService 失败 1450:",
+        "",
+        "系统资源不足，无法完成请求的服务。",
+        ""
+      ],
+      "startExit": 1450,
+      "serviceQuery": [
+        "",
+        "SERVICE_NAME: WinDivert ",
+        "        TYPE               : 1  KERNEL_DRIVER  ",
+        "        STATE              : 1  STOPPED ",
+        "        WIN32_EXIT_CODE    : 1450  (0x5aa)",
+        "        SERVICE_EXIT_CODE  : 0  (0x0)",
+        "        CHECKPOINT         : 0x0",
+        "        WAIT_HINT          : 0x0",
+        "        PID                : 0",
+        "        FLAGS              : "
+      ],
+      "remainingDrivers": [],
+      "stageRemoved": true
+    }
+  },
+  "hostContext": {
+    "WindowsBuild": 26300,
+    "freePhysicalMiB": 10982,
+    "freeVirtualMiB": 1563,
+    "baseServicesRunning": [
+      "BFE",
+      "MpsSvc",
+      "nsi",
+      "RpcSs"
+    ],
+    "userReport": "User reported interception. Exact blocking component not established by the captured events."
+  },
+  "baseMemoryPrivateMiB": {
+    "launcher": 22.1,
+    "mihomo": 62.2,
+    "boxed": 46.0,
+    "outside": 40.3,
+    "boxHelpers": 20.2
+  },
+  "proxyBridgeIncrementMiB": null,
+  "kernelPoolIncrement": null,
+  "groups": "launcher includes test coordinator, DNS broker, fixed-service data relay, observation hop. mihomo is session-only. Outside control excluded from shell totals. No ProxyBridgeSvc or GUI installed. No stable engine/driver memory sample.",
+  "capabilityInspection": "The released rule matches process name/full path, destination and transport; ownership PID is used to look up the image. No public sandbox/session-ID selector identified. Runtime path spillover, engine crash fail-closed behavior and memory delta remain unverified.",
+  "mainAttempt": {
+    "session": "pb-0c59c3be23d0",
+    "release": "v4.3.0_Windows",
+    "conditions": [
+      {
+        "phase": "baseline-fixed",
+        "side": "inside",
+        "role": "parent",
+        "downstream": {
+          "pid": 44480,
+          "role": "parent",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+          "utc": "2026-11-12T15:51:10",
+          "local": "2026-11-13T00:51:10",
+          "offset": 540,
+          "zone": "Tokyo Standard Time",
+          "target": "127.0.0.1:58960",
+          "exit": "<proxy-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 1,
+        "upstreamBytes": 3713
+      },
+      {
+        "phase": "baseline-fixed",
+        "side": "outside",
+        "role": "parent",
+        "downstream": {
+          "pid": 49352,
+          "role": "parent",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+          "utc": "2026-11-12T15:51:17",
+          "local": "2026-11-12T23:51:17",
+          "offset": 480,
+          "zone": "China Standard Time",
+          "target": "1.1.1.1:443",
+          "exit": "<host-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 0,
+        "upstreamBytes": 0
+      },
+      {
+        "phase": "baseline-fixed",
+        "side": "inside",
+        "role": "child",
+        "downstream": {
+          "pid": 52336,
+          "role": "child",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckChild.exe",
+          "utc": "2026-11-12T15:51:18",
+          "local": "2026-11-13T00:51:18",
+          "offset": 540,
+          "zone": "Tokyo Standard Time",
+          "target": "127.0.0.1:58960",
+          "exit": "<proxy-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 1,
+        "upstreamBytes": 3707
+      },
+      {
+        "phase": "baseline-fixed",
+        "side": "outside",
+        "role": "child",
+        "downstream": {
+          "pid": 57120,
+          "role": "child",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckChild.exe",
+          "utc": "2026-11-12T15:51:21",
+          "local": "2026-11-12T23:51:21",
+          "offset": 480,
+          "zone": "China Standard Time",
+          "target": "1.1.1.1:443",
+          "exit": "<host-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 0,
+        "upstreamBytes": 0
+      },
+      {
+        "phase": "baseline-literal",
+        "side": "inside",
+        "role": "parent",
+        "downstream": {
+          "pid": 44480,
+          "role": "parent",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+          "utc": "2026-11-12T15:51:22",
+          "local": "2026-11-13T00:51:22",
+          "offset": 540,
+          "zone": "Tokyo Standard Time",
+          "target": "1.1.1.1:443",
+          "error": "SocketException: 由于目标计算机积极拒绝，无法连接。"
+        },
+        "upstreamSessions": 0,
+        "upstreamBytes": 0
+      },
+      {
+        "phase": "baseline-literal",
+        "side": "inside",
+        "role": "child",
+        "downstream": {
+          "pid": 52336,
+          "role": "child",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckChild.exe",
+          "utc": "2026-11-12T15:51:22",
+          "local": "2026-11-13T00:51:22",
+          "offset": 540,
+          "zone": "Tokyo Standard Time",
+          "target": "1.1.1.1:443",
+          "error": "SocketException: 由于目标计算机积极拒绝，无法连接。"
+        },
+        "upstreamSessions": 0,
+        "upstreamBytes": 0
+      }
+    ],
+    "memory": {
+      "base": {
+        "launcher": [
+          {
+            "Id": 41796,
+            "ProcessName": "python",
+            "PrivateMemorySize64": 23199744,
+            "WorkingSet64": 35569664
+          }
+        ],
+        "mihomo": [
+          {
+            "Id": 46236,
+            "ProcessName": "mihomo",
+            "PrivateMemorySize64": 65232896,
+            "WorkingSet64": 30437376
+          }
+        ],
+        "boxed": [
+          {
+            "Id": 52336,
+            "ProcessName": "CagePBCheckChild",
+            "PrivateMemorySize64": 24109056,
+            "WorkingSet64": 34652160
+          },
+          {
+            "Id": 44480,
+            "ProcessName": "CagePBCheckParent",
+            "PrivateMemorySize64": 24109056,
+            "WorkingSet64": 48156672
+          }
+        ],
+        "outside": [
+          {
+            "Id": 57120,
+            "ProcessName": "CagePBCheckChild",
+            "PrivateMemorySize64": 21143552,
+            "WorkingSet64": 32641024
+          },
+          {
+            "Id": 49352,
+            "ProcessName": "CagePBCheckParent",
+            "PrivateMemorySize64": 21155840,
+            "WorkingSet64": 32919552
+          }
+        ],
+        "boxHelpers": [
+          {
+            "Id": 51276,
+            "ProcessName": "SandboxieCrypto",
+            "PrivateMemorySize64": 5304320,
+            "WorkingSet64": 23957504
+          },
+          {
+            "Id": 40744,
+            "ProcessName": "SandboxieDcomLaunch",
+            "PrivateMemorySize64": 3956736,
+            "WorkingSet64": 20508672
+          },
+          {
+            "Id": 35376,
+            "ProcessName": "SandboxieRpcSs",
+            "PrivateMemorySize64": 6168576,
+            "WorkingSet64": 21413888
+          },
+          {
+            "Id": 47244,
+            "ProcessName": "Start",
+            "PrivateMemorySize64": 5758976,
+            "WorkingSet64": 34856960
+          }
+        ]
+      }
+    },
+    "controls": {},
+    "testFiles": {
+      "CagePBCheckParent.exe": "52036cd171abe09b212d8cd58b04d77cb285f7492b36ca955253c4011784a18b",
+      "CagePBCheckChild.exe": "52306cfc0ef1928d2c5d5b9d3ecd205b5cae05049f51e5fd4a9a9f20b994be32"
+    },
+    "wfpGlobal": [],
+    "engine": {
+      "started": false,
+      "stopped": false,
+      "serviceInstalled": false,
+      "pid": 58644,
+      "driver": [
+        {
+          "Name": "WinDivert",
+          "State": "Stopped"
+        }
+      ]
+    },
+    "engineFinal": {
+      "started": false,
+      "stopped": true,
+      "serviceInstalled": false,
+      "pid": 58644,
+      "driver": [
+        {
+          "Name": "WinDivert",
+          "State": "Stopped"
+        }
+      ],
+      "exitCode": 1,
+      "engineLog": [
+        "  [1] tmp\\proxybridge-eval\\CagePBCheckParent.exe 1.1.1.1                443            *                    TCP  PROXY",
+        "  [2] tmp\\proxybridge-eval\\CagePBCheckChild.exe 1.1.1.1                443            *                    TCP  PROXY",
+        "  2 added, 0 failed",
+        "ERROR: Failed to start.",
+        "Ensure WinDivert64.sys is present in the same directory."
+      ],
+      "remainingDrivers": [],
+      "stageRemoved": true
+    },
+    "error": "RuntimeError: official engine failed to stay running",
+    "boxRemoved": true
+  },
+  "dnsControlRows": [
+    {
+      "phase": "baseline-dns",
+      "side": "inside",
+      "role": "parent",
+      "downstream": {
+        "pid": 30640,
+        "role": "parent",
+        "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+        "utc": "2026-11-12T15:54:49",
+        "local": "2026-11-13T00:54:49",
+        "offset": 540,
+        "zone": "Tokyo Standard Time",
+        "name": "example.com.",
+        "addresses": "104.20.23.154,172.66.147.243,2606:4700:10::ac42:93f3,2606:4700:10::6814:179a"
+      },
+      "upstreamSessions": 2,
+      "upstreamBytes": 8699
+    },
+    {
+      "phase": "baseline-dns",
+      "side": "inside",
+      "role": "parent",
+      "downstream": {
+        "pid": 30640,
+        "role": "parent",
+        "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+        "utc": "2026-11-12T15:54:54",
+        "local": "2026-11-13T00:54:54",
+        "offset": 540,
+        "zone": "Tokyo Standard Time",
+        "name": "pb5d3e7a18e6664c.cage.test.",
+        "error": "SocketException: 不知道这样的主机。"
+      },
+      "upstreamSessions": 1,
+      "upstreamBytes": 4410
+    },
+    {
+      "phase": "baseline-dns",
+      "side": "inside",
+      "role": "child",
+      "downstream": {
+        "pid": 35060,
+        "role": "child",
+        "image": "tmp\\proxybridge-eval\\CagePBCheckChild.exe",
+        "utc": "2026-11-12T15:54:56",
+        "local": "2026-11-13T00:54:56",
+        "offset": 540,
+        "zone": "Tokyo Standard Time",
+        "name": "example.com.",
+        "addresses": "172.66.147.243,104.20.23.154,2606:4700:10::ac42:93f3,2606:4700:10::6814:179a"
+      },
+      "upstreamSessions": 2,
+      "upstreamBytes": 8700
+    },
+    {
+      "phase": "baseline-dns",
+      "side": "inside",
+      "role": "child",
+      "downstream": {
+        "pid": 35060,
+        "role": "child",
+        "image": "tmp\\proxybridge-eval\\CagePBCheckChild.exe",
+        "utc": "2026-11-12T15:54:58",
+        "local": "2026-11-13T00:54:58",
+        "offset": 540,
+        "zone": "Tokyo Standard Time",
+        "name": "pb5fc13c311ecd4f.cage.test.",
+        "error": "SocketException: 不知道这样的主机。"
+      },
+      "upstreamSessions": 1,
+      "upstreamBytes": 4411
+    },
+    {
+      "phase": "baseline-dns",
+      "side": "outside",
+      "role": "parent",
+      "downstream": {
+        "pid": 20956,
+        "role": "parent",
+        "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+        "utc": "2026-11-12T15:55:02",
+        "local": "2026-11-12T23:55:02",
+        "offset": 480,
+        "zone": "China Standard Time",
+        "name": "example.com.",
+        "addresses": "198.18.0.189"
+      },
+      "upstreamSessions": 0,
+      "upstreamBytes": 0
+    },
+    {
+      "phase": "baseline-dns",
+      "side": "outside",
+      "role": "child",
+      "downstream": {
+        "pid": 28648,
+        "role": "child",
+        "image": "tmp\\proxybridge-eval\\CagePBCheckChild.exe",
+        "utc": "2026-11-12T15:55:02",
+        "local": "2026-11-12T23:55:02",
+        "offset": 480,
+        "zone": "China Standard Time",
+        "name": "example.com.",
+        "addresses": "198.18.0.189"
+      },
+      "upstreamSessions": 0,
+      "upstreamBytes": 0
+    }
+  ],
+  "diagnosticNote": "The first negative-control attempt timed out restarting the boxed test program. The narrow allow was rerun in a fresh dedicated box.",
+  "noEnginePermittedDestination": {
+    "session": "pb-a0eaf923394b",
+    "release": "v4.3.0_Windows",
+    "conditions": [
+      {
+        "phase": "no-engine-original-permitted-relay-alive",
+        "side": "inside",
+        "role": "parent",
+        "downstream": {
+          "pid": 34772,
+          "role": "parent",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+          "utc": "2026-11-12T15:56:48",
+          "local": "2026-11-13T00:56:48",
+          "offset": 540,
+          "zone": "Tokyo Standard Time",
+          "target": "1.1.1.1:443",
+          "exit": "<host-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 0,
+        "upstreamBytes": 0
+      },
+      {
+        "phase": "no-engine-original-permitted-relay-alive",
+        "side": "outside",
+        "role": "parent",
+        "downstream": {
+          "pid": 47044,
+          "role": "parent",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+          "utc": "2026-11-12T15:56:50",
+          "local": "2026-11-12T23:56:50",
+          "offset": 480,
+          "zone": "China Standard Time",
+          "target": "1.1.1.1:443",
+          "exit": "<host-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 0,
+        "upstreamBytes": 0
+      },
+      {
+        "phase": "no-engine-original-permitted-relay-alive",
+        "side": "inside",
+        "role": "child",
+        "downstream": {
+          "pid": 52236,
+          "role": "child",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckChild.exe",
+          "utc": "2026-11-12T15:56:50",
+          "local": "2026-11-13T00:56:50",
+          "offset": 540,
+          "zone": "Tokyo Standard Time",
+          "target": "1.1.1.1:443",
+          "exit": "<host-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 0,
+        "upstreamBytes": 0
+      },
+      {
+        "phase": "no-engine-original-permitted-relay-alive",
+        "side": "outside",
+        "role": "child",
+        "downstream": {
+          "pid": 58500,
+          "role": "child",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckChild.exe",
+          "utc": "2026-11-12T15:56:51",
+          "local": "2026-11-12T23:56:51",
+          "offset": 480,
+          "zone": "China Standard Time",
+          "target": "1.1.1.1:443",
+          "exit": "<host-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 0,
+        "upstreamBytes": 0
+      },
+      {
+        "phase": "no-engine-fixed-still-proxied",
+        "side": "inside",
+        "role": "parent",
+        "downstream": {
+          "pid": 34772,
+          "role": "parent",
+          "image": "tmp\\proxybridge-eval\\CagePBCheckParent.exe",
+          "utc": "2026-11-12T15:56:52",
+          "local": "2026-11-13T00:56:52",
+          "offset": 540,
+          "zone": "Tokyo Standard Time",
+          "target": "127.0.0.1:54643",
+          "exit": "<proxy-egress-ip>",
+          "https": 200
+        },
+        "upstreamSessions": 1,
+        "upstreamBytes": 1196
+      }
+    ],
+    "memory": {},
+    "controls": {},
+    "controlOnly": true,
+    "testFiles": {
+      "CagePBCheckParent.exe": "52036cd171abe09b212d8cd58b04d77cb285f7492b36ca955253c4011784a18b",
+      "CagePBCheckChild.exe": "52306cfc0ef1928d2c5d5b9d3ecd205b5cae05049f51e5fd4a9a9f20b994be32"
+    },
+    "wfpGlobal": [],
+    "boxRemoved": true
+  },
+  "productionModeEnabled": false
+}

@@ -1,0 +1,168 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
+@@ -374,6 +374,7 @@
+ 
+         Context packageContext = createPackageContext(applicationInfo);
+         top.niunaijun.blackbox.region.GuestRegion.bind(BlackBoxCore.getContext(), getUserId(), packageContext);
++        top.niunaijun.blackbox.network.GuestExitCheck.bind(BlackBoxCore.getContext(), packageContext);
+         Object loadedApk = BRContextImpl.get(packageContext).mPackageInfo();
+         BRLoadedApk.get(loadedApk)._set_mSecurityViolation(false);
+         
+--- /dev/null
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/network/GuestExitCheck.java
+@@ -0,0 +1,70 @@
++package top.niunaijun.blackbox.network;
++
++import android.content.*;
++import android.os.*;
++import android.util.Log;
++
++/** A shell-owned control. The diagnostic APK and its child keep their default sockets. */
++public final class GuestExitCheck implements ServiceConnection {
++    private static final String HELPER = "io.github.leexeo.cage.localcore";
++    private final Context host;
++    private final Handler handler = new Handler(Looper.getMainLooper());
++    private boolean registered;
++
++    private GuestExitCheck(Context host) { this.host = host; }
++    public static void bind(Context host, Context guest) {
++        String pkg = guest.getPackageName();
++        if (!"io.github.leexeo.cage.plainnet".equals(pkg) && !"io.github.leexeo.cage.stablenet".equals(pkg)) return;
++        new GuestExitCheck(host).start();
++    }
++    private void start() {
++        try {
++            Intent service = new Intent().setClassName(HELPER, HELPER + ".ExitCheckService");
++            registered = host.bindService(service, this, Context.BIND_AUTO_CREATE);
++            Log.i("CageGuestExit", "bind=" + registered);
++            if (registered) handler.postDelayed(this::finish, 25000);
++        } catch (RuntimeException denied) {
++            Log.i("CageGuestExit", "bind failed " + denied.getClass().getSimpleName());
++        }
++    }
++    @Override public void onServiceConnected(ComponentName name, IBinder endpoint) {
++        Messenger remote = new Messenger(endpoint);
++        Messenger replies = new Messenger(new Handler(Looper.getMainLooper(), result -> {
++            if (result.what == 1) {
++                String ip = result.getData().getString("ipv4");
++                Log.i("CageGuestExit", "service HTTPS IPv4=" + (ip == null ? "unavailable" : ip));
++            } else if (result.what == 2) {
++                ParcelFileDescriptor receive = result.getData().getParcelable("receive");
++                ParcelFileDescriptor send = result.getData().getParcelable("send");
++                new Thread(() -> {
++                    try (ParcelFileDescriptor input = receive; ParcelFileDescriptor output = send) {
++                        if (input == null || output == null) throw new java.io.IOException("unavailable");
++                        String ip = GuestStreamHttps.fetch(new ParcelFileDescriptor.AutoCloseInputStream(input),
++                                new ParcelFileDescriptor.AutoCloseOutputStream(output));
++                        Log.i("CageGuestStream", "verified HTTPS IPv4=" + ip);
++                    } catch (Exception end) {
++                        Log.i("CageGuestStream", "stream=" + (receive == null ? "unavailable" : "failed")
++                                + " error=" + end.getClass().getSimpleName());
++                    } finally {
++                        handler.post(this::finish);
++                    }
++                }, "Cage-guest-stream-TLS").start();
++            }
++            return true;
++        }));
++        try {
++            for (int operation : new int[]{1, 2}) {
++                Message check = Message.obtain(null, operation);
++                check.replyTo = replies;
++                remote.send(check);
++            }
++        } catch (RemoteException gone) { finish(); }
++    }
++    @Override public void onServiceDisconnected(ComponentName name) { finish(); }
++    private void finish() {
++        if (!registered) return;
++        registered = false;
++        handler.removeCallbacksAndMessages(null);
++        host.unbindService(this);
++    }
++}
+--- /dev/null
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/network/GuestStreamHttps.java
+@@ -0,0 +1,82 @@
++package top.niunaijun.blackbox.network;
++
++import java.io.*;
++import java.nio.ByteBuffer;
++import java.nio.charset.StandardCharsets;
++import java.util.Collections;
++import javax.net.ssl.*;
++
++/** HTTPS readback for the single test destination over an already connected Binder-provided byte stream. */
++final class GuestStreamHttps {
++    private static final String HOST = "ipv4.icanhazip.com";
++    private final SSLEngine engine;
++    private final DataInputStream input;
++    private final OutputStream output;
++    private final ByteBuffer plain, network;
++    private final ByteBuffer empty = ByteBuffer.allocate(0);
++    private GuestStreamHttps(InputStream receive, OutputStream send) throws Exception {
++        input = new DataInputStream(receive);
++        output = send;
++        engine = SSLContext.getDefault().createSSLEngine(HOST, 443);
++        engine.setUseClientMode(true);
++        engine.setEnabledProtocols(new String[]{"TLSv1.2"});
++        SSLParameters p = engine.getSSLParameters();
++        p.setEndpointIdentificationAlgorithm("HTTPS");
++        p.setServerNames(Collections.singletonList(new SNIHostName(HOST)));
++        engine.setSSLParameters(p);
++        plain = ByteBuffer.allocate(Math.max(32768, engine.getSession().getApplicationBufferSize()));
++        network = ByteBuffer.allocate(Math.max(32768, engine.getSession().getPacketBufferSize()));
++    }
++    private void write(ByteBuffer src) throws Exception {
++        network.clear();
++        SSLEngineResult result = engine.wrap(src, network);
++        if (result.getStatus() != SSLEngineResult.Status.OK) throw new SSLException(result.getStatus().name());
++        output.write(network.array(), 0, network.position());
++        output.flush();
++    }
++    private boolean read(ByteArrayOutputStream body) throws Exception {
++        byte[] header = new byte[5];
++        try { input.readFully(header); } catch (EOFException end) { return false; }
++        int length = ((header[3] & 255) << 8) | (header[4] & 255);
++        if (length > 18432) throw new SSLException("invalid record");
++        byte[] record = new byte[5 + length];
++        System.arraycopy(header, 0, record, 0, 5);
++        input.readFully(record, 5, length);
++        ByteBuffer src = ByteBuffer.wrap(record);
++        while (src.hasRemaining()) {
++            plain.clear();
++            SSLEngineResult r = engine.unwrap(src, plain);
++            if (r.getStatus() == SSLEngineResult.Status.CLOSED) return false;
++            if (r.getStatus() != SSLEngineResult.Status.OK || r.bytesConsumed() == 0) throw new SSLException("unwrap");
++            if (body != null) body.write(plain.array(), 0, plain.position());
++            Runnable task;
++            while ((task = engine.getDelegatedTask()) != null) task.run();
++        }
++        return true;
++    }
++    private String run() throws Exception {
++        engine.beginHandshake();
++        for(int i=0;i<128;i++) {
++            switch(engine.getHandshakeStatus()) {
++                case NEED_WRAP: write(empty); continue;
++                case NEED_UNWRAP: if (!read(null)) throw new EOFException(); continue;
++                case NEED_TASK:
++                    Runnable task; while ((task=engine.getDelegatedTask())!=null) task.run(); continue;
++                default: break;
++            }
++            break;
++        }
++        if (engine.getHandshakeStatus()!=SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING) throw new SSLException("handshake incomplete");
++        ByteBuffer request=ByteBuffer.wrap(("GET / HTTP/1.0\r\nHost: "+HOST+"\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
++        while(request.hasRemaining()) write(request);
++        ByteArrayOutputStream response=new ByteArrayOutputStream();
++        while(response.size()<8192 && read(response)) {}
++        String result=response.toString("US-ASCII");
++        int pos=result.indexOf("\r\n\r\n");
++        if(pos<0 || !result.substring(0,result.indexOf("\r\n")).matches("HTTP/1\\.[01] 200.*")) throw new IOException("bad HTTP response");
++        String ip=result.substring(pos+4).trim();
++        if(!android.util.Patterns.IP_ADDRESS.matcher(ip).matches())throw new IOException("invalid address");
++        return ip;
++    }
++    static String fetch(InputStream receive, OutputStream send) throws Exception {return new GuestStreamHttps(receive, send).run();}
++}

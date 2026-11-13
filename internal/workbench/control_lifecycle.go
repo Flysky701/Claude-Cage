@@ -18,6 +18,7 @@ import (
 )
 
 const controlProtocol = 1
+const windowsVMProbeTimeout = 15 * time.Second
 
 type ControllerIdentity struct {
 	Version  string `json:"version"`
@@ -133,7 +134,7 @@ func controllerVMOwners(profile string) ([]string, error) {
 		return nil, err
 	}
 	if binding != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), windowsVMProbeTimeout)
 		defer cancel()
 		state, err := guestos.WindowsVMResources(ctx, profile, 0, 0)
 		if err != nil {

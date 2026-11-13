@@ -4,7 +4,7 @@ mobile_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "$mobile_dir"
 case "${1:-}" in
   android|ios) platform="$1" ;;
-  android-release) platform=android ;;
+  android-release|android-preview) platform=android ;;
   ios-ipa|ios-ipa-basic)
     platform=ios
     if [[ $# != 2 || ! $2 =~ ^[A-Z0-9]{10}$ ]]; then
@@ -12,7 +12,7 @@ case "${1:-}" in
       exit 2
     fi
     ;;
-  *) echo "Usage: mobile/build.sh android | android-release | ios | ios-ipa TEAM_ID | ios-ipa-basic TEAM_ID" >&2; exit 2 ;;
+  *) echo "Usage: mobile/build.sh android | android-preview | android-release | ios | ios-ipa TEAM_ID | ios-ipa-basic TEAM_ID" >&2; exit 2 ;;
 esac
 if [[ "$platform" == ios ]]; then
   # xcrun distinguishes a missing SDK from a pending Xcode license or setup step.
@@ -74,6 +74,8 @@ else
     -o "$mobile_dir/.build/android/Cagemobile.aar" .)
   if [[ "$1" == android-release ]]; then
     bash android/package.sh --release
+  elif [[ "$1" == android-preview ]]; then
+    bash android/package.sh --preview
   else
     bash android/package.sh
   fi

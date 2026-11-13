@@ -13,6 +13,7 @@ version_args=()
 signing_args=()
 case "${1:-}" in
   '') out="$build/cage-mobile-debug.apk" ;;
+  --preview) out="$build/Cage-android-experimental.apk" ;;
   --release)
     : "${CAGE_ANDROID_KEYSTORE:?Set the persistent Android signing keystore path}"
     : "${CAGE_ANDROID_KEY_ALIAS:?Set the signing key alias}"
@@ -26,7 +27,7 @@ case "${1:-}" in
     signing_args=(--ks "$CAGE_ANDROID_KEYSTORE" --ks-key-alias "$CAGE_ANDROID_KEY_ALIAS" --ks-pass "file:$CAGE_ANDROID_PASSWORD_FILE")
     out="$build/Cage-$version-android-arm64.apk"
     ;;
-  *) echo 'Usage: mobile/android/package.sh [--release]' >&2; exit 2 ;;
+  *) echo 'Usage: mobile/android/package.sh [--release|--preview]' >&2; exit 2 ;;
 esac
 [[ -f "$aar" && -f "$mobile_dir/.build/resources/mobile-ui/mobile.html" && -f "$platform" ]] || { echo 'Missing native AAR, mobile UI, or Android platform.' >&2; exit 1; }
 mkdir -p "$build"
@@ -42,7 +43,17 @@ mkdir -p "$work/apk/assets/licenses"
 cp "$android/licenses/ZXing-LICENSE.txt" "$work/apk/assets/licenses/"
 "$tools/aapt2" compile --dir "$android/res" -o "$work/res.zip"
 "$tools/aapt2" compile --dir "$work/brand" -o "$work/brand.zip"
-"$tools/aapt2" link -o "$work/base.apk" -I "$platform" -A "$mobile_dir/.build/resources" --manifest "$android/AndroidManifest.xml" "${version_args[@]}" "$work/res.zip" "$work/brand.zip"
+manifest="$android/AndroidManifest.xml"
+if [[ "${1:-}" == --preview ]]; then
+  # Keep installed clients' pairings and app data when testing a development signature.
+  sed -e 's/package="io\.github\.leexeo\.cage\.mobile"/package="io.github.leexeo.cage.mobile.preview"/' \
+      -e 's/android:name="\.MainActivity"/android:name="io.github.leexeo.cage.mobile.MainActivity"/' \
+      -e 's/android:name="\.ScanActivity"/android:name="io.github.leexeo.cage.mobile.ScanActivity"/' \
+      -e 's/android:label="Cage"/android:label="Cage 实验版"/' \
+      "$manifest" > "$work/AndroidManifest.xml"
+  manifest="$work/AndroidManifest.xml"
+fi
+"$tools/aapt2" link -o "$work/base.apk" -I "$platform" -A "$mobile_dir/.build/resources" --manifest "$manifest" "${version_args[@]}" "$work/res.zip" "$work/brand.zip"
 zxing="$build/zxing-core-3.5.3.jar"
 if [[ ! -f "$zxing" ]]; then
   curl --fail --location --silent --show-error https://repo.maven.apache.org/maven2/com/google/zxing/core/3.5.3/core-3.5.3.jar -o "$work/zxing.jar"

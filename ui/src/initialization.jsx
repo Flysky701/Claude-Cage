@@ -68,7 +68,7 @@ function Initialization({ initial, onComplete }) {
   const [help, setHelp] = useState(false);
   const [dialog, setDialog] = useState(null);
   const [approvalWorkspace, setApprovalWorkspace] = useState("");
-  const [proxyDirty, setProxyDirty] = useState(false);
+  const [proxyDraft, setProxyDraft] = useState("");
   const alive = useRef(true);
   const pollNow = useRef(null);
   const activation = useRef(false);
@@ -216,8 +216,8 @@ function Initialization({ initial, onComplete }) {
     });
   }
   async function back() {
-    if (step === "proxy" && proxyDirty && !await confirm({ title: "放弃尚未应用的代理修改？", body: "已经保存并应用的代理会保留，当前未应用的表单修改会丢弃。", confirm: "放弃修改" })) return;
-    setProxyDirty(false);
+    if (step === "proxy" && proxyDraft && !await confirm({ title: "放弃尚未应用的代理修改？", body: "已经保存并应用的代理会保留，当前未应用的表单修改会丢弃。", confirm: "放弃修改" })) return;
+    setProxyDraft("");
     setStep(step === "install" ? "proxy" : pending || account?.guest_system ? "install" : "system");
   }
   async function nextFromSystem() {
@@ -241,6 +241,24 @@ function Initialization({ initial, onComplete }) {
       setStep("proxy");
     });
   }
+  function installHint() {
+    if (connectionError) return "请点击上方的“重新连接”，重新读取安装状态。";
+    if (busy) return submitting ? "正在准备安装…" : "请等待当前操作完成。";
+    if (!proxy) return "正在读取代理配置…";
+    if (proxyDraft === "source") return "在“订阅”页完成来源编辑，或点击“取消”。";
+    if (proxyDraft || needsProxySetup(null, status, proxy)) {
+      if (proxy.core_available === false) return "请安装带有代理核心的完整 Cage 应用。";
+      if (!proxy.sources?.some(source => source.nodes.length)) return "点击“添加来源”，导入订阅、本地 YAML 或手动节点。";
+      if (proxyDraft === "incomplete-route") return "在“节点”页为每一跳选择不同的节点，再点击“应用代理”。";
+      if (proxyDraft === "route" || proxy.selected) return "在“节点”页点击“应用代理”，启用所选出口。";
+      return "在“节点”页选择最终出口，再点击“应用代理”。";
+    }
+    if (!account?.guest_system && !pending && !validGuestChoice(choice)) {
+      return choice?.clone ? "请查看上方的系统镜像匹配结果和可用空间。" : "返回上一步，补全客机系统和安装镜像信息。";
+    }
+    return "";
+  }
+  const startHint = step === "proxy" ? installHint() : "";
   const failed = Boolean(job.error || error);
   const networkPending = Boolean(status?.ready && status.vm_running && network.mode !== "open");
   const progress = !status?.ready && job.setup_progress ? { ...job, setup_progress: job.setup_progress } : null;
@@ -257,7 +275,7 @@ function Initialization({ initial, onComplete }) {
             <GuestSystemPicker system={choice} onChange={setChoice} preserveOnUnmount deferMatch />
             <InitializationStorage value={storage} onChange={setStorage} disabled={busy} />
           </>}
-          {step === "proxy" && <><ProxySettings initializing status={status} onConfirm={confirm} onDirty={setProxyDirty} onApplied={async () => { setProxy(await api("/proxy")); pollNow.current?.(); }} />{choice?.clone && !needsProxySetup(null, status, proxy) && <HostCloneSummary pending={choice.pending} onChange={setChoice} />}</>}
+          {step === "proxy" && <><ProxySettings initializing status={status} onConfirm={confirm} onDraftChange={setProxyDraft} onApplied={async () => { setProxy(await api("/proxy")); pollNow.current?.(); }} />{choice?.clone && !needsProxySetup(null, status, proxy) && <HostCloneSummary pending={choice.pending} onChange={setChoice} />}</>}
           {step === "install" && (ready ? <div className="initialization-ready"><ShieldCheck size={36} /><h2>环境已就绪</h2><p>独立客机已安装，工具、文件和登录状态会持续保存。以后打开 Cage 可直接进入工作台。</p></div> : <>
             {exitCandidate && <section className="initialization-notice" aria-label="确认固定出口"><p>客机终端、浏览器和代理已测得一致出口。请确认是否将它绑定为固定出口。</p><button disabled={busy || Boolean(connectionError)} onClick={bindExit}>绑定检测到的固定出口 {exitCandidate}</button></section>}
             {needsExitRestart && <section className="initialization-notice" aria-label="固定出口已保存"><p>固定出口已保存。重启客机并重新检测后才能进入工作台。</p><button className="primary" disabled={busy || Boolean(connectionError)} onClick={restart}>{status.vm_running ? "重启客机并重新检测" : "启动客机并重新检测"}</button></section>}
@@ -277,7 +295,10 @@ function Initialization({ initial, onComplete }) {
         <footer className="initialization-actions">
           {step === "system" ? <span /> : <button className="text-button" disabled={busy} onClick={back}><ChevronLeft size={16} />上一步</button>}
           {step === "system" && <button className="primary" disabled={busy || !storage?.directory.trim() || choice === undefined || (!choice?.clone && !validGuestChoice(choice)) || choice?.clone && choice.guest_system === "windows-11" && !choice.editor_terms || Boolean(connectionError)} onClick={nextFromSystem}>{submitting && <LoaderCircle size={16} className="spin" />}下一步：配置代理</button>}
-          {step === "proxy" && <button className="primary" disabled={busy || proxyDirty || !account?.guest_system && !pending && !validGuestChoice(choice) || needsProxySetup(null, status, proxy) || Boolean(connectionError)} onClick={install}>{submitting ? <LoaderCircle size={16} className="spin" /> : null}开始安装</button>}
+          {step === "proxy" && <div className="initialization-start">
+            {startHint && <span className="field-help" id="installation-hint" role="status">{startHint}</span>}
+            <button className="primary" disabled={Boolean(startHint)} aria-describedby={startHint ? "installation-hint" : undefined} onClick={install}>{submitting && <LoaderCircle size={16} className="spin" />}开始安装</button>
+          </div>}
           {step === "install" && ready && <button className="primary" disabled={submitting || Boolean(connectionError)} onClick={enter}>进入工作台</button>}
         </footer>
       </>}
