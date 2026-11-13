@@ -5,6 +5,7 @@ from pathlib import Path
 import struct
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 from space_manifest import add_space_activity
 from space_accounts import account_runtime
@@ -65,12 +66,36 @@ def run(*args):
     subprocess.run([os.fspath(arg) for arg in args], check=True)
 
 
+def microg_relay_manifest(source, work, tools, android):
+    attr = "{http://schemas.android.com/apk/res/android}"
+    ET.register_namespace("android", attr[1:-1])
+    tree = ET.parse(source / "AndroidManifest.xml")
+    root = tree.getroot()
+    original = root.get("package")
+    root.set("package", "io.github.leexeo.cage.microcore")
+    ET.SubElement(root.find("queries"),"package",{attr + "name":"io.github.leexeo.cage.fullguest"})
+    root.find("application").set(attr + "label", "Cage microG 代理")
+    for element in root.iter():
+        for key, value in list(element.attrib.items()):
+            if value.startswith("top.niunaijun.cagetest"):
+                element.set(key, value.replace("top.niunaijun.cagetest", "top.niunaijun.microbox", 1))
+            elif key == attr + "name" and value.startswith("."):
+                element.set(key, original + value)
+    manifest = work / "AndroidManifest.xml"
+    tree.write(manifest, encoding="utf-8")
+    compiled = work / "relay-manifest.apk"
+    run(tools / "aapt2.exe", "link", "-I", android, "--manifest", manifest, "-o", compiled)
+    with ZipFile(compiled) as apk:
+        return apk.read("AndroidManifest.xml")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sdk", required=True, type=Path)
     parser.add_argument("--jdk", required=True, type=Path)
     parser.add_argument("--build-tools", type=Path, help="Android Build Tools directory")
     parser.add_argument("--only", choices=("shell", "relay"))
+    parser.add_argument("--microg", action="store_true", help="build the separate upstream microG space and relay")
     parser.add_argument("--ndk", type=Path, help="include the arm64 system-curl IPv4 transport")
     args = parser.parse_args()
     os.environ["JAVA_HOME"] = str(args.jdk)
@@ -89,6 +114,8 @@ def main():
         name = "Cage-BlackBox-Light" if shell else "Cage-Light-Relay"
         if shell and args.ndk:
             name = "Cage-BlackBox-Curl4"
+        if args.microg:
+            name = "Cage-microG-Space" if shell else "Cage-microG-Relay"
         source = here if shell else here.parent / "local-core"
         base = (blackbox / "BlackBoxReborn-2.1.0-Cage-BinderStream.apk" if shell
                 else build / "on-device-core/Cage-LocalCore.apk")
@@ -117,6 +144,7 @@ def main():
                 run(llvm / "bin/clang.exe", "--target=aarch64-linux-android28", "--sysroot=" + str(llvm / "sysroot"),
                     "-std=c11", "-Os", "-fPIC", "-shared", "-Wall", "-Wextra", "-Werror", "-nostdlib",
                     "-Wl,-z,defs,-z,now,-z,relro,-z,noexecstack,-soname,libcage_curl4.so",
+                    *(["-DCAGE_MICROG_SPACE"] if args.microg else []),
                     here / "curl4_local.c", "-lc", "-ldl", "-llog", "-o", native)
             replace = "classes2.dex" if shell else "classes.dex"
             with ZipFile(base) as old, ZipFile(work / "unsigned.apk", "w") as out:
@@ -132,7 +160,9 @@ def main():
                     elif shell and item.filename == "classes.dex":
                         data = account_runtime(base, work, args.jdk / "bin/java.exe", blackbox / "apktool.jar")
                     elif shell and item.filename == "AndroidManifest.xml":
-                        data = add_space_activity(without_internet(data))
+                        data = add_space_activity(without_internet(data), microg=args.microg)
+                    elif args.microg and not shell and item.filename == "AndroidManifest.xml":
+                        data = microg_relay_manifest(source, work, tools, android)
                     out.writestr(item, data)
                 if native.exists():
                     out.write(native, "lib/arm64-v8a/libcage_curl4.so")

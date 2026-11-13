@@ -36,7 +36,27 @@ final class ProxySettings {
             route.append("    username: ").append(JSONObject.quote(name))
                     .append("\n    password: ").append(JSONObject.quote(password)).append('\n');
         }
-        return route.append("rules:\n  - MATCH,cage-local\n").toString();
+        return route.append("    udp: true\nrules:\n  - MATCH,cage-local\n").toString();
+    }
+
+    static String runtimeRoute(File directory) throws IOException {
+        StringBuilder result = new StringBuilder();
+        boolean inRules = false, guarded = false;
+        for (String line : Files.readAllLines(file(directory).toPath(), StandardCharsets.UTF_8)) {
+            result.append(line).append('\n');
+            String value = line.trim();
+            if (value.isEmpty() || value.startsWith("#")) continue;
+            if (line.equals("rules:")) { inRules = true; continue; }
+            if (!inRules) continue;
+            if (!value.matches("(?i)-\\s*[\"']?MATCH,[^,]+[\"']?"))
+                throw new IOException("Expected a single catch-all upstream rule");
+            // Mihomo skips a proxy that cannot carry UDP. Terminate matching before its implicit DIRECT fallback.
+            result.append(line.substring(0, line.indexOf('-'))).append("- MATCH,REJECT\n");
+            inRules = false;
+            guarded = true;
+        }
+        if (!guarded) throw new IOException("Missing upstream rule");
+        return result.toString();
     }
 
     static void save(File directory, String configuration) throws IOException {

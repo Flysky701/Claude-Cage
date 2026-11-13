@@ -23,6 +23,9 @@ final class SpacePackages {
     static final String STORE = "com.android.vending";
     static final String CLAUDE = "com.anthropic.claude";
     static final String[] GOOGLE = { FRAMEWORK, SERVICES, STORE };
+    static final String[] MICROG = { SERVICES, STORE };
+    static final String MICROG_SPACE = "top.niunaijun.microbox";
+    private static final String MICROG_SIGNER = "9bd06727e62796c0130eb6dab39b73157451582cbd138e86c468acc395d14165";
     private static final String ROOT = "top.niunaijun.blackbox.";
     private static final int USER = 0;
     private final Context context;
@@ -72,6 +75,9 @@ final class SpacePackages {
     static PackageInfo inspect(Context context, File apk) throws Exception {
         PackageInfo info = context.getPackageManager().getPackageArchiveInfo(apk.getPath(),
                 Build.VERSION.SDK_INT >= 28 ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES);
+        boolean microG = MICROG_SPACE.equals(context.getPackageName());
+        if (microG && (info == null || !(SERVICES.equals(info.packageName) || STORE.equals(info.packageName))))
+            throw new IOException("请选择上游 microG Services 或 Google 签名的原版 Play 商店。");
         if (info == null || info.applicationInfo == null || !google(info.packageName))
             throw new IOException("请选择 Google 服务框架、Play 服务或 Play 商店的完整 APK。");
         if (info.applicationInfo.minSdkVersion > Build.VERSION.SDK_INT)
@@ -97,11 +103,15 @@ final class SpacePackages {
         } else {
             certs = info.signatures != null && info.signatures.length == 1 ? info.signatures : null;
         }
-        if (!trusted(info.packageName, certs)) throw new IOException(label(info.packageName) + " 的 Google 签名未通过验证。");
+        if (!trusted(info.packageName, certs, microG)) {
+            if (microG && SERVICES.equals(info.packageName))
+                throw new IOException("此空间需要 microG 官方发布的 Services 安装包。");
+            throw new IOException(label(info.packageName) + " 的 Google 签名未通过验证。");
+        }
         return info;
     }
 
-    static boolean trusted(String pkg, Signature[] certs) throws Exception {
+    private static boolean trusted(String pkg, Signature[] certs, boolean microG) throws Exception {
         if (!google(pkg) || certs == null) return false;
         MessageDigest hash = MessageDigest.getInstance("SHA-256");
         for (Signature cert : certs) {
@@ -110,6 +120,10 @@ final class SpacePackages {
                 hex.append(Character.forDigit((b >> 4) & 15, 16)).append(Character.forDigit(b & 15, 16));
             }
             String digest = hex.toString();
+            if (microG && SERVICES.equals(pkg)) {
+                if (MICROG_SIGNER.equals(digest)) return true;
+                continue;
+            }
             // Release signing keys of the Google apps, including the newer Play services signer.
             if (digest.equals("f0fd6c5b410f25cb25c3b53346c8972fae30f8ee7411df910480ad6b2d60db83")
                     || digest.equals("7ce83c1b71f3d572fed04c8d40c5cb10ff75e6d87d9df6fbd53f0468c2905053")
@@ -138,8 +152,13 @@ final class SpacePackages {
     }
 
     boolean open(String pkg, boolean listing) throws Exception {
-        Intent target = listing ? new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + CLAUDE))
+        Intent target;
+        if (SERVICES.equals(pkg) && MICROG_SPACE.equals(context.getPackageName())) {
+            target = new Intent(Intent.ACTION_APPLICATION_PREFERENCES).addCategory(Intent.CATEGORY_DEFAULT);
+        } else {
+            target = listing ? new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + CLAUDE))
                 : new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+        }
         target.setPackage(pkg);
         // Play declares several equally ranked handlers. The single-result resolver returns null on ties.
         @SuppressWarnings("unchecked")
