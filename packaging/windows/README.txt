@@ -33,6 +33,9 @@ Automatic updates stop application launch while recovery remains incomplete.
 Stop the environment and quit Cage before running an installer manually.
 In-app updates stop the environment after your confirmation, verify the new
 installer and publisher, and restart the application after installation.
+If installation fails while the original program is intact, Cage reopens it
+without replacing its directory. If the new version cannot become ready, Cage
+attempts to restore the previous program and keeps the latest personal files.
 Unsigned development builds cannot install automatic updates.
 
 Uninstall using Windows Settings > Apps > Installed apps (Windows 11) or

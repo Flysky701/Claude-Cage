@@ -140,6 +140,8 @@ try {
     $suffix = if ($Release) { '' } else { '-unsigned' }
     Enter-CiPhase 'Install, update and uninstall with isolated data'
     & (Join-Path $PSScriptRoot 'test-windows-install.ps1') -Installer "$repository/_output/releases/$version/windows/Cage-$version-windows-amd64-setup$suffix.exe"
+    Enter-CiPhase 'Signed automatic update and rollback transactions'
+    & (Join-Path $PSScriptRoot 'test-windows-update-flow.ps1')
     if ($Release) {
         Invoke-BuildTool 'node' @('scripts/release-version.mjs', 'metadata', 'windows', "_output/releases/$version/windows/build-metadata.json")
     }
