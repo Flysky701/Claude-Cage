@@ -1,11 +1,11 @@
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$LimboApk,[Parameter(Mandatory)][string]$TunnelAar,[string]$Sdk=$env:ANDROID_HOME,[string]$Jdk=$env:JAVA_HOME)
+param([Parameter(Mandatory)][string]$LimboApk,[Parameter(Mandatory)][string]$TunnelAar,[string]$Sdk=$env:ANDROID_HOME,[string]$Jdk=$env:JAVA_HOME,[string]$BuildTools)
 $ErrorActionPreference='Stop'
 $dest=[IO.Directory]::CreateDirectory((Join-Path $PSScriptRoot '../../.build/full-guest')).FullName
 $classes=[IO.Directory]::CreateDirectory((Join-Path $dest 'classes')).FullName
 $env:JAVA_HOME=$Jdk
 $android=Join-Path $Sdk 'platforms/android-35/android.jar'
-$bin=Join-Path $Sdk 'build-tools/34.0.0'
+$bin=if($BuildTools){$BuildTools}else{Join-Path $Sdk 'build-tools/34.0.0'}
 function Run([string]$exe,[string[]]$arguments) {
     & $exe @arguments
     if($LASTEXITCODE){throw "$exe exited with $LASTEXITCODE"}
@@ -29,9 +29,12 @@ $up=[IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $LimboApk).Pat
 try {
     [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($out,"$dest/classes.dex",'classes.dex')
     [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($out,"$dest/libhev-socks5-tunnel.so",'lib/arm64-v8a/libhev-socks5-tunnel.so')
+    if(Test-Path -LiteralPath "$dest/engine/qemu") {
+        [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($out,"$dest/engine/qemu",'lib/arm64-v8a/libcage_qemu.so')
+    }
     foreach($e in $up.Entries){
         if($e.FullName -like 'lib/arm64-v8a/*.so'){$name=$e.FullName}
-        elseif($e.FullName.StartsWith('assets/roms/') -and $e.Name){$name='assets/bootrom/'+$e.Name}
+        elseif($e.FullName.StartsWith('assets/roms/') -and $e.Name){$name='assets/bootrom/'+$e.FullName.Substring('assets/roms/'.Length)}
         else{continue}
         $en=$out.CreateEntry($name); $inputStream=$e.Open();$outputStream=$en.Open()
         try{$inputStream.CopyTo($outputStream)}finally{$inputStream.Dispose();$outputStream.Dispose()}

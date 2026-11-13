@@ -22,6 +22,7 @@ public final class SpaceActivity extends Activity {
     // The package service and base APKs are shared across activity instances.
     private static final ExecutorService tasks = Executors.newSingleThreadExecutor();
     private boolean launchRequested;
+    private boolean microG;
     private boolean busy;
     private boolean resumed;
     private int refreshGeneration;
@@ -31,6 +32,7 @@ public final class SpaceActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        microG = SpacePackages.MICROG_SPACE.equals(getPackageName());
         String action = getIntent().getAction();
         launchRequested = (ACTION + "OPEN_CLAUDE").equals(action) || (ACTION + "OPEN_STORE").equals(action)
                 || (ACTION + "INSTALL_CLAUDE").equals(action);
@@ -77,7 +79,7 @@ public final class SpaceActivity extends Activity {
 
     private void header(String message) {
         content.removeAllViews();
-        line("Google 套件", 26).setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        line(microG ? "Cage · microG 空间" : "Google 套件", 26).setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         status = line(message, 16);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     }
@@ -91,32 +93,53 @@ public final class SpaceActivity extends Activity {
                 SpacePackages space = new SpacePackages(this);
                 List<String> rows = new ArrayList<>();
                 boolean complete = true;
-                for (String pkg : SpacePackages.GOOGLE) {
+                boolean servicesPresent = false;
+                for (String pkg : microG ? SpacePackages.MICROG : SpacePackages.GOOGLE) {
                     PackageInfo info = space.installed(pkg);
                     boolean present = space.privateCopy(info);
+                    if (SpacePackages.SERVICES.equals(pkg)) servicesPresent = present;
                     complete &= present;
                     String detail = present ? "已导入" + (info.versionName == null ? "" : " · " + info.versionName)
                             : info == null ? "待导入" : "需导入独立副本";
-                    rows.add(SpacePackages.label(pkg) + "　" + detail);
+                    rows.add(label(pkg) + "　" + detail);
                 }
                 boolean claude = space.installed(SpacePackages.CLAUDE) != null;
                 boolean ready = complete;
+                boolean showMicroGSettings = microG && servicesPresent;
+                boolean hasNetworkGuest = microG && getPackageManager().checkSignatures(getPackageName(),
+                        "io.github.leexeo.cage.fullguest") == android.content.pm.PackageManager.SIGNATURE_MATCH;
                 // Android 16's authenticator checks the account-service caller's platform signature.
                 // Opening an already installed guest app does not require adding a Google account.
-                boolean warnAboutSignIn = GuestAuthenticatorTypes.cannotAddAccount(this, "com.google");
+                boolean warnAboutSignIn = !microG && GuestAuthenticatorTypes.cannotAddAccount(this, "com.google");
                 runOnUiThread(() -> {
                     if (isDestroyed() || isFinishing() || generation != refreshGeneration) return;
                     busy = false;
-                    String summary = ready ? "三个组件已导入本机空间。" : "请导入适合这台手机的 Google 套件。";
+                    String summary = ready ? (microG ? "microG 和 Play 商店已导入。" : "三个组件已导入本机空间。")
+                            : microG ? "请导入 microG Services 和原版 Play 商店。" : "请导入适合这台手机的 Google 套件。";
                     header(notice.isEmpty() ? summary : notice);
                     for (String row : rows) line(row, 15);
                     action(ready ? "更新 Google 套件" : "导入 Google 套件", this::pick);
+                    if (microG) {
+                        action("配置空间代理", this::openRelay);
+                        if (hasNetworkGuest) action("打开独立网卡空间", () -> {
+                            try {
+                                startActivity(new Intent().setClassName("io.github.leexeo.cage.fullguest",
+                                        "io.github.leexeo.cage.fullguest.GuestActivity"));
+                            } catch(android.content.ActivityNotFoundException missing){
+                                status.setText("独立网卡空间暂时无法打开。");
+                            }
+                        });
+                        action("空间设置", () -> startActivity(new Intent().setClassName(getPackageName(),
+                                "top.niunaijun.blackboxa.view.main.WelcomeActivity")));
+                    }
+                    if (showMicroGSettings) action("打开 microG 设置", () -> open(SpacePackages.SERVICES, false));
                     if (ready) {
                         if (warnAboutSignIn) line("Google 登录受限：在 Android 16 上，此空间暂时无法添加 Google 账号。", 15);
+                        if (microG) line("当前版本的登录网页无法经空间代理联网，添加 Google 账号会停在连接页。", 15);
                         action(claude ? "打开 Claude" : "在 Play 商店安装 Claude",
                                 () -> prepare(claude ? "OPEN_CLAUDE" : "INSTALL_CLAUDE"));
                         action("打开空间里的 Play 商店", () -> prepare("OPEN_STORE"));
-                    } else line("选择三个完整 APK，也可以选择包含这三个组件的套件 ZIP。", 14);
+                    } else if (!microG) line("选择三个完整 APK，也可以选择包含这三个组件的套件 ZIP。", 14);
                     if (notice.isEmpty() && launchRequested && ready && resumed) {
                         launchRequested = false;
                         boolean directClaude = claude && (ACTION + "OPEN_CLAUDE").equals(getIntent().getAction());
@@ -133,18 +156,36 @@ public final class SpaceActivity extends Activity {
     @Override protected void onPause() { resumed = false; super.onPause(); }
 
     private void prepare(String action) {
+        if (microG) {
+            boolean direct = "OPEN_CLAUDE".equals(action);
+            open(direct ? SpacePackages.CLAUDE : SpacePackages.STORE, "INSTALL_CLAUDE".equals(action));
+            return;
+        }
         setResult(RESULT_OK, new Intent(ACTION + action));
         finish();
+    }
+
+    private String label(String pkg) {
+        return microG && SpacePackages.SERVICES.equals(pkg) ? "microG Services" : SpacePackages.label(pkg);
+    }
+
+    private void openRelay() {
+        try {
+            startActivity(new Intent().setClassName("io.github.leexeo.cage.microcore",
+                    "io.github.leexeo.cage.localcore.CoreActivity"));
+        } catch (android.content.ActivityNotFoundException missing) {
+            status.setText("请先安装配套的 microG 空间代理助手。");
+        }
     }
 
     private void open(String pkg, boolean listing) {
         busy = true;
         launchRequested = false;
-        status.setText("正在打开" + SpacePackages.label(pkg) + "…");
+        status.setText("正在打开" + label(pkg) + "…");
         tasks.execute(() -> {
             try {
                 SpacePackages space = new SpacePackages(this);
-                if (!space.open(pkg, listing)) throw new IOException("空间内没有可打开的" + SpacePackages.label(pkg) + "。");
+                if (!space.open(pkg, listing)) throw new IOException("空间内没有可打开的" + label(pkg) + "。");
                 runOnUiThread(() -> {
                     busy = false;
                     notice = "";
@@ -153,7 +194,7 @@ public final class SpaceActivity extends Activity {
             } catch (Exception e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;
                 android.util.Log.w("CageSpace", "Guest launch failed for " + pkg + ": " + cause.getClass().getSimpleName());
-                failed("空间里的" + SpacePackages.label(pkg) + "未能打开。", -1);
+                failed("空间里的" + label(pkg) + "未能打开。", -1);
             }
         });
     }
@@ -210,7 +251,8 @@ public final class SpaceActivity extends Activity {
     }
 
     private String importFiles(Set<Uri> uris) throws Exception {
-        if (uris.size() > 3) throw new IOException("请选择一个套件 ZIP 或最多三个完整 APK。");
+        if (uris.size() > (microG ? 2 : 3)) throw new IOException(microG
+                ? "请选择套件 ZIP 或最多两个完整 APK。" : "请选择一个套件 ZIP 或最多三个完整 APK。");
         SpacePackages space = new SpacePackages(this);
         File dir = java.nio.file.Files.createTempDirectory(getCacheDir().toPath(), "google-import-").toFile();
         Map<String, File> parts = new HashMap<>();
@@ -238,7 +280,7 @@ public final class SpaceActivity extends Activity {
                 } catch (java.util.zip.ZipException invalid) { throw new IOException("请选择完整的 APK 或套件 ZIP。"); }
             }
             // Validate the whole selection before the first write. Each successful component is reusable on retry.
-            for (String pkg : SpacePackages.GOOGLE) {
+            for (String pkg : microG ? SpacePackages.MICROG : SpacePackages.GOOGLE) {
                 if (parts.containsKey(pkg)) space.install(parts.get(pkg), info.get(pkg));
             }
             return "已导入所选组件。";
@@ -249,8 +291,9 @@ public final class SpaceActivity extends Activity {
         }
     }
 
-    private static boolean bundleApk(String path) {
+    private boolean bundleApk(String path) {
         String base = path.substring(path.lastIndexOf('/') + 1).toLowerCase(Locale.ROOT);
+        if (microG && base.matches("com\\.google\\.android\\.gms-[0-9]+\\.apk")) return true;
         return base.equals("googleservicesframework.apk") || base.equals("gmscore.apk") || base.equals("phonesky.apk")
                 || base.equals("prebuiltgmscore.apk") || base.equals(SpacePackages.SERVICES + ".apk")
                 || base.equals(SpacePackages.FRAMEWORK + ".apk") || base.equals(SpacePackages.STORE + ".apk");

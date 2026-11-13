@@ -6,6 +6,7 @@ import subprocess
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--adb", required=True)
+parser.add_argument("--microg", action="store_true", help="configure the separate microG space relay")
 parser.add_argument("--config", type=Path, default=Path.home()/".claude-cage/proxy/config.yaml")
 args = parser.parse_args()
 sections = {}
@@ -26,7 +27,8 @@ if len(rules) != 1 or not re.fullmatch(r"- [\"']?MATCH,[^,]+[\"']?", rules[0], r
 if any(re.search(r"\b(DIRECT|PASS)\b", line, re.I) for line in sections["proxy-groups"]+rules):
     raise SystemExit("Direct fallback not supported by this test")
 payload = ("\n".join(line for k in ("proxies","proxy-groups","rules") for line in sections[k])+"\n").encode()
-target = ("run-as io.github.leexeo.cage.localcore sh -c "
+package = "io.github.leexeo.cage.microcore" if args.microg else "io.github.leexeo.cage.localcore"
+target = (f"run-as {package} sh -c "
           "'umask 077; mkdir -p files && cat > files/upstream.tmp && mv files/upstream.tmp files/upstream.yaml'")
 subprocess.run([args.adb, "-d", "shell", "-T", target], input=payload, check=True)
 print("Private configuration provisioned")

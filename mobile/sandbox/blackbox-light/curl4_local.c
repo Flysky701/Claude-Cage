@@ -31,8 +31,13 @@ static void initialize(void) {
     /* The package startup sets this only for the two pre-existing probes.
      * Do not accept an arbitrary path, address, or forwarding destination. */
     const char *path = getenv("CAGE_CURL4_LOCAL");
-    static const char plain[] = "/data/user/0/top.niunaijun.cagetest/cache/plainnet-egress.sock";
-    static const char stable[] = "/data/user/0/top.niunaijun.cagetest/cache/stablenet-egress.sock";
+#ifdef CAGE_MICROG_SPACE
+#define CAGE_PROBE_CACHE "/data/user/0/top.niunaijun.microbox/cache/"
+#else
+#define CAGE_PROBE_CACHE "/data/user/0/top.niunaijun.cagetest/cache/"
+#endif
+    static const char plain[] = CAGE_PROBE_CACHE "plainnet-egress.sock";
+    static const char stable[] = CAGE_PROBE_CACHE "stablenet-egress.sock";
     if (path == NULL || (strcmp(path, plain) != 0 && strcmp(path, stable) != 0))
         return;
     endpoint.sun_family = AF_UNIX;

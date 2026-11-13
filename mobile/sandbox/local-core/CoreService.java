@@ -24,9 +24,9 @@ import io.github.leexeo.cage.space.SpaceSites;
 /** Disposable test: only the test shell UID can use the two local HTTPS diagnostic entrances. */
 public final class CoreService extends Service {
     private static final String HOST = "ipv4.icanhazip.com";
-    private static final int PORT = 29461;
+    private int port;
     private static final String TAG = "CageLocalCore";
-    private final String password = UUID.randomUUID().toString();
+    private String password;
     private final List<LocalServerSocket> listeners = new ArrayList<>();
     private final Set<LocalSocket> clients = new HashSet<>();
     private volatile boolean stopped;
@@ -37,9 +37,17 @@ public final class CoreService extends Service {
 
     @Override public void onCreate() {
         super.onCreate();
+        port = microG(this) ? 29462 : 29461;
         startFailed = false;
         running = true;
     }
+    static boolean microG(android.content.Context context) {
+        return "io.github.leexeo.cage.microcore".equals(context.getPackageName());
+    }
+    static String spacePackage(android.content.Context context) {
+        return microG(context) ? "top.niunaijun.microbox" : "top.niunaijun.cagetest";
+    }
+    String guestGatewayPassword() { return password; }
 
     @Override public IBinder onBind(Intent intent) { return null; }
     @Override public int onStartCommand(Intent intent, int flags, int id) {
@@ -57,14 +65,14 @@ public final class CoreService extends Service {
         File dir = getFilesDir();
         File config = new File(dir, "runtime.yaml");
         try {
-            int uid = getPackageManager().getApplicationInfo("top.niunaijun.cagetest", 0).uid;
-            String prefix = "mode: rule\nallow-lan: false\nbind-address: 127.0.0.1\nmixed-port: " + PORT
+            password = microG(this) ? guestSessionPassword() : UUID.randomUUID().toString();
+            String prefix = "mode: rule\nallow-lan: false\nbind-address: 127.0.0.1\nmixed-port: " + port
                     + "\nauthentication: ['cage:" + password + "']\nskip-auth-prefixes: []\n"
                     + "tun: {enable: false}\nipv6: false\nlog-level: silent\ngeo-auto-update: false\n"
                     + "profile: {store-selected: false}\nfind-process-mode: off\n";
             try (OutputStream out = new FileOutputStream(config)) {
                 out.write(prefix.getBytes(StandardCharsets.UTF_8));
-                Files.copy(new File(dir, "upstream.yaml").toPath(), out);
+                out.write(ProxySettings.runtimeRoute(dir).getBytes(StandardCharsets.UTF_8));
             }
             File binary = new File(getApplicationInfo().nativeLibraryDir, "libmihomo.so");
             synchronized (this) {
@@ -75,7 +83,7 @@ public final class CoreService extends Service {
             boolean listening = false;
             for (int i=0; i<60 && !stopped && core.isAlive(); i++) {
                 try (Socket s = new Socket()) {
-                    s.connect(new InetSocketAddress("127.0.0.1", PORT), 150);
+                    s.connect(new InetSocketAddress("127.0.0.1", port), 150);
                     listening = true;
                     break;
                 } catch (IOException notReady) { Thread.sleep(100); }
@@ -83,12 +91,15 @@ public final class CoreService extends Service {
             if (!listening || !core.isAlive()) throw new IOException("startup");
             String address = verifyExit();
             // Retain compatibility with the existing, unmodified transport-aware diagnostic APK.
-            listen("cage_usb_probe_29387", true, uid);
-            listen("cage_usb_tls_29389", false, uid);
+            if (!microG(this)) {
+                int uid = getPackageManager().getApplicationInfo(spacePackage(this), 0).uid;
+                listen("cage_usb_probe_29387", true, uid);
+                listen("cage_usb_tls_29389", false, uid);
+            }
             File evidence = new File(dir, "online-reference");
             Files.write(evidence.toPath(), (System.currentTimeMillis()+" "+address+"\n").getBytes(StandardCharsets.US_ASCII));
             readyCore = this;
-            Log.i(TAG, "ready: verified HTTPS; two local test endpoints");
+            Log.i(TAG, "ready: verified HTTPS");
             File stop = new File(dir, "stop");
             while (!stopped && core.isAlive() && !stop.exists()) Thread.sleep(200);
             stop.delete();
@@ -102,6 +113,25 @@ public final class CoreService extends Service {
             stopSelf();
         }
     }
+    private String guestSessionPassword() throws IOException {
+        // A live guest retains its SOCKS capability while the upstream service is stopped and restarted.
+        String boot = String.valueOf(android.provider.Settings.Global.getInt(getContentResolver(),
+                android.provider.Settings.Global.BOOT_COUNT, -1));
+        File session = new File(getFilesDir(), "guest-gateway-session");
+        if (session.isFile()) {
+            List<String> saved = Files.readAllLines(session.toPath(), StandardCharsets.US_ASCII);
+            if (saved.size() == 2 && saved.get(0).equals(boot) && saved.get(1).matches("[0-9a-f-]{36}"))
+                return saved.get(1);
+        }
+        String token = UUID.randomUUID().toString();
+        android.util.AtomicFile file = new android.util.AtomicFile(session);
+        FileOutputStream out = file.startWrite();
+        try {
+            out.write((boot + "\n" + token + "\n").getBytes(StandardCharsets.US_ASCII));
+            file.finishWrite(out);
+        } catch (IOException failure) { file.failWrite(out); throw failure; }
+        return token;
+    }
     Socket connectUpstream() throws IOException {
         return connectUpstream(HOST);
     }
@@ -112,7 +142,7 @@ public final class CoreService extends Service {
             throw new IOException("outside space destination");
         Socket s = new Socket();
         try {
-            s.connect(new InetSocketAddress("127.0.0.1", PORT), 2000);
+            s.connect(new InetSocketAddress("127.0.0.1", port), 2000);
             s.setSoTimeout(12000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());

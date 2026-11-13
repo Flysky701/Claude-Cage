@@ -77,7 +77,9 @@ public final class GuestExitCheck implements ServiceConnection {
         LocalServerSocket listener = new LocalServerSocket(owner.getFileDescriptor());
         Os.chmod(path.toString(), 0600);
         int ownerUid = kernelUid();
-        Intent intent = new Intent().setClassName(HELPER, HELPER + ".ExitCheckService");
+        String helper = "top.niunaijun.microbox".equals(host.getPackageName())
+                ? "io.github.leexeo.cage.microcore" : HELPER;
+        Intent intent = new Intent().setClassName(helper, HELPER + ".ExitCheckService");
         if (!host.bindService(intent, this, Context.BIND_AUTO_CREATE)) throw new IOException("helper not installed");
         new Thread(() -> {
             try {

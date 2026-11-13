@@ -15,7 +15,7 @@ public final class ExitCheckService extends Service {
         if (request.what < 1 || request.what > 4 || request.replyTo == null) return true;
         int uid = request.sendingUid;
         try {
-            if (getPackageManager().getApplicationInfo("top.niunaijun.cagetest", 0).uid != uid ||
+            if (getPackageManager().getApplicationInfo(CoreService.spacePackage(this), 0).uid != uid ||
                     getPackageManager().checkSignatures(android.os.Process.myUid(), uid)
                             != PackageManager.SIGNATURE_MATCH) {
                 Log.w("CageBoundExit", "Rejected caller identity");

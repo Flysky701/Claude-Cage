@@ -2,7 +2,7 @@
 import struct
 
 
-def add_space_activity(xml):
+def add_space_activity(xml, microg=False):
     # Retain the original resource IDs, namespace map and every existing string index.
     pool = 8
     kind, header, size, count, styles, flags, start, _ = struct.unpack_from("<HH6I", xml, pool)
@@ -25,6 +25,23 @@ def add_space_activity(xml):
 
     none = 0xffffffff
     android = index("http://schemas.android.com/apk/res/android")
+    if microg:
+        # All package-specific strings in this pinned manifest have the same length
+        # after renaming. Fully qualified Java component names use another prefix.
+        old_pkg, new_pkg = "top.niunaijun.cagetest", "top.niunaijun.microbox"
+        if old_pkg not in strings:
+            raise ValueError("unexpected base package for the microG space")
+        for offset, value in zip(offsets, strings):
+            if value == old_pkg or value.startswith(old_pkg + "."):
+                pos = offset + 2
+                data[pos:pos + 2 * len(old_pkg)] = new_pkg.encode("utf-16-le")
+        # Move the original BlackBox launcher behind the space settings button.
+        # Existing nodes retain their category index; the new launcher gets a new one.
+        launcher_index = strings.index("android.intent.category.LAUNCHER")
+        strings[launcher_index] = "io.github.leexeo.cage.space.INTERNAL_LAUNCHER"
+        encoded = strings[launcher_index].encode("utf-16-le")
+        offsets[launcher_index] = len(data)
+        data.extend(struct.pack("<H", len(encoded) // 2) + encoded + b"\0\0")
 
     def element(name, attrs=(), children=b""):
         tag = index(name)
@@ -44,8 +61,14 @@ def add_space_activity(xml):
     actions = b"".join(element("action", [("name", "io.github.leexeo.cage.space." + action)])
                         for action in ("OPEN_CLAUDE", "GOOGLE_SETTINGS", "INSTALL_CLAUDE", "OPEN_STORE"))
     category = element("category", [("name", "android.intent.category.DEFAULT")])
-    activity = element("activity", [("name", "io.github.leexeo.cage.space.SpaceActivity"),
-                                    ("exported", True)], element("intent-filter", children=actions + category))
+    attrs = [("name", "io.github.leexeo.cage.space.SpaceActivity"), ("exported", True)]
+    filters = element("intent-filter", children=actions + category)
+    if microg:
+        attrs.append(("label", "Cage microG 空间"))
+        launcher = element("action", [("name", "android.intent.action.MAIN")])
+        launcher += element("category", [("name", "android.intent.category.LAUNCHER")])
+        filters += element("intent-filter", children=launcher)
+    activity = element("activity", attrs, filters)
     # The application end tag follows all of its existing children.
     position = pool + size
     while position < len(xml):

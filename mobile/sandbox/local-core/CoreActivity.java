@@ -16,7 +16,7 @@ public final class CoreActivity extends Activity {
     private TextView state, feedback;
     private EditText address;
     private Button start, stop, forget;
-    private boolean prepareForLaunch, autoStarted;
+    private boolean prepareForLaunch, autoStarted, prepareGuest;
     private final Runnable update = new Runnable() {
         @Override public void run() {
             refresh();
@@ -28,6 +28,11 @@ public final class CoreActivity extends Activity {
         super.onCreate(saved);
         prepareForLaunch = "io.github.leexeo.cage.space.ENSURE_NETWORK".equals(getIntent().getAction())
                 && "io.github.leexeo.cage.mobile.preview".equals(getCallingPackage());
+        String caller=getCallingPackage();
+        prepareGuest=CoreService.microG(this) && "io.github.leexeo.cage.fullguest.PREPARE_NETWORK".equals(getIntent().getAction())
+                && "io.github.leexeo.cage.fullguest".equals(caller)
+                && getPackageManager().checkSignatures(getPackageName(),caller)==android.content.pm.PackageManager.SIGNATURE_MATCH;
+        prepareForLaunch |= prepareGuest;
         autoStarted = saved != null && saved.getBoolean("auto-started");
         setTitle("本地代理");
         ScrollView scroll = new ScrollView(this);
@@ -81,6 +86,8 @@ public final class CoreActivity extends Activity {
         forget = button(layout, "清除已保存出口");
         forget.setOnClickListener(v -> {
             boolean removed = ProxySettings.file(getFilesDir()).delete();
+            if (removed && CoreService.microG(this))
+                new android.util.AtomicFile(new java.io.File(getFilesDir(),"guest-gateway-session")).delete();
             feedback.setText(removed ? "已清除保存的出口。" : "清除失败，请重试。");
             refresh();
         });
@@ -96,10 +103,12 @@ public final class CoreActivity extends Activity {
 
     private void refresh() {
         boolean configured = ProxySettings.file(getFilesDir()).isFile();
-        boolean ready = CoreService.readyCore != null;
+        CoreService core=CoreService.readyCore;
+        boolean ready = core != null;
         boolean running = CoreService.running;
         if (prepareForLaunch && ready && !isFinishing()) {
-            setResult(RESULT_OK);
+            if(prepareGuest) setResult(RESULT_OK,new Intent().putExtra("loopbackPassword",core.guestGatewayPassword()));
+            else setResult(RESULT_OK);
             finish();
             return;
         }

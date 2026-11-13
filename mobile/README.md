@@ -6,6 +6,22 @@ Android arm64 APK 可从[官网下载入口](https://claude-cage.com/#download)�
 
 ### Android 实验版：在本机空间打开 Claude
 
+#### 独立 microG 空间
+
+在 Android 16 arm64 真机上，已从新空间导入上游 microG Services 0.3.18.252432 和 Google 签名的 Play 商店 45.7.17。它有自己的应用数据和代理助手，可以与原有套件空间并存。原版商店已打开到「登录」，microG 自带的「添加 Google 账号」也能打开。
+
+三次点 microG 的登录确认后，界面均停在「正在建立到 Google 服务器的连接」，没有出现邮箱输入框。第二次在助手验证出口后冷启动空间，第三次开启 microG 的设备注册，结果相同。复测中登录网页报告加载结束，但界面仍显示等待页。来宾进程启动时，内核拒绝了直接创建 IPv4 和 IPv6 的 TCP、UDP 套接字。这个版本尚未完成 Google 登录和商店下载，SIM、语言和时区沿用原有实现，本轮未重新测量。
+
+11 月 14 日在同一真机复测，同一 microG 进程经现有 Java 代理向 `accounts.google.com` 发送 HTTPS HEAD 请求，收到 HTTP 302。登录用的 WebView 则返回 `getBlockNetworkLoads() == true`。它在主框架加载结束后显示的是 Chromium 内部错误文档，错误码为 `ERR_CACHE_MISS`，表单和脚本数都为 0，WebView 仍处于隐藏状态。Android 在应用缺少 `INTERNET` 权限时默认阻止 WebView 网络加载。当前空间的代理接管 Java 请求，未接入登录网页的 Chromium 网络栈。[Android WebView 网络设置](https://developer.android.com/reference/android/webkit/WebSettings#setBlockNetworkLoads(boolean)) · [Chromium 的 WebView 进程架构](https://chromium.googlesource.com/chromium/src/+/HEAD/android_webview/docs/architecture.md)
+
+1. 安装实验包里的 `Cage-microG-Space.apk` 和 `Cage-microG-Relay.apk`。在「Cage microG 空间 → 导入 Google 套件」选择 `Cage-microG-Play.zip`，也可分别选择上游 microG Services 和原版 Play 商店的完整 APK。[microG 发布页](https://github.com/microg/GmsCore/releases/tag/v0.3.18.252432) · [上游安装说明](https://github.com/microg/GmsCore/wiki/Installation)
+2. 在「配置空间代理」保存自己的 SOCKS5 出口并启动，看到「核心运行中」后返回。进入「打开 microG 设置 → Google 账号 → 添加 Google 账号」。在 microG 的确认页点「登录」。空间保留原有的来宾网络权限限制。
+3. 「打开空间里的 Play 商店」启动这份独立的商店副本。「空间设置」进入该空间的沙箱管理界面。账号恢复、从商店安装 Claude 和完成对话仍待真机验证。
+
+构建这个版本时，在轻量空间构建命令中加 `--microg`。需要使用现有的单节点测试配置时，代理助手的 `provision.py` 也支持 `--microg`。[轻量空间构建](sandbox/blackbox-light/build.py) · [代理助手配置](sandbox/local-core/README.md)
+
+#### Google 官方套件空间
+
 安装实验包里的 Cage 实验版、空间组件和代理助手三个 APK。实验版与正式客户端可以并存。首页点「打开 Claude」会先准备空间网络；首次使用在助手中保存 SOCKS5 出口，返回空间后按页面提示导入 Google 套件。「连接电脑」仍可进入原来的远程工作台。
 
 1. 也可直接点「设置 → 空间设置 → 管理空间里的 Google 套件」。选择三个原版完整 APK 或包含它们的 ZIP（支持压缩包中 GoogleServicesFramework.apk、GmsCore.apk、Phonesky.apk 的目录结构）。组件只导入本机空间，可使用版本匹配的安装包更新。每次进入会重新读取各组件的安装状态。
