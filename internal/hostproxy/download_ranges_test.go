@@ -107,6 +107,7 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 	interrupted.Store(true)
 	var calls atomic.Int32
 	var resumed atomic.Bool
+	var prefixesReady atomic.Bool
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -122,8 +123,28 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 			w.Write(data[start : start+4096])
 			w.(http.Flusher).Flush()
 			if calls.Add(1) == 4 {
-				// Let clients receive the prefix before signaling cancellation.
-				time.AfterFunc(100*time.Millisecond, cancel)
+				// Sending a prefix does not mean the clients have written it.
+				// Observe the cache before cancelling, including on slower hosts.
+				go func() {
+					defer cancel()
+					for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+						parts, err := os.ReadDir(target + ".ranges")
+						ready := err == nil && len(parts) == 4
+						for _, part := range parts {
+							prefix, err := os.ReadFile(filepath.Join(target+".ranges", part.Name()))
+							ready = ready && err == nil && len(prefix) == 4096
+						}
+						if ready {
+							prefixesReady.Store(true)
+							return
+						}
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(10 * time.Millisecond):
+						}
+					}
+				}()
 			}
 			<-r.Context().Done()
 			return
@@ -134,9 +155,12 @@ func TestParallelPackageCancellationAndResume(t *testing.T) {
 		http.ServeContent(w, r, "package", time.Time{}, bytes.NewReader(data))
 	}))
 	defer server.Close()
-	err := downloadRanges(ctx, server.Client(), server.URL, target, "editor.tgz", "", io.Discard, time.Second, 0, int64(len(data)))
+	err := downloadRanges(ctx, server.Client(), server.URL, target, "editor.tgz", "", io.Discard, 10*time.Second, 0, int64(len(data)))
 	if err != context.Canceled {
 		t.Fatalf("cancel=%v", err)
+	}
+	if !prefixesReady.Load() {
+		t.Fatal("range prefixes were not written before cancellation")
 	}
 	info, err := os.Stat(target)
 	if err != nil || info.Size() != 4096 {
