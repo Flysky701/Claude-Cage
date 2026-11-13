@@ -10,11 +10,19 @@ source internal/cage/guest-tools.sh
 source internal/cage/ubuntu-browser.sh
 cage_is_ubuntu || { echo 'This test requires Ubuntu.' >&2; exit 2; }
 sudo apt-get update
+# Keep an existing system executable or symlink exactly as the runner supplied it.
+system_chromium_state() {
+  if [[ -L /usr/bin/chromium ]]; then readlink /usr/bin/chromium
+  elif [[ -f /usr/bin/chromium ]]; then sha256sum /usr/bin/chromium
+  else echo absent; fi
+}
+before=$(system_chromium_state)
 cage_install_ubuntu_browser
+[[ $(system_chromium_state) == "$before" ]]
 cage_install_ubuntu_novnc
 test -r /usr/local/share/cage-novnc/core/rfb.js
 sudo python3 internal/cage/novnc-patch.py /usr/local/share/cage-novnc
-chromium --version
+/usr/local/lib/workbench-browser/chromium --version
 # Exercise the same pipe transport, sandbox and actual extension as the guest.
 stage=$(mktemp -d "$HOME/browser-test.XXXXXX")
 trap 'rm -rf "$stage"' EXIT
@@ -27,7 +35,7 @@ import { createHash } from 'node:crypto';
 const extension = process.env.CAGE_BROWSER_TEST_EXTENSION;
 const id = createHash('sha256').update(extension).digest('hex').slice(0, 32)
   .replace(/./g, c => String.fromCharCode(97 + parseInt(c, 16)));
-const browser = spawn('/usr/bin/chromium', [
+const browser = spawn('/usr/local/lib/workbench-browser/chromium', [
   `--user-data-dir=${process.env.CAGE_BROWSER_TEST_PROFILE}`, `--load-extension=${extension}`,
   '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'inherit', 'pipe', 'pipe'] });

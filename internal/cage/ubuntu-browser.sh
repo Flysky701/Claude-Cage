@@ -25,7 +25,13 @@ cage_install_ubuntu_browser() (
   fi
   sudo snap wait system seed.loaded
   if snap list chromium >/dev/null 2>&1; then
-    sudo snap refresh chromium --channel=latest/stable
+    local channel
+    channel=$(LC_ALL=C snap list chromium | awk '$1 == "chromium" {print $4}')
+    if [[ $channel != latest/stable && $channel != stable ]]; then
+      echo "Installed Chromium follows $channel. Keep that installation and select latest/stable before setting up the workbench." >&2
+      return 1
+    fi
+    sudo snap refresh chromium
   else
     sudo snap install chromium --channel=latest/stable
   fi
@@ -42,24 +48,10 @@ cage_install_ubuntu_browser() (
       return 1
     fi
   fi
-  # The OS does not ship /usr/bin/chromium on Ubuntu. Keep that entry for
-  # existing desktop and phone launchers. snap dispatches by executable name.
-  local old
-  old=$(readlink /usr/bin/chromium || true)
-  case "$old" in
-    /opt/cage-browser/*/chrome|/snap/bin/chromium) ;;
-    "")
-      if [[ -e /usr/bin/chromium ]]; then
-        echo 'An unmanaged /usr/bin/chromium already exists.' >&2
-        return 1
-      fi
-      ;;
-    *)
-      echo 'An unmanaged /usr/bin/chromium link already exists.' >&2
-      return 1
-      ;;
-  esac
-  sudo ln -sfnT /snap/bin/chromium /usr/bin/chromium
+  # Keep distro launchers and other browser installations intact. Snap dispatches
+  # by executable name, so the workbench entry must also be named chromium.
+  sudo install -d -m 0755 /usr/local/lib/workbench-browser
+  sudo ln -sfnT /snap/bin/chromium /usr/local/lib/workbench-browser/chromium
 )
 
 cage_install_chromium() {

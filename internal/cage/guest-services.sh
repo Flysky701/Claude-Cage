@@ -1,5 +1,5 @@
 # Complete the browser change before interrupting access to the running session.
-if cage_is_ubuntu && [[ $(readlink /usr/bin/chromium || true) != /snap/bin/chromium || ! -x /snap/bin/chromium ]]; then
+if cage_is_ubuntu && [[ ! -x /usr/local/lib/workbench-browser/chromium ]]; then
   cage_install_ubuntu_browser
 fi
 # Publish browser assets while the web endpoint is stopped, so clients cannot
