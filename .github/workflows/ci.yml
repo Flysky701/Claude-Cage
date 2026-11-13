@@ -5,19 +5,15 @@ on:
   push:
     branches: ['**', '!codex/release/**']
     paths-ignore: ['README*.md', 'www/**', 'docs/guide/**', 'docs/releases/**']
-  pull_request:
-    paths-ignore: ['README*.md', 'www/**', 'docs/guide/**', 'docs/releases/**']
+  workflow_call:
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: cage-ci-${{ github.event.pull_request.number || github.ref }}
+  group: cage-ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   workflow-checks:
-    # A branch in this repository is already checked by its push. Run the
-    # pull_request event only for forks, which have no push run here.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
