@@ -311,18 +311,32 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     const { page } = f;
     await page.getByRole("button", { name: "下一步：配置代理" }).click();
     const start = page.getByRole("button", { name: "开始安装", exact: true });
-    assert.ok(await start.isDisabled());
+    const expectBlocked = async (reason) => {
+      await page.getByRole("status").filter({ hasText: reason }).waitFor();
+      assert.ok(await start.isDisabled());
+      const hintID = await start.getAttribute("aria-describedby");
+      assert.ok(hintID && (await page.locator("#" + hintID).innerText()).includes(reason));
+    };
+    await expectBlocked("添加来源");
     await page.getByRole("button", { name: "添加来源", exact: true }).click();
+    await expectBlocked("完成来源编辑");
     await page.getByRole("button", { name: "手动节点", exact: true }).click();
     await page.getByLabel("来源名称", { exact: true }).fill("自有节点");
     await page.getByLabel("节点名称", { exact: true }).fill("本机测试代理");
     await page.getByLabel("服务器", { exact: true }).fill("127.0.0.1");
     await page.getByRole("button", { name: "导入并验证", exact: true }).click();
-    await page.getByRole("tab", { name: "节点", exact: true }).click();
+    await expectBlocked("选择最终出口");
+    assert.equal(await page.getByRole("tab", { name: "节点", exact: true }).getAttribute("aria-selected"), "true");
     await page.getByRole("button", { name: "选择节点 本机测试代理", exact: true }).click();
+    await expectBlocked("启用所选出口");
     await page.getByRole("button", { name: "应用代理", exact: true }).click();
     await page.getByText("已完成", { exact: true }).waitFor();
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === '开始安装' && !button.disabled));
+    assert.equal(await start.getAttribute("aria-describedby"), null);
+    await page.getByRole("button", { name: "链式代理", exact: true }).click();
+    await expectBlocked("为每一跳选择不同的节点");
+    await page.getByRole("button", { name: "撤销修改", exact: true }).click();
+    assert.ok(await start.isEnabled());
     assert.deepEqual(f.errors, []);
     console.log("PASS first proxy: manual import, node selection and explicit apply unlock installation inside initialization");
   } finally { await f.browser.close(); }

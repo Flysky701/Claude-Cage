@@ -16,6 +16,8 @@ import (
 	"github.com/sylvinus/agent-vm/internal/remotehost"
 )
 
+const desktopLocalStatusPath = "/api/desktop-local/status"
+
 type desktopLocal struct {
 	config, profile, executable string
 	mu                          sync.Mutex

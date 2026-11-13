@@ -1,0 +1,43 @@
+{
+  "selected": "powershell",
+  "connectionFile": "%USERPROFILE%\\.claude-cage\\config.json",
+  "applications": {
+    "powershell": {
+      "program": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "arguments": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        "{root}\\samples\\Set-SessionProxy.ps1"
+      ]
+    },
+    "probe": {
+      "program": "samples\\DirectProbe.exe",
+      "arguments": [
+        "{run}",
+        "{output}",
+        "standard",
+        "parent"
+      ]
+    },
+    "raw-tcp": {
+      "program": "samples\\RawParent.exe",
+      "childPrograms": [
+        "samples\\RawChild.exe"
+      ],
+      "tcpServices": {
+        "resolver": {
+          "host": "1.1.1.1",
+          "port": 443
+        }
+      },
+      "arguments": [
+        "{output}\\{run}",
+        "{tcpPort:resolver}"
+      ]
+    }
+  }
+}

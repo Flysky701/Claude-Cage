@@ -1,0 +1,15 @@
+{
+  "timeLocal": "2026-11-13 00:07:08 Asia/Shanghai",
+  "release": "v4.3.0_Windows",
+  "initialized": false,
+  "engineExit": 1,
+  "SCMEvent": 7000,
+  "driver": "WinDivert64.sys",
+  "win32Error": 1450,
+  "driverSHA256": "8DA085332782708D8767BCACE5327A6EC7283C17CFB85E40B03CD2323A90DDC2",
+  "boxRemoved": true,
+  "stageRemoved": true,
+  "driverServicesRemaining": 0,
+  "securityRulesChanged": false,
+  "cutTestsExecuted": false
+}

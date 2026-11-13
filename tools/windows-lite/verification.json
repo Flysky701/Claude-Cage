@@ -1,0 +1,401 @@
+{
+  "date": "2026-11-12",
+  "addonSHA256": "ca3a1e73851a81f1a0bec11dd2ce81241bf3dcba72746d30e91ef3082414f8ca",
+  "rawTCP": {
+    "run": "c5073171dd",
+    "online": [
+      {
+        "pid": 58676,
+        "image": "tmp\\lite-tcp\\release check\\CageLite\\samples\\RawChild.exe",
+        "role": "child",
+        "phase": "online",
+        "servicePort": 62938,
+        "zone": "Tokyo Standard Time",
+        "utc": "2026-11-12T13:50:31",
+        "local": "2026-11-12T22:50:31",
+        "offsetMinutes": 540,
+        "freshName": "raw12296c9d8a464623.cage.test.",
+        "fresh": "ERROR 不知道这样的主机。",
+        "dns": "172.66.147.243,104.20.23.154,2606:4700:10::6814:179a,2606:4700:10::ac42:93f3",
+        "exchange": "TLS verified; HTTP 200; DNS ID 4660; answers 2",
+        "directControl": "ERROR 由于目标计算机积极拒绝，无法连接。",
+        "directOriginal": "ERROR 由于目标计算机积极拒绝，无法连接。"
+      },
+      {
+        "pid": 53580,
+        "image": "tmp\\lite-tcp\\release check\\CageLite\\samples\\RawParent.exe",
+        "role": "parent",
+        "phase": "online",
+        "servicePort": 62938,
+        "zone": "Tokyo Standard Time",
+        "utc": "2026-11-12T13:50:31",
+        "local": "2026-11-12T22:50:31",
+        "offsetMinutes": 540,
+        "freshName": "rawaf520a21149b427c.cage.test.",
+        "fresh": "ERROR 不知道这样的主机。",
+        "dns": "172.66.147.243,104.20.23.154,2606:4700:10::6814:179a,2606:4700:10::ac42:93f3",
+        "exchange": "TLS verified; HTTP 200; DNS ID 4660; answers 2",
+        "directControl": "ERROR 由于目标计算机积极拒绝，无法连接。",
+        "directOriginal": "ERROR 由于目标计算机积极拒绝，无法连接。"
+      }
+    ],
+    "off": [
+      {
+        "pid": 58676,
+        "image": "tmp\\lite-tcp\\release check\\CageLite\\samples\\RawChild.exe",
+        "role": "child",
+        "phase": "off",
+        "servicePort": 62938,
+        "zone": "Tokyo Standard Time",
+        "utc": "2026-11-12T13:50:41",
+        "local": "2026-11-12T22:50:41",
+        "offsetMinutes": 540,
+        "freshName": "raw0d138b75af4d45ca.cage.test.",
+        "fresh": "ERROR 这是在主机名解析时通常出现的暂时错误，它意味着本地服务器没有从权威服务器上收到响应。",
+        "dns": "ERROR 这是在主机名解析时通常出现的暂时错误，它意味着本地服务器没有从权威服务器上收到响应。",
+        "exchange": "ERROR 由于远程方已关闭传输流，身份验证失败。",
+        "directControl": "ERROR 由于目标计算机积极拒绝，无法连接。",
+        "directOriginal": "ERROR 由于目标计算机积极拒绝，无法连接。"
+      },
+      {
+        "pid": 53580,
+        "image": "tmp\\lite-tcp\\release check\\CageLite\\samples\\RawParent.exe",
+        "role": "parent",
+        "phase": "off",
+        "servicePort": 62938,
+        "zone": "Tokyo Standard Time",
+        "utc": "2026-11-12T13:50:41",
+        "local": "2026-11-12T22:50:41",
+        "offsetMinutes": 540,
+        "freshName": "rawe911f47b0f6f45f4.cage.test.",
+        "fresh": "ERROR 这是在主机名解析时通常出现的暂时错误，它意味着本地服务器没有从权威服务器上收到响应。",
+        "dns": "ERROR 这是在主机名解析时通常出现的暂时错误，它意味着本地服务器没有从权威服务器上收到响应。",
+        "exchange": "ERROR 由于远程方已关闭传输流，身份验证失败。",
+        "directControl": "ERROR 由于目标计算机积极拒绝，无法连接。",
+        "directOriginal": "ERROR 由于目标计算机积极拒绝，无法连接。"
+      }
+    ],
+    "controlConnections": 1,
+    "outsideBoxDenied": true,
+    "beforeCut": {
+      "sessions": 6,
+      "bytes": 24868,
+      "direct": 1
+    },
+    "afterCut": {
+      "sessions": 6,
+      "bytes": 24868,
+      "direct": 1
+    },
+    "observedTrafficThroughSavedUpstream": {
+      "sessions": 6,
+      "bytes": 24868,
+      "direct": 1
+    },
+    "target": "1.1.1.1:443",
+    "childParentPIDFromWindows": 53580,
+    "dnsTrace": [
+      "DNS rawaf520a21149b427c.cage.test A: DoH rcode=3",
+      "DNS raw12296c9d8a464623.cage.test A: DoH rcode=3",
+      "DNS example.com A: DoH rcode=0",
+      "DNS example.com AAAA: DoH rcode=0",
+      "DNS rawe911f47b0f6f45f4.cage.test: SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)",
+      "DNS raw0d138b75af4d45ca.cage.test: SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)",
+      "DNS example.org: SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)",
+      "DNS example.org: SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)"
+    ],
+    "binaryHashes": {
+      "child": "38969281c91df2b8f1cf5c638afeae7e01211a3fc9e6d9d6509e061db0ee5d99",
+      "parent": "7d4efaa040968527677a85fdc7b413e3e4d08d77154727e3119dd78940b4d494"
+    },
+    "outsideBoxUpstreamSessions": 0,
+    "dnsMatchedHostSends": [
+      {
+        "test": "host",
+        "query": "rawcontrolceb6b9b7cbbc.cage.test",
+        "pid": 3828,
+        "event": 3010
+      },
+      {
+        "test": "host",
+        "query": "rawcontrolceb6b9b7cbbc.cage.test",
+        "pid": 3828,
+        "event": 3010
+      },
+      {
+        "test": "host",
+        "query": "rawcontrolceb6b9b7cbbc.cage.test",
+        "pid": 3828,
+        "event": 3010
+      }
+    ],
+    "hostTimezoneAfter": "China Standard Time",
+    "addonSHA256": "ca3a1e73851a81f1a0bec11dd2ce81241bf3dcba72746d30e91ef3082414f8ca",
+    "scope": "Explicit fixed service endpoints and listed x64 child images. The socket client connects to the supplied loopback host/port. Direct connections addressed to the original public endpoint were blocked in both phases. No generic transparent TCP interception. A successful local TCP handshake alone does not prove the remote is online.",
+    "sandboxie": {
+      "globalWfp": false,
+      "advancedNetworkEntitlementActive": false,
+      "version": "1.18.8 Free"
+    }
+  },
+  "previousVersion": {
+    "run": "e9bb4f39",
+    "cases": {
+      "online-probe": {
+        "results": [
+          {
+            "role": "child",
+            "pid": 53556,
+            "boxed": true,
+            "zoneKey": "Tokyo Standard Time",
+            "offsetMinutes": 540,
+            "utc": "2026-11-12 13:20:28",
+            "local": "2026-11-12 22:20:28",
+            "registryZone": "China Standard Time",
+            "registryBias": -480,
+            "dnsName": "cb9a8d9c05fec470.cage.test",
+            "fresh": "WSA 11001",
+            "positiveName": "example.com",
+            "positive": "172.66.147.243,104.20.23.154,2606:4700:10::6814:179a,2606:4700:10::ac42:93f3",
+            "tcp4": "SocketError 10061",
+            "tcp6": "SocketError 10061",
+            "udp4": "SocketError 10061"
+          },
+          {
+            "role": "parent",
+            "pid": 3480,
+            "boxed": true,
+            "zoneKey": "Tokyo Standard Time",
+            "offsetMinutes": 540,
+            "utc": "2026-11-12 13:20:28",
+            "local": "2026-11-12 22:20:28",
+            "registryZone": "China Standard Time",
+            "registryBias": -480,
+            "dnsName": "c4c8b30c5ce1e40b.cage.test",
+            "fresh": "WSA 11001",
+            "positiveName": "example.com",
+            "positive": "104.20.23.154,172.66.147.243,2606:4700:10::6814:179a,2606:4700:10::ac42:93f3",
+            "tcp4": "timeout",
+            "tcp6": "timeout",
+            "udp4": "SocketError 10061"
+          }
+        ],
+        "newUpstreamSessions": 6,
+        "upstreamBytes": 26216,
+        "directTCPReceived": 0,
+        "directUDPReceived": 0
+      },
+      "online-powershell": {
+        "results": [
+          {
+            "pid": 58388,
+            "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "x64": true,
+            "domain": "www.iana.org.",
+            "addresses": [
+              "104.18.25.232",
+              "104.18.24.232",
+              "2606:4700::6812:18e8",
+              "2606:4700::6812:19e8"
+            ],
+            "freshName": "cl4c704e81f1bc4669b7b85a1875bfb4d0.cage.test.",
+            "freshError": "不知道这样的主机。",
+            "direct": "由于目标计算机积极拒绝，无法连接。",
+            "local": "2026-11-12 22:20:45.744",
+            "utcBefore": "2026-11-12 13:20:45.503",
+            "utcAfter": "2026-11-12 13:20:45.745",
+            "observedOffsetMinutes": 540,
+            "runtimeZone": "Tokyo Standard Time",
+            "getTimeZone": "Tokyo Standard Time",
+            "adapterStatus": "ready",
+            "dataProxySet": true,
+            "dataSessionCredentialPresent": true,
+            "loaded": [
+              "SbieDll.dll",
+              "CageRegion.dll"
+            ],
+            "httpsStatus": 200,
+            "dnsReplyId": 4660,
+            "dnsReplyCode": 0,
+            "dnsAnswerCount": 2
+          }
+        ],
+        "newUpstreamSessions": 4,
+        "upstreamBytes": 16888,
+        "directTCPReceived": 0,
+        "directUDPReceived": 0
+      },
+      "off-probe": {
+        "results": [
+          {
+            "role": "child",
+            "pid": 54156,
+            "boxed": true,
+            "zoneKey": "Tokyo Standard Time",
+            "offsetMinutes": 540,
+            "utc": "2026-11-12 13:20:50",
+            "local": "2026-11-12 22:20:50",
+            "registryZone": "China Standard Time",
+            "registryBias": -480,
+            "dnsName": "cb7b884d8eb42436.cage.test",
+            "fresh": "WSA 11002",
+            "positiveName": "example.net",
+            "positive": "WSA 11002",
+            "tcp4": "SocketError 10061",
+            "tcp6": "SocketError 10061",
+            "udp4": "SocketError 10061"
+          },
+          {
+            "role": "parent",
+            "pid": 9240,
+            "boxed": true,
+            "zoneKey": "Tokyo Standard Time",
+            "offsetMinutes": 540,
+            "utc": "2026-11-12 13:20:50",
+            "local": "2026-11-12 22:20:50",
+            "registryZone": "China Standard Time",
+            "registryBias": -480,
+            "dnsName": "cfcb37992a9904f7.cage.test",
+            "fresh": "WSA 11002",
+            "positiveName": "example.net",
+            "positive": "WSA 11002",
+            "tcp4": "timeout",
+            "tcp6": "timeout",
+            "udp4": "SocketError 10061"
+          }
+        ],
+        "newUpstreamSessions": 0,
+        "upstreamBytes": 0,
+        "directTCPReceived": 0,
+        "directUDPReceived": 0
+      },
+      "off-powershell": {
+        "results": [
+          {
+            "pid": 51572,
+            "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "x64": true,
+            "domain": "www.iana.org.",
+            "dnsError": "这是在主机名解析时通常出现的暂时错误，它意味着本地服务器没有从权威服务器上收到响应。",
+            "freshName": "cl8a03ec14f9f045e2a08e21e07db5e612.cage.test.",
+            "freshError": "这是在主机名解析时通常出现的暂时错误，它意味着本地服务器没有从权威服务器上收到响应。",
+            "direct": "由于目标计算机积极拒绝，无法连接。",
+            "local": "2026-11-12 22:21:21.224",
+            "utcBefore": "2026-11-12 13:21:20.970",
+            "utcAfter": "2026-11-12 13:21:21.225",
+            "observedOffsetMinutes": 540,
+            "runtimeZone": "Tokyo Standard Time",
+            "getTimeZone": "Tokyo Standard Time",
+            "adapterStatus": "ready",
+            "dataProxySet": true,
+            "dataSessionCredentialPresent": true,
+            "loaded": [
+              "SbieDll.dll",
+              "CageRegion.dll"
+            ],
+            "httpsError": "由于远程方已关闭传输流，身份验证失败。",
+            "errorType": "System.IO.IOException",
+            "errorLine": 42
+          }
+        ],
+        "newUpstreamSessions": 0,
+        "upstreamBytes": 0,
+        "directTCPReceived": 0,
+        "directUDPReceived": 0
+      }
+    },
+    "addonSHA256": "6b66609860d3464df1fbddeffa2976afad16006d82e28f92f67eb422320f9b79",
+    "hostSinkControls": {
+      "sessions": 0,
+      "payloadBytes": 0,
+      "sinkTCP": 2,
+      "sinkUDP": 1
+    },
+    "upstreamActuallyStopped": true,
+    "date": "2026-11-12",
+    "hostZone": "China Standard Time",
+    "hostDnsControlSends": 3,
+    "observedBoxedHostDnsSends": 0,
+    "globalWfp": "disabled in this test",
+    "scope": "Same launcher, config selector and x64 DLL. Existing probe and synchronous PowerShell DNS. PowerShell also makes a normal HTTPS DNS-wire request to the configured resolver through the application data proxy. An owned test hop was closed; the existing Cage upstream and host network stayed online.",
+    "initialFindings": [
+      "During integration the unexpanded Win32 image path had to be requested from Sandboxie to match the selected executable.",
+      "One initial overlapping positive query timed out and returned an error. Concurrent identical requests now share the in-flight result, with one retry through the same upstream. All four final cases passed."
+    ],
+    "packagedLive": {
+      "addonSHA256": "6b66609860d3464df1fbddeffa2976afad16006d82e28f92f67eb422320f9b79",
+      "privateMemorySnapshot": [
+        {
+          "ProcessName": "mihomo",
+          "PrivateMemorySize64": 63885312,
+          "WorkingSet64": 29855744
+        },
+        {
+          "ProcessName": "python",
+          "PrivateMemorySize64": 23269376,
+          "WorkingSet64": 36098048
+        }
+      ],
+      "before": {
+        "pid": 57960,
+        "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "x64": true,
+        "domain": "www.iana.org.",
+        "addresses": [
+          "104.18.25.232",
+          "104.18.24.232",
+          "2606:4700::6812:18e8",
+          "2606:4700::6812:19e8"
+        ],
+        "freshName": "cl2bcf35b46eba47618c6a5981760e5222.cage.test.",
+        "freshError": "不知道这样的主机。",
+        "direct": "由于目标计算机积极拒绝，无法连接。",
+        "local": "2026-11-12 22:25:49.771",
+        "utcBefore": "2026-11-12 13:25:49.656",
+        "utcAfter": "2026-11-12 13:25:49.772",
+        "observedOffsetMinutes": 540,
+        "runtimeZone": "Tokyo Standard Time",
+        "getTimeZone": "Tokyo Standard Time",
+        "adapterStatus": "ready",
+        "dataProxySet": true,
+        "dataSessionCredentialPresent": true,
+        "loaded": [
+          "SbieDll.dll",
+          "CageRegion.dll"
+        ],
+        "httpsStatus": 200,
+        "dnsReplyId": 4660,
+        "dnsReplyCode": 0,
+        "dnsAnswerCount": 2
+      },
+      "after": {
+        "pid": 57960,
+        "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "x64": true,
+        "domain": "example.org.",
+        "dnsError": "这是在主机名解析时通常出现的暂时错误，它意味着本地服务器没有从权威服务器上收到响应。",
+        "freshName": "cle37b049a29a543348ab8d79e00c447c3.cage.test.",
+        "freshError": "这是在主机名解析时通常出现的暂时错误，它意味着本地服务器没有从权威服务器上收到响应。",
+        "direct": "由于目标计算机积极拒绝，无法连接。",
+        "local": "2026-11-12 22:26:04.196",
+        "utcBefore": "2026-11-12 13:26:04.196",
+        "utcAfter": "2026-11-12 13:26:04.196",
+        "observedOffsetMinutes": 540,
+        "runtimeZone": "Tokyo Standard Time",
+        "getTimeZone": "Tokyo Standard Time",
+        "adapterStatus": "ready",
+        "dataProxySet": true,
+        "dataSessionCredentialPresent": true,
+        "loaded": [
+          "SbieDll.dll",
+          "CageRegion.dll"
+        ],
+        "httpsError": "由于远程方已关闭传输流，身份验证失败。",
+        "errorType": "System.IO.IOException",
+        "errorLine": 42
+      },
+      "directSinkConnections": 0,
+      "upstreamSessions": 4
+    }
+  }
+}

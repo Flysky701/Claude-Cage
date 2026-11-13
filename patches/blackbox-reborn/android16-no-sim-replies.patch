@@ -1,0 +1,105 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/hook/GuestTelephonyPolicy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/hook/GuestTelephonyPolicy.java
+@@ -1,21 +1,31 @@
+ package top.niunaijun.blackbox.fake.hook;
+ 
+ import android.os.Binder;
++import android.os.Build;
+ import android.os.IBinder;
+ import android.os.Parcel;
+ import android.os.RemoteException;
++import android.telephony.SubscriptionManager;
++import android.telephony.TelephonyManager;
+ 
++import java.lang.reflect.Method;
+ import java.util.Map;
+ 
+ /** Do not forward guest requests on these service handles to the device's modem or subscriptions. */
+ public final class GuestTelephonyPolicy extends Binder {
++    private static final String PHONE = "com.android.internal.telephony.ITelephony";
++    private static final String SUB = "com.android.internal.telephony.ISub";
++    private final Method transactionName;
++
+     private GuestTelephonyPolicy(String descriptor) {
+         attachInterface(null, descriptor);
++        transactionName = Build.VERSION.SDK_INT == 36 && (PHONE.equals(descriptor) || SUB.equals(descriptor))
++                ? findTransactionNames(descriptor) : null;
+     }
+ 
+     public static void apply(Map<String, IBinder> guestServices) {
+-        guestServices.put("phone", new GuestTelephonyPolicy("com.android.internal.telephony.ITelephony"));
+-        guestServices.put("isub", new GuestTelephonyPolicy("com.android.internal.telephony.ISub"));
++        guestServices.put("phone", new GuestTelephonyPolicy(PHONE));
++        guestServices.put("isub", new GuestTelephonyPolicy(SUB));
+         guestServices.put("iphonesubinfo", new GuestTelephonyPolicy("com.android.internal.telephony.IPhoneSubInfo"));
+         guestServices.put("telephony.registry", new GuestTelephonyPolicy("com.android.internal.telephony.ITelephonyRegistry"));
+     }
+@@ -26,8 +36,68 @@
+             return super.onTransact(code, data, reply, flags);
+         }
+         if ((flags & FLAG_ONEWAY) == 0 && reply != null) {
++            if (writeNoSimReply(code, data, reply)) return true;
+             reply.writeException(new SecurityException("Telephony is unavailable in this guest"));
+         }
+         return true;
+     }
++
++    // Use this device's interface schema; transaction numbers can differ between Android builds.
++    private static Method findTransactionNames(String descriptor) {
++        try {
++            Class<?> stub = Class.forName(descriptor + "$Stub", false, Binder.class.getClassLoader());
++            return stub.getMethod("getDefaultTransactionName", int.class);
++        } catch (ReflectiveOperationException | LinkageError | SecurityException unavailable) {
++            return null;
++        }
++    }
++
++    private boolean writeNoSimReply(int code, Parcel data, Parcel reply) {
++        if (transactionName == null) return false;
++        String name;
++        try {
++            name = (String) transactionName.invoke(null, code);
++        } catch (ReflectiveOperationException | LinkageError | SecurityException unavailable) {
++            return false;
++        }
++        if (name == null) return false;
++        String descriptor = getInterfaceDescriptor();
++        data.enforceInterface(descriptor);
++        if (PHONE.equals(descriptor)) {
++            if ("getSimStateForSlotIndex".equals(name)) {
++                int slot = data.readInt();
++                reply.writeNoException();
++                reply.writeInt(slot < 0 ? TelephonyManager.SIM_STATE_UNKNOWN : TelephonyManager.SIM_STATE_ABSENT);
++                return true;
++            }
++            if ("getNetworkCountryIsoForPhone".equals(name)) {
++                reply.writeNoException();
++                reply.writeString("");
++                return true;
++            }
++        } else if (SUB.equals(descriptor)) {
++            int value;
++            switch (name) {
++                case "getSlotIndex":
++                    value = SubscriptionManager.INVALID_SIM_SLOT_INDEX;
++                    break;
++                case "getPhoneId":
++                    value = -1; // No phone is assigned to any subscription.
++                    break;
++                case "getDefaultDataSubId":
++                case "getDefaultSmsSubIdAsUser":
++                case "getDefaultVoiceSubIdAsUser":
++                case "getDefaultSubIdAsUser":
++                case "getSubId":
++                    value = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
++                    break;
++                default:
++                    return false;
++            }
++            reply.writeNoException();
++            reply.writeInt(value);
++            return true;
++        }
++        return false;
++    }
+ }

@@ -1,0 +1,48 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/hook/HookManager.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/hook/HookManager.java
+@@ -222,6 +222,9 @@
+             }
+         }
+         injectAll();
++        if (BlackBoxCore.get().isBlackProcess()) {
++            GuestTelephonyPolicy.apply(black.android.os.BRServiceManager.get().sCache());
++        }
+     }
+ 
+     public void checkEnv(Class<?> clazz) {
+--- /dev/null
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/hook/GuestTelephonyPolicy.java
+@@ -0,0 +1,33 @@
++package top.niunaijun.blackbox.fake.hook;
++
++import android.os.Binder;
++import android.os.IBinder;
++import android.os.Parcel;
++import android.os.RemoteException;
++
++import java.util.Map;
++
++/** Do not forward guest requests on these service handles to the device's modem or subscriptions. */
++public final class GuestTelephonyPolicy extends Binder {
++    private GuestTelephonyPolicy(String descriptor) {
++        attachInterface(null, descriptor);
++    }
++
++    public static void apply(Map<String, IBinder> guestServices) {
++        guestServices.put("phone", new GuestTelephonyPolicy("com.android.internal.telephony.ITelephony"));
++        guestServices.put("isub", new GuestTelephonyPolicy("com.android.internal.telephony.ISub"));
++        guestServices.put("iphonesubinfo", new GuestTelephonyPolicy("com.android.internal.telephony.IPhoneSubInfo"));
++        guestServices.put("telephony.registry", new GuestTelephonyPolicy("com.android.internal.telephony.ITelephonyRegistry"));
++    }
++
++    @Override
++    protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
++        if (code < FIRST_CALL_TRANSACTION || code > LAST_CALL_TRANSACTION) {
++            return super.onTransact(code, data, reply, flags);
++        }
++        if ((flags & FLAG_ONEWAY) == 0 && reply != null) {
++            reply.writeException(new SecurityException("Telephony is unavailable in this guest"));
++        }
++        return true;
++    }
++}

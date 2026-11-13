@@ -33,7 +33,7 @@ func (d *desktopLocal) handoffOldLocal(ctx context.Context) (bool, error) {
 	}
 	// Old controllers can answer 401 before the cookie and 423 while locked,
 	// even for an unknown route. A working modern route must never be replaced.
-	status, err = c.callContext(ctx, "POST", "/api/desktop-local/status", desktopLocalRequest{Token: c.record.Token}, nil)
+	status, err = c.callContext(ctx, "POST", desktopLocalStatusPath, desktopLocalRequest{Token: c.record.Token}, nil)
 	if err != nil {
 		return false, err
 	}

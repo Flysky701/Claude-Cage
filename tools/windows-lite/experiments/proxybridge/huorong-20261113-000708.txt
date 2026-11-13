@@ -1,0 +1,11 @@
+﻿火绒安全日志摘录
+本地时间：2026-11-13 00:07:08（UTC+8）
+检测标识（maldesc）：BYOVD_network_redirect
+规则字段（rid）：21
+目标：%ProgramFiles%\CageLite-<session>\WinDivert64.sys
+驱动版本：2.2
+SHA-256：8DA085332782708D8767BCACE5327A6EC7283C17CFB85E40B03CD2323A90DDC2
+安全日志行：HrLogV3_60 / 5465
+托盘通知行：HrTrayMsg_60 / 5212
+两条记录的事件 GUID：已隐去
+来源：火绒 6.0.13.0 本机安全日志 log.db，只读提取。
