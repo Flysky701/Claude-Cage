@@ -116,8 +116,8 @@ macOS و نسخه‌های امضاشدهٔ Windows از پراکسی انتخا
 این پروژه به سرعت در حال پیشرفت است. برای به اشتراک گذاشتن بازخورد به گروه جامعه بپیوندید. از نگهبانان جامعه استقبال می شود.
 
 <p align="center">
-  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ #2 · 1127457578" width="240" /></a>
-  <br />QQ #2 · 1127457578
+  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ group · 782087179" width="240" /></a>
+  <br />QQ group · 782087179
 </p>
 
 ## مبدا و مجوز
