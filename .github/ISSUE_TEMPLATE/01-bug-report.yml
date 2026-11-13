@@ -40,20 +40,43 @@ body:
       placeholder: GitHub Releases 安装包 / CI 构建 / 本地源码构建
     validations:
       required: true
+  - type: dropdown
+    id: host-system
+    attributes:
+      label: 主机系统
+      description: 主机是运行 Cage 的电脑。Issue 会按所选系统添加标签，交给对应平台的维护者。
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
   - type: input
     id: host-os
     attributes:
-      label: 主机系统与架构
-      description: 主机是运行 Cage 的电脑。填写系统名称、完整版本（Windows 请含构建号）及处理器架构；远程连接时也请注明远程主机系统。
+      label: 主机版本与架构
+      description: 填写系统名称、完整版本（Windows 请含构建号）及处理器架构；远程连接时也请注明远程主机系统。
       placeholder: macOS 26.4 arm64 / Windows 11 24H2（26100.x）x64 / Ubuntu 24.04 x86_64
+    validations:
+      required: true
+  - type: dropdown
+    id: guest-system
+    attributes:
+      label: 客机系统
+      description: 客机是 Cage 内运行的系统。尚未安装或无法启动时，选择安装时所选的系统。
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - 不涉及或不确定
     validations:
       required: true
   - type: input
     id: guest-os
     attributes:
-      label: 客机系统与架构
-      description: 客机是 Cage 内运行的系统。填写系统名称、版本及架构；尚未安装或无法启动时，填写所选系统并注明当前阶段。
-      placeholder: Ubuntu 24.04 arm64 / Windows 11 x64 / macOS 26.4 arm64；未安装，所选系统为……
+      label: 客机版本与架构
+      description: 填写系统名称、版本及架构；尚未安装或无法启动时，注明当前阶段。
+      placeholder: Ubuntu 24.04 arm64 / Windows 11 x64 / macOS 26.4 arm64；未安装，停在……
     validations:
       required: true
   - type: textarea

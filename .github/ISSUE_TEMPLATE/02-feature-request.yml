@@ -27,12 +27,30 @@ body:
     attributes:
       label: 现有替代方式
       description: 目前如何完成这件事？这些方式有什么不足？没有替代方式也可以说明。
-  - type: input
-    id: platforms
+  - type: dropdown
+    id: host-systems
     attributes:
-      label: 适用平台
-      description: 说明建议涉及的主机或客机系统；适用于所有平台时填写“全部平台”。
-      placeholder: 全部平台 / Windows 主机 / macOS 客机 / Linux 主机
+      label: 涉及的主机系统
+      description: 主机是运行 Cage 的电脑，可多选；适用于所有平台时全部选中。Issue 会按所选系统添加标签，交给对应平台的维护者。
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - 不涉及或不确定
+    validations:
+      required: true
+  - type: dropdown
+    id: guest-systems
+    attributes:
+      label: 涉及的客机系统
+      description: 客机是 Cage 内运行的系统，可多选；适用于所有客机时全部选中。
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - 不涉及或不确定
     validations:
       required: true
   - type: input
