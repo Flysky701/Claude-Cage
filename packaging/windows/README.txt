@@ -38,6 +38,14 @@ without replacing its directory. If the new version cannot become ready, Cage
 attempts to restore the previous program and keeps the latest personal files.
 Unsigned development builds cannot install automatic updates.
 
+When upgrading from Windows v0.1.7 to a version containing the updater fix,
+install the full fixed package manually once. Save work, stop the environment,
+and quit Cage, then run the installer under the same Windows user and keep the
+existing installation folder. Accounts, configuration, credentials, projects
+and environment disks are preserved. After checking the reopened application,
+use in-app updates for subsequent versions. Resolve any pending recovery record
+before attempting another installation.
+
 Uninstall using Windows Settings > Apps > Installed apps (Windows 11) or
 Apps & features (Windows 10). Uninstall removes application files and shortcuts.
 It preserves user data in %USERPROFILE%\.claude-cage and all shared projects.
