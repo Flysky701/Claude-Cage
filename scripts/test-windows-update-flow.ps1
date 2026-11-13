@@ -1,12 +1,16 @@
 #requires -Version 7.0
-# Runs real updater/helper/NSIS transactions with a temporary trusted test signer.
+# Runs real updater/helper/NSIS transactions on an elevated disposable runner.
 # Release transport and workbench acknowledgement use headless local fixtures.
-# WebView2 must already be installed; CI runs this after its real installer test.
+# WebView2 must already be installed by the owning CI job.
 [CmdletBinding()]
-param([switch]$DisposableUser)
+param([switch]$DisposableMachine)
 $ErrorActionPreference = 'Stop'
 if (!$IsWindows) { throw 'Complete updater transactions require Windows.' }
-if ($env:GITHUB_ACTIONS -ne 'true' -and !$DisposableUser) { throw 'Use -DisposableUser only in an isolated Windows test account.' }
+if ($env:GITHUB_ACTIONS -ne 'true' -and !$DisposableMachine) { throw 'Use -DisposableMachine only on an isolated Windows test machine.' }
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+try { $administrator = [Security.Principal.WindowsPrincipal]::new($identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }
+finally { $identity.Dispose() }
+if (!$administrator) { throw 'Use an elevated disposable Windows runner for temporary test certificate trust.' }
 $repository = Split-Path $PSScriptRoot -Parent
 $registration = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeCage'
 if (Test-Path $registration) { throw 'Use a test account without an installed Cage application.' }
@@ -24,6 +28,10 @@ function Write-Text([string]$Path, [string]$Value) {
 function Wait-File([string]$Path) {
     $deadline = [DateTime]::UtcNow.AddMinutes(3)
     while ($true) {
+        if ((Split-Path $Path -Leaf) -ne 'parent-failed.json' -and (Test-Path -LiteralPath (Join-Path $profile 'parent-failed.json'))) {
+            $failure = Get-Content -LiteralPath (Join-Path $profile 'parent-failed.json') -Raw | ConvertFrom-Json
+            throw "Native updater rejected the fixture: $($failure.message)"
+        }
         if (Test-Path -LiteralPath $Path) {
             try {
                 $value = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
@@ -88,14 +96,23 @@ function Build-Package([string]$Version) {
 
 try {
     [IO.Directory]::CreateDirectory($root) | Out-Null
+    Write-Host 'Creating a temporary test signing certificate.'
     $certificate = New-SelfSignedCertificate -Type CodeSigningCert -Subject ('CN=Updater transaction ' + [guid]::NewGuid().ToString('N')) -CertStoreLocation Cert:\CurrentUser\My
-    foreach ($storeName in @('Root','TrustedPublisher')) {
-        $store = [Security.Cryptography.X509Certificates.X509Store]::new($storeName, 'CurrentUser')
-        try { $store.Open('ReadWrite'); $store.Add($certificate) } finally { $store.Dispose() }
-    }
+    $publicCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($certificate.RawData)
+    try {
+        foreach ($storeName in @('Root','TrustedPublisher')) {
+            # CurrentUser Root prompts for interactive confirmation even through
+            # X509Store.Add. Only public trust goes into the disposable machine.
+            Write-Host "Trusting the temporary signer in LocalMachine/$storeName."
+            $store = [Security.Cryptography.X509Certificates.X509Store]::new($storeName, 'LocalMachine')
+            try { $store.Open('ReadWrite'); $store.Add($publicCertificate) } finally { $store.Dispose() }
+        }
+    } finally { $publicCertificate.Dispose() }
+    Write-Host 'Building signed old and new fixture packages.'
     $old = Build-Package '0.1.7'
     $new = Build-Package '0.1.8'
     foreach ($mode in @('success','installer-failure','startup-failure','signature-failure','digest-failure')) {
+        Write-Host "Running Windows update transaction: $mode"
         $scenario = Join-Path $root $mode
         $target = Join-Path $scenario 'installed application'
         $profile = Join-Path $scenario 'selected profile'
@@ -178,6 +195,9 @@ try {
             }
             $results += @{scenario = $mode; passed = $true; signatureVerification = $true; personalDataPreserved = $true}
             Write-Host "PASS: complete Windows update transaction ($mode)."
+        } catch {
+            $results += @{scenario = $mode; passed = $false; error = $_.Exception.Message}
+            throw
         } finally {
             Write-Text (Join-Path $profile 'release.json') '{}'
             foreach ($owned in @($parent, $helper, $holder)) {
@@ -205,7 +225,7 @@ try {
 } finally {
     @{success = $passed; scenarios = $results; transport = 'local fixture'; readiness = 'headless acknowledgement'} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $reportPath
     if ($certificate) {
-        foreach ($storeName in @('Root','TrustedPublisher')) { Remove-Item "Cert:\CurrentUser\$storeName\$($certificate.Thumbprint)" -Force -ErrorAction SilentlyContinue }
+        foreach ($storeName in @('Root','TrustedPublisher')) { Remove-Item "Cert:\LocalMachine\$storeName\$($certificate.Thumbprint)" -Force -ErrorAction SilentlyContinue }
         Remove-Item "Cert:\CurrentUser\My\$($certificate.Thumbprint)" -DeleteKey -Force -ErrorAction SilentlyContinue
     }
     # All paths below were created by this invocation. Preserve a failed run.
