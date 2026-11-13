@@ -155,7 +155,12 @@ try {
             } else {
                 $helperInfo = Wait-File (Join-Path $profile 'helper.json')
                 Check ($helperInfo.directory.TrimEnd('\') -eq (Join-Path $profile 'updates').TrimEnd('\')) 'The real AppUpdater launched its helper inside the installation directory.'
-                try { $helper = [Diagnostics.Process]::GetProcessById($helperInfo.pid) } catch [ArgumentException] { }
+                try {
+                    $helper = [Diagnostics.Process]::GetProcessById($helperInfo.pid)
+                    # Pin the live process handle before it exits. PID lookup
+                    # alone cannot retain the exit code after Windows reaps it.
+                    $null = $helper.SafeHandle
+                } catch [ArgumentException] { $helper = $null }
                 Check ($parent.WaitForExit(180000)) 'The parent did not hand off installation.'
                 Check ($parent.ExitCode -eq 0) 'The real AppUpdater failed before committing the installation.'
                 $finished = Wait-File (Join-Path $profile 'helper-finished.json')
@@ -163,7 +168,7 @@ try {
                 $result = Wait-File (Join-Path $profile 'updates/last-result.json')
                 Check ([bool]$result.success -eq ($mode -eq 'success')) "Unexpected installation result: $($result.message)"
                 Check ($finished.exit -eq $(if ($mode -eq 'success') { 0 } else { 1 })) 'The helper result and transaction return value disagreed.'
-                if ($helper) { Check ($helper.ExitCode -eq $finished.exit) 'The helper process exit disagreed with the transaction result.' }
+                if ($helper) { Check ($helper.ExitCode -eq $finished.exit) "The helper process exit ($($helper.ExitCode)) disagreed with the transaction result ($($finished.exit))." }
             }
             if ($mode -eq 'success') {
                 $null = Wait-File (Join-Path $profile 'active.json')
