@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-[[ $(id -u) != 0 ]] || { echo 'Run as an ordinary user in a disposable Ubuntu container.' >&2; exit 2; }
+[[ $(id -u) != 0 ]] || { echo 'Run as an ordinary user in a disposable Ubuntu systemd VM.' >&2; exit 2; }
 source internal/cage/tool-versions.env
 # The installed guest embeds this same Python program in its shell prelude.
 downloader="$PWD/internal/cage/tool-download.py"
@@ -16,9 +16,10 @@ test -r /usr/local/share/cage-novnc/core/rfb.js
 sudo python3 internal/cage/novnc-patch.py /usr/local/share/cage-novnc
 chromium --version
 # Exercise the same pipe transport, sandbox and actual extension as the guest.
-stage=$(mktemp -d)
+stage=$(mktemp -d "$HOME/browser-test.XXXXXX")
 trap 'rm -rf "$stage"' EXIT
-CAGE_BROWSER_TEST_PROFILE="$stage/profile" CAGE_BROWSER_TEST_EXTENSION="$PWD/internal/cage/split-extension" CAGE_BROWSER_TEST_VERSION="$CAGE_UBUNTU_BROWSER_VERSION" \
+cp -R internal/cage/split-extension "$stage/extension"
+CAGE_BROWSER_TEST_PROFILE="$stage/profile" CAGE_BROWSER_TEST_EXTENSION="$stage/extension" CAGE_BROWSER_TEST_VERSION="$(LC_ALL=C snap list chromium | awk '$1 == "chromium" && $4 == "latest/stable" {print $2}')" \
   xvfb-run -a node --input-type=module <<'JS'
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -56,6 +57,7 @@ function cdp(method, params = {}, sessionId) {
 const timeout = setTimeout(() => { browser.kill('SIGKILL'); console.error('Browser pipe test timed out'); process.exitCode = 1; }, 30000);
 try {
   const version = await cdp('Browser.getVersion');
+  assert.ok(process.env.CAGE_BROWSER_TEST_VERSION);
   assert.ok(version.product.endsWith('/' + process.env.CAGE_BROWSER_TEST_VERSION));
   const { targetId } = await cdp('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp('Target.attachToTarget', { targetId, flatten: true });
