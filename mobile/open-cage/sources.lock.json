@@ -1,0 +1,18 @@
+{
+  "blackbox": {
+    "url": "https://github.com/fdavids77/BlackBoxReborn.git",
+    "commit": "fd0640919c7903a167abf0215ee68ebeaea53485",
+    "tag": "v2.1.0",
+    "licenseNote": "LICENSE contains Apache-2.0; README claims GPL-3.0. Preserve both; resolve before distribution."
+  },
+  "dobby": {
+    "url": "https://github.com/jmpews/Dobby.git",
+    "commit": "b0176de574104726bb68dff3b77ee666300fc338",
+    "license": "Apache-2.0"
+  },
+  "microgReference": {
+    "url": "https://github.com/microg/GmsCore.git",
+    "commit": "f686900c68aa84d1605b52304f6615f3593c6f50",
+    "bundled": false
+  }
+}

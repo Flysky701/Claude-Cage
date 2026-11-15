@@ -6,6 +6,14 @@ Android arm64 APK 可从[官网下载入口](https://claude-cage.com/#download)�
 
 ### Android 实验版：在本机空间打开 Claude
 
+#### 从公开源码重建（2026-11-15）
+
+新增 [Cage Open 独立构建入口](open-cage/README.md)，依据其他分支的 GBox 架构分析与既有
+Android 实验，重建容器和单 APK 导入／启动界面。构建不输入 GBox 或旧 BlackBox APK，
+ARM64 原生库和宿主 APK 已从源码编译通过。独立包名 `io.github.flysky701.cage.open`。
+当前尚未集成 microG 分发、原版分包安装，也没有完成真机及 Google／Claude 登录验收；
+不能继承下文其他实验包的验证结论。见[本轮验证记录](open-cage/VALIDATION-2026-11-15.md)。
+
 #### 轻量 DEMO 与系统网关（2026-11-14）
 
 新增可与原空间并存的轻量 DEMO，使用手机上的系统 VPN 网关承载实际流量，并要求开启“始终开启”和“阻止未连接流量”。此网关覆盖当前 Android 用户的全手机流量。来宾网络接口显示的 VPN 标记经过兼容处理，不代表手机没有 VPN，也不是完整虚拟 Android。
