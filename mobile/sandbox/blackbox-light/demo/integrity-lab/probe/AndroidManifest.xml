@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.leexeo.cage.integrityprobe" android:versionCode="1" android:versionName="0.1">
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="28" />
+    <queries><package android:name="com.android.vending" /><package android:name="com.android.vending.mgc" /></queries>
+    <application android:label="Cage 完整性连接检查" android:allowBackup="false" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name=".ProbeActivity" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity>
+    </application>
+</manifest>

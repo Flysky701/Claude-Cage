@@ -1,0 +1,10 @@
+{
+  "package": "top.niunaijun.microdem",
+  "input": "mobile/.build/report-resume/top.niunaijun.microdem.apk",
+  "sha256": "7052ffded2a9bf00358b752528db40f0e5acc62e1b1f43f35cbb050053336e69",
+  "signerSha256": "0e5eff3a71f39a5df1602fbc3691a35622d0b9d429b4f66ed6f4de6590a6fafb",
+  "origin": "DEX disassembly of the installed APK matching the 2026-11-14 report",
+  "originalJavaSourceRecovered": false,
+  "originalSigningKeyRecovered": false,
+  "recoveredFiles": 123
+}

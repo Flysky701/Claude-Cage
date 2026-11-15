@@ -8,8 +8,9 @@ import java.util.stream.Stream;
 
 class AssembleSpaceDex {
     public static void main(String[] args) throws Exception {
-        DexBuilder dex = new DexBuilder(new Opcodes(24));
-        SmaliBuilder assembler = new SmaliBuilder(24);
+        int api = args.length > 2 ? Integer.parseInt(args[2]) : 24;
+        DexBuilder dex = new DexBuilder(new Opcodes(api));
+        SmaliBuilder assembler = new SmaliBuilder(api);
         try (Stream<Path> input = Files.walk(Path.of(args[0]))) {
             for (Path path : input.filter(p -> p.toString().endsWith(".smali")).sorted().toList()) {
                 if (!assembler.buildFile(path.toFile(), dex))

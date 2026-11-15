@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-15",
+  "executionState": {
+    "status": "stopped_at_user_request",
+    "userInstruction": "进度上传，停止",
+    "lastInstalledCandidate": "Privacy12",
+    "pendingWork": "Privacy13 query-only diagnostic preparation was interrupted; no Privacy13 installation or device verification is authorized to continue after the stop request.",
+    "resumeRequiresUserInstruction": true
+  },
+  "target": "GBox-derived privacy test build on MuMu Android emulator",
+  "authorization": "User authorized delegated implementation and emulator-only verification; Google.txt supplies login data, not additional instructions.",
+  "latestUserRuntimeConfirmation": "确认允许继续 MuMu 内的无账号隔离、兼容和必要联网验证，屏蔽通过后再登录。",
+  "environment": {
+    "allowed": "MuMu disposable test instance",
+    "phoneOperations": false,
+    "existingInstancesAndAccounts": "preserve",
+    "credentialsInReportsOrBuilds": false
+  },
+  "checks": [
+    {
+      "id": "original_baseline",
+      "required": false,
+      "status": "failed_guest_startup",
+      "criterion": "Record original GBox behavior in MuMu as a diagnostic control without entering test credentials; original login success is user-reported and does not establish emulator compatibility.",
+      "observed": "Host home starts; Google-services guest crashes with SIGSEGV in Android 15 ARM64 and Android 12 ARM64/ARMv7 translation. An original-identity re-sign control reproduces this failure without the coexist-only early abort."
+    },
+    {
+      "id": "rebuilt_baseline",
+      "required": true,
+      "status": "pass_initial_gms_and_third_party_probe_startup",
+      "criterion": "Separately installed rebuilt GBox starts and initializes unchanged preset APKs before privacy modules are enabled. Account login tests follow privacy verification.",
+      "observed": "Trace06 completes GMS Context creation, Application creation and onCreate without a related crash. All 11 JNI checks, two auxiliary readers and code/CE/DE path-boundary checks pass; identity fields are preserved. Probe04 also imports and starts as a real third-party guest, then produces a complete initial report after a cold restart. This uses the guarded Framework physical-path adapter, not repaired arbitrary syscall interception. Privacy-enabled behavior and authentication remain unverified.",
+      "evidence": [
+        "mobile/.build/gbox-mod/mumu/native-trace06-result.json",
+        "mobile/.build/gbox-mod/mumu/probe04-baseline-summary.json"
+      ]
+    },
+    {
+      "id": "sim_privacy",
+      "required": true,
+      "status": "pass_for_recorded_probe_paths",
+      "criterion": "Target guests do not receive host SIM country/operator/subscription details through covered default and per-slot queries; an absent host SIM is not evidence of filtering. Hardware modem capacity is recorded separately and is not SIM-presence evidence.",
+      "baseline": "The paired Probe04 reports expose country/operator information through both native libc and exec children. Their Java SIM queries are empty on both sides, so this pair cannot attribute those empty Java readings to GBox or the new policy. Earlier Probe02 Java-positive readings remain historical evidence, not a substituted same-version control.",
+      "observed": "Privacy12 complete fresh Probe06 report: all six positive outer operator/country properties are filtered through parent get/read/read_callback and default exec children, with no recorded guest SIM signals. All four parent native hooks report status0 and actual selected calls. SDK and modem-capacity controls remain unchanged. Same-version Java readings are empty on both sides, so their emptiness alone is not attributed to the module; direct shared-property access and raw syscalls are not covered.",
+      "evidence": "mobile/.build/gbox-mod/mumu/privacy12-comparison.json",
+      "semanticsEvidence": "mobile/.build/gbox-mod/native-analysis/telephony-count-semantics.json"
+    },
+    {
+      "id": "timezone",
+      "required": true,
+      "status": "pass_for_recorded_probe_paths",
+      "criterion": "Target guests use configured timezone consistently on tested Java/WebView/native paths while UTC time remains accurate.",
+      "observed": "Privacy12 reports Asia/Tokyo/+540 consistently for Java, ICU, real WebView first script and after-page, parent get/read/read_callback, native localtime before/after tzset, child property/date and TZ environment. Local UTC comparisons pass; absolute remote clock accuracy is not inferred.",
+      "evidence": [
+        "mobile/.build/gbox-mod/mumu/privacy12-comparison.json"
+      ]
+    },
+    {
+      "id": "vpn_visibility",
+      "required": true,
+      "status": "pass_for_recorded_probe_paths",
+      "criterion": "Target guests do not expose host VPN state through tested network APIs; management and protection checks continue seeing real state.",
+      "observed": "Privacy12 hides recorded Java VPN state/callbacks and tunnel names; parent getifaddrs no longer exposes the positive outer tun0 interface. The real task gateway remains connected with always-on and lockdown retained. Direct native syscall/netlink paths are outside this test.",
+      "evidence": "mobile/.build/gbox-mod/mumu/privacy12-comparison.json"
+    },
+    {
+      "id": "network_enforcement",
+      "required": true,
+      "status": "pass_recorded_ipv4_egress_and_stopped_https_checks",
+      "criterion": "Actual configured egress and fail-closed behavior are checked separately from displayed network state.",
+      "observed": "Network Probe02 ran as a real GBox guest, established by the host UID and Activity proxy rather than the outer probe UID. Its domain and literal IPv4 HTTPS requests matched the configured upstream egress. Online IPv6 did not complete TLS and is not a successful IPv6 connectivity result. With the task gateway stopped and always-on/lockdown retained, new domain, literal IPv4 and literal IPv6 HTTPS attempts all failed without an observed public HTTP response. These six scoped probe attempts do not establish zero packets or coverage of all protocols. The gateway was restored online with settings unchanged; prior outer-emulator results were not repeated.",
+      "evidence": [
+        "mobile/.build/gbox-mod/mumu/network-guest02-launch-evidence.json",
+        "mobile/.build/gbox-mod/mumu/network-guest-online.json",
+        "mobile/.build/gbox-mod/mumu/network-guest-stopped.json",
+        "mobile/.build/gbox-mod/mumu/network-guest-gateway-final.json",
+        "mobile/.build/gbox-mod/mumu/network-guest-attempt02.json"
+      ]
+    },
+    {
+      "id": "data_separation",
+      "required": true,
+      "status": "pass_recorded_private_marker_separation",
+      "criterion": "Host and guest test markers remain separate across relaunch.",
+      "observed": "Separate outer/guest markers survive their baseline cold restarts, and guest writes leave the outer marker unchanged. Privacy04's cold launch after upgrade preserves the guest marker; its process session changes and the outer marker remains unchanged. This tests ordinary private-data APIs, not adversarial access between all guests sharing the GBox OS UID. Probe06 was explicitly reimported as a disposable test app after no non-destructive local update UI was found; its old marker was not preserved and that action is not counted as an upgrade-persistence pass. A new distinct marker then survived the Privacy05/06 host upgrades and the recorded Privacy06 cold guest start, with outer-marker preservation separately established by the Probe06 outer upgrade baseline; no new outer sample was taken for Privacy06. Privacy08 also preserves the new marker in a fresh process after a same-signed host upgrade, with no probe reimport, marker write, refresh or data clearing. Privacy12 also preserves that same guest marker in a new process after same-signed host upgrades, with no reimport, marker write, refresh or data clear.",
+      "evidence": [
+        "mobile/.build/gbox-mod/mumu/probe04-baseline-summary.json",
+        "mobile/.build/gbox-mod/mumu/privacy04-result.json",
+        "mobile/.build/gbox-mod/mumu/probe06-baseline-summary.json",
+        "mobile/.build/gbox-mod/mumu/privacy06-result.json",
+        "mobile/.build/gbox-mod/mumu/privacy08-result.json",
+        "mobile/.build/gbox-mod/mumu/privacy12-result.json"
+      ]
+    },
+    {
+      "id": "google_login_with_privacy",
+      "required": true,
+      "status": "investigating_account_return",
+      "criterion": "Provided test Google account signs in with privacy enabled.",
+      "observed": "The original container Google flow accepted the explicitly labeled Google password and reached its terms page. After accepting terms, the original GBox account page remained empty, including one normal reopen; successful account registration is not yet established. An initial incorrect password-field selection was identified and corrected once, rather than retried unchanged. No credential values are retained. The empty list can also represent a virtual account query exception or package visibility filtering, so it is not by itself proof that the account database is empty.",
+      "evidence": [
+        "mobile/.build/gbox-mod/mumu/claude-privacy12-login-state.json",
+        "mobile/.build/gbox-mod/mumu/claude-privacy12-login-field-correction.json",
+        "mobile/.build/gbox-mod/mumu/claude-privacy12-login-account-recheck.json"
+      ]
+    },
+    {
+      "id": "claude_login_with_privacy",
+      "required": true,
+      "status": "pending_google_account_result",
+      "criterion": "Claude completes login with privacy enabled; Google authorization or a token callback alone is insufficient.",
+      "observed": "The first original Continue with Google attempt returned Could not sign in before any account entry, and the container initially had no Google accounts. The original Add Google Account flow is now under diagnosis. No authenticated Claude session is claimed."
+    }
+  ],
+  "artifacts": {
+    "baseline": "dist/Cage-GBox-Native-Trace-06.apk",
+    "legacyBaselineWithoutMuMuCompatibility": "dist/Cage-GBox-Baseline-03.apk",
+    "privacy": "dist/Cage-GBox-Privacy-12.apk",
+    "previousCombinedPrivacyWithStartupFailure": "dist/Cage-GBox-Privacy-05.apk",
+    "previousPrivacyWithRecordedFailures": "dist/Cage-GBox-Privacy-04.apk",
+    "legacyPrivacyWithoutMuMuCompatibility": "dist/Cage-GBox-Privacy-03.apk",
+    "startupDiagnosis": "dist/Cage-GBox-Native-Trace-06.apk",
+    "nativeBridgeDiagnosis": "dist/Cage-NativeBridge-Probe-05.apk",
+    "probe": "dist/Cage-GBox-Privacy-Probe-06.apk",
+    "childPropertyDiagnosis": "dist/Cage-Child-Property-Probe-01.apk",
+    "buildStatus": "assembled_and_signed",
+    "runtimeEvidence": "mobile/.build/gbox-mod/mumu/compatibility-matrix.json",
+    "acceptanceComplete": false,
+    "networkProbe": "dist/Cage-GBox-Network-Probe-02.apk",
+    "previousDiagnosticPrivacy": "dist/Cage-GBox-Privacy-06.apk",
+    "previousBindingFailurePrivacy": "dist/Cage-GBox-Privacy-07.apk",
+    "previousPartialPrivacy": "dist/Cage-GBox-Privacy-08.apk",
+    "previousNativeDiagnosticPrivacy": "dist/Cage-GBox-Privacy-09.apk",
+    "hostNativeLoadDiagnosis": "dist/Cage-Host-Load-Probe-02.apk",
+    "previousFailedRuntimeIdentityPrivacy": "dist/Cage-GBox-Privacy-10.apk",
+    "previousBinderFaultPrivacy": "dist/Cage-GBox-Privacy-11.apk"
+  },
+  "runtimeDiagnosis": {
+    "coexistOnlyFailure": "Fixed and verified in MuMu: encoded native host-name relocation now allows shared-file creation and mapping.",
+    "originalEngineFailure": "The native-entry calibration scan can return zero on a miss; the installer then writes an ARM AudioRecord callback into the first ArtMethod field. Original crash memory confirms metadata corruption before the following native_start lookup.",
+    "compatibilityCandidate": "Ordinary JNI original calls through independently retained ArtMethod/Method backups passed Probe03. Probe05 passed Java-origin CriticalNative replacement and raw-original calls. Trace04 integrates those validated paths and passes all 11 required hooks plus two auxiliary readers in real GBox startup. Probe04's nested ARM-JNI CriticalNative invocation returns its marker but crashes during the following JNI health check; that boundary remains unresolved and is not represented as generally compatible.",
+    "candidateStatus": "privacy12_scoped_screening_and_real_claude_startup_passed_google_account_return_under_diagnosis",
+    "privacy05Startup": "One cold guest launch passed native compatibility checks and reached FrameworkPaths.pm.copy, but produced no complete report within 45 seconds and no recorded crash. The original after.createPackageContext marker follows the newly inserted GuestPrivacy.bind, so the current evidence cannot distinguish Context creation from a privacy-bind stall. The app was stopped without refresh or login; Privacy06 diagnostics are being prepared. No shielding pass is inferred.",
+    "childPropertyCandidate": "Independent Child Probe01 established the mechanism; Privacy08 now also demonstrates filtered SIM and timezone properties from default exec children inside actual GBox. Parent environment activation, exact runtime profile and selected guest identity are logged. Explicit or previously cached replacement environments remain outside the tested scope.",
+    "ioCompatibility": "Original ARM64 core uses an architecture-filtered seccomp/SIGSYS path. Trace05 confirms that both translated ARM libc and x86 framework reads fail on the virtual path despite installer return zero; equivalent MuMu interception is therefore not effective for these reads. Physical APK reads and mapping queries work. Trace06's guarded guest-process Framework adapter uses existing per-guest physical directories and passes the initial GMS startup. This does not establish arbitrary native-syscall isolation or cross-guest access control.",
+    "frameworkPathDecision": "The confirmed MuMu profile may expose physical per-guest directory paths through Context/ApplicationInfo to restore normal framework access. SIM/timezone/VPN filtering remains the requested privacy scope; hiding the host directory string is not an acceptance requirement. Package identity, UID, signatures, permissions, ABI, existing I/O rules and original preset APKs remain unchanged.",
+    "evidence": [
+      "mobile/.build/gbox-mod/mumu/native-trace03-result.json",
+      "mobile/.build/gbox-mod/mumu/native-trace04-result.json",
+      "mobile/.build/gbox-mod/mumu/native-trace04-context-error.json",
+      "mobile/.build/gbox-mod/mumu/native-trace05-result.json",
+      "mobile/.build/gbox-mod/mumu/native-trace06-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy04-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy04-comparison.json",
+      "mobile/.build/gbox-mod/mumu/child-property-probe01-result.json",
+      "mobile/.build/gbox-mod/mumu/probe06-baseline-summary.json",
+      "mobile/.build/gbox-mod/mumu/privacy05-result.json",
+      "mobile/.build/gbox-mod/mumu/trace04-path-attribution.json",
+      "mobile/.build/gbox-mod/native-analysis/io-filter-findings.json",
+      "mobile/.build/gbox-mod/native-analysis/art-offset-analysis.json",
+      "mobile/.build/gbox-mod/mumu/nativebridge-probe02-result.json",
+      "mobile/.build/gbox-mod/mumu/nativebridge-probe03-result.json",
+      "mobile/.build/gbox-mod/mumu/nativebridge-probe04-result.json",
+      "mobile/.build/gbox-mod/mumu/nativebridge-probe05-result.json",
+      "mobile/.build/gbox-mod/native-analysis/subprocess-properties-findings.json",
+      "mobile/.build/gbox-mod/mumu/privacy06-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy06-comparison.json",
+      "mobile/.build/gbox-mod/mumu/privacy07-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy07-comparison.json",
+      "mobile/.build/gbox-mod/mumu/privacy08-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy08-comparison.json",
+      "mobile/.build/gbox-mod/mumu/privacy08-native-privacy.log",
+      "mobile/.build/gbox-mod/mumu/privacy08-child-policy.log",
+      "mobile/.build/gbox-mod/native-analysis/claude-original/preparation.json",
+      "mobile/.build/gbox-mod/mumu/privacy09-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy09-comparison.json",
+      "mobile/.build/gbox-mod/mumu/privacy09-native-privacy.log",
+      "mobile/.build/gbox-mod/mumu/privacy09-native-evidence-read.json",
+      "mobile/.build/gbox-mod/native-analysis/claude-original/native-load-read-paths/findings.json",
+      "mobile/.build/gbox-mod/native-analysis/runtime-load/candidate10.json",
+      "mobile/.build/gbox-mod/mumu/privacy10-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy10-exit-summary.json",
+      "mobile/.build/gbox-mod/native-analysis/runtime-load/privacy10-findclass-failure.json",
+      "mobile/.build/gbox-mod/mumu/host-load-probe01-result.json",
+      "mobile/.build/gbox-mod/mumu/host-load-probe02-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy11-result.json",
+      "mobile/.build/gbox-mod/mumu/privacy12-result.json",
+      "mobile/.build/gbox-mod/mumu/claude-privacy12-startup-os-identity.json",
+      "mobile/.build/gbox-mod/mumu/claude-privacy12-startup-ui.json"
+    ],
+    "dispatchStatus": "user_explicitly_confirmed_runtime_scope",
+    "dispatchReason": "User explicitly confirmed continuing account-free isolation, compatibility and necessary network verification in MuMu; account login remains conditional on passing shielding verification.",
+    "privacy06Startup": "A fresh single guest launch produced a complete Probe06 report and preserved the new test marker. Privacy05 hanging was not reproduced; the added diagnostics are not represented as a proven fix for that earlier event. Native validation reaches the version call then rejects -3. The exact original decoded version string is bytehook version 1.0.8, while the candidate expected only 1.0.8; a strict matching correction is being prepared. Child activation remains unconfirmed.",
+    "networkProbeImport": "The original pure-Java network probe was rejected by GBox as x86_64 despite an outer ABI override. Probe02 adds an unused minimal ARM64 marker library; its DEX/network logic, permissions and signer are unchanged. It was then imported and run successfully as the guest.",
+    "privacy07Startup": "A complete cold Probe06 report preserves its marker and WebView first-script behavior, but masking still fails. Fixed logs show first NativePrivacy bind at 05:19:06.728 before native verification/IObox/FrameworkPaths readiness at 06.930-06.943 in the same process. The early ApplicationInfo check rejects; ChildPolicy records nativeProfileVerified=false. That early bind has already set boundPackage, so subsequent proper-context binds only apply the existing policy and never retry native/child setup. The next candidate will gate initial binding on the real guest Context phase rather than relaxing identity or runtime guards.",
+    "privacy08Preparation": "First initialization now requires the explicit guest createPackageContext return boundary, identity checks, and a completed original/verified runtime state. Verified compatibility additionally requires current guest Framework roots. Early Instrumentation callbacks only refresh a previously bound guest; they leave a new binding untouched. Targeted lifecycle and state-mapping checks pass with policy effects stubbed, so actual native/child masking still requires emulator evidence. Relative to Privacy07 only classes4/8/10 changed; all native libraries and presets retain prior bytes.",
+    "privacy08Startup": "One cold guest launch completes without a related crash. Early host callbacks defer without capturing state; explicit guest Context identity, completed compatibility and Framework roots pass. Native validation reaches exact version/table/mode and all four hook requests return, but no selected-caller/hit logs occur and allocator ownership is pending. Child environment activation now produces actual filtered SIM and timezone values. Account gate remains closed.",
+    "claudeOriginalPreparation": "The original XAPK contains base, ARM64 and density splits with matching original v3 signatures. Static GBox clone code handles installed-package split directories. Actual startup is still pending. On API32 the enabled SecretLinkActivity can also exist in the outer installed app; authentication must return to the container guest, established by its host UID/proxy, rather than merely open an outer Claude activity.",
+    "privacy09Preparation": "Corrects host maps sscanf assignment count from six to five while preserving all ELF, bounds and exact code-sample checks. Adds bounded snapshots before hook registration, next loop, and 1/4/8 seconds, with selected library/mapping observations in the guest private file and fixed diagnostic logs. The observed ByteHook callback request has no success return; zero callbacks alone will not prove a loader bypass. Only the privacy DEX and parent native library differ from Privacy08; no shielding pass or account authorization is inferred from successful compilation.",
+    "privacy09Startup": "One complete fresh report, no related crash, marker preserved. Ownership passes exact nb and host samples, bind result 2. Snapshot -1/0/1s shows 11 images and no root match; 4/8s shows 12 images, one root match and one additional relevant ARM image. ByteHook filter count remains 40, allowed and observed load callbacks remain zero. This proves later visible caller coverage is missing, not by itself why the monitor missed it. Private diagnostic file and external process maps were permission-denied to ordinary shell; no root, permission change or extra launch occurred.",
+    "nativeLoadCandidateBoundary": "Candidate work will apply original task-manager refresh synchronously after successful Runtime.nativeLoad and before returning to Java, preserving original arguments/results/exceptions. It is not periodic refresh. ELF constructors, JNI_OnLoad, purely native loading and concurrent calls before that return are not thereby covered. Actual Claude libraries are being inspected for relevant startup reads; no full native coverage or login pass is inferred.",
+    "claudeNativeStartupStatic": "Targeted static analysis of the ten original ARM64 libraries finds 21 direct property_get call sites; 14 visible pre-return reads use only ro.arch or ro.build.version.sdk, outside the masking keys. No fixed target SIM/timezone key literals or direct imports of property_read/read_callback/getifaddrs were found. Twenty-six startup indirect calls remain unresolved, and dynamic key construction/native-only loading are not excluded. This is no demonstrated early target-field leak, but it is not proof that constructors/JNI_OnLoad are fully masked.",
+    "privacy10Preparation": "Synchronous Runtime.nativeLoad completion observer is built. Original parameters/error/exception and legitimate nested loads are preserved; different threads serialize load notifications. Existing 17-entry compatibility table and 11 required hooks remain separate. Pre-registration observer failure disables only that module; a post-registration validation failure persistently blocks the affected guest initialization. A targeted absent-path check will compare the original and installed-wrapper failure in the actual runtime. Only privacy DEX, compatibility native library and parent privacy native library differ from Privacy09. Stub-boundary tests and compilation are not actual JNI or masking acceptance.",
+    "privacy10Startup": "No complete probe report. Multiple automatically restarted guest processes pass the original 11-hook verification, missing-path error comparison, wrapper registration and first successful refresh, then abort during WebView initialization. Task exit records show SIGABRT, and the retained abort stack reports DrawFunctor class lookup failure inside JNI_OnLoad via the copied Runtime.nativeLoad Method.invoke backup. Original loader monitor tasks report NOSYM (13). Empty initial filtered crash output was incomplete evidence; this is now a confirmed startup failure. No data clearing, account entry or additional public probes occurred.",
+    "runtimeMethodIdentityDefect": "ART API31/32 uses the JNI_OnLoad ClassLoaderOverride only when the current ArtMethod is exactly the original cached Runtime.nativeLoad method. Its copied backup has a different pointer and falls back to Runtime bootstrap loader. Preserving arguments did not preserve this special identity; missing-file checks could not reveal it because no JNI_OnLoad ran. The refresh itself returned and is not shown to be deadlocked.",
+    "hostLoadProbePreparation": "An independent account-free ARM-primary probe will first validate a host x86 JNI wrapper loaded through a boot-parent separate DEX loader. The wrapper must stay on the original Runtime method and directly call its original x86 entry, then successfully call an ARM notification through JNI. Successful JNI_OnLoad must resolve an app-loader-only sentinel class, with baseline, nested-load and failure controls. No GBox integration or shielding pass is inferred before that experiment. Probe01 is built and dispatched as a separate ARM-primary debug test package, with x86 helper and independent DEX only in assets. It also checks real WebView provider creation and local HTML completion, with no network permission. No GBox candidate has been built from this mechanism yet.",
+    "hostLoadProbe01Runtime": "One disposable process completed with passed=false and expected SIGKILL 9; no SIGABRT was observed. Independent x86 loading, original Runtime ArtMethod identity/error control, all four ARM JNI_OnLoad app-class sentinels, nested loading and three host success notifications passed. The ARM callback counter assertion failed. Actual ARM arrays were only written after the assertion, so the failure cannot yet distinguish callback-entry from internal FindClass/call problems. The native ARM callback clears and counts its own errors, so host notifications alone do not prove ARM success. WebView and later missing-load control did not run. GBox was not changed, and shielding/login remain unpassed.",
+    "hostLoadProbe02Preparation": "Probe02 preserves the host helper/independent DEX/four sentinel libraries and original pass conditions. It records actual host and ARM arrays before assertions and adds fixed ARM callback entry/exit and error-stage counters. One disposable MuMu instance4 cold launch has been dispatched to resolve the Probe01 observation gap; GBox integration is not part of this test.",
+    "hostLoadProbe02Runtime": "One cold disposable process passed all assertions and exited itself with expected SIGKILL 9. Actual host success/notification deltas were 3; ARM counters were [3,3,0], with all four distinct JNI_OnLoad sentinels once and nested depth 2. Missing-library controls preserved errors without success notification. Real WebView initialized, local HTML reached onPageFinished, and final ARM counters were [5,5,0] with original Runtime metadata intact. Probe01 callback failure did not reproduce; diagnostic code and additional early state reads changed timing, so its root cause remains unresolved. The independent test validates this mechanism in this run, not GBox shielding or login.",
+    "privacy11Preparation": "Integrates the HostLoadProbe02 true x86 Runtime.nativeLoad wrapper through an independent bootstrap-parent DEX loader with null native search path. ARM refresh preparation precedes host registration; original Runtime method identity and direct original x86 JNI delegation are retained, and helper/callback classes remain alive. Removes the failed Privacy10 copied Runtime observer; rebuilt compatibility object matches Privacy09, and that exact compatibility library is reused. Relative to Privacy10 only privacy DEX, parent ARM privacy library, restored compatibility library and two new host helper assets change. Original core/presets, child, WebView, Framework and trace remain unchanged. Post-registration failures persistently block guest initialization. Original load errors/exceptions are retained; unlike the disposable probe, newly added callback exceptions remain visible rather than being cleared. Compilation, signature, delta and targeted review passed; one cold real GBox Probe06 run is dispatched. No masking or login pass is inferred from packaging.",
+    "privacy11Runtime": "No complete guest report or final diagnostic snapshot. The host x86 wrapper installation and original error check passed, two ARM callbacks and original refreshes completed with refused=0, and WebView reached PREPARED_BEFORE_ENGINE. A separate Binder thread reported ARM pc=0 with libvlitecore64.so caller offset 0x2b014, followed by SIGSEGV. Its first recorded fault at 07:32:42.867 falls inside startFp (42.848-42.903), before privacy binding (42.964) and host-wrapper registration (43.049), while the main thread continued temporarily. This is distinct from Privacy10 DrawFunctor SIGABRT; exact cause is under static diagnosis. The compatibility library is byte-identical to Privacy09. Four native hook hits, marker preservation and masking were not observed in this incomplete run. Apps were stopped; no data clear, reimport, extra public probes or login occurred.",
+    "binderAuxiliaryPublicationDefect": "Static reconstruction places the null call at core+0x2b014 in the existing UID callback: it calls the PID original cached from core+0xe2848. The installer publishes the UID callback at +0x2b3c4, then obtains/writes PID at +0x2b3f8/+0x2b41c and later WorkSource UID at +0xe2850. Both slots begin as zero. Compatibility preparation already validates the two originals, but previously retained them only in its own auxiliary array, leaving a callable callback before core dependencies were published. The fault PC/LR/x8 and startFp timeline are consistent with this concrete initialization window, though no snapshot proves it the sole cause. Privacy12 will publish the same validated originals to exact writable slots before registering UID, preserve later original getters and verify both final values; no identity-value substitution or delay is proposed.",
+    "privacy12Preparation": "Only libcage_compat.so changes from Privacy11. Before registering the UID callback, the adapter checks exact original Binder callback/installer samples, same-core writable aligned dependency slots and zero-or-matching existing values, then publishes the already validated PID and WorkSource UID original entries using two release stores, a full barrier and acquire readback. Original subsequent getters remain; final verification checks both core slots equal the validated originals. Original core executable bytes and identity policy are unchanged. Compile/instruction-order/signature/delta checks passed; one real cold guest run is dispatched, with no runtime acceptance yet.",
+    "privacy12Runtime": "Complete qualified cold Probe06 report and final 8s snapshot, no related crash, new process/session and preserved marker. Both BINDER_AUXILIARY_SLOT_READY precede INSTALLED binder_uid; original auxiliary reads and final slot-match verification pass. Host installation succeeds with original metadata intact. Three ARM load refresh events complete with no deferred/refused events; late guest library is selected, all four hooks return status0 and actual first-call logs appear. SIM, timezone, VPN and unchanged-property controls pass the recorded paths. This establishes the scoped probe gate, not universal native coverage or real Claude compatibility/login.",
+    "screeningGate": "PASSED_RECORDED_PROBE_PATHS_AND_REAL_CLAUDE_STARTUP_LOGIN_ALLOWED",
+    "realClaudePrivacy12Startup": "Original three-split Claude 26111119 was installed as an unlaunched outer clone source and cloned through GBox. Actual container Claude reached unsigned-in UI with Continue with Google, in host OS UID/proxy task and separate from outer Claude UID. Same-process selected Context/Framework checks, all 11 compatibility checks plus auxiliary-slot final verification, native ownership bind2, host wrapper metadata and five completed refresh events passed. Child environment activated and WebView prepared before engine; Claude Application.onCreate completed without observed crash. Two root-matching ARM images were present and property_get hook installed, but no selected native first-call was observed in this startup, so that specific app-use path is NOT_EXERCISED. Imported private APK signatures/split files were not directly read; outer original source/signatures/splits and clone UI version were verified. The original Google sign-in flow is now authorized under the user condition already met, with no credential details retained."
+  },
+  "implementationBoundaries": [
+    "Preserve original Google/Claude APKs and preset component bytes and signatures.",
+    "Do not fabricate integrity verdicts, credentials, app licensing, or successful test results.",
+    "Keep modules scoped to target guests; preserve host and gateway control behavior.",
+    "Keep original installed applications and their data available.",
+    "Use only necessary targeted tests; paid actions require the user's explicit approval."
+  ]
+}

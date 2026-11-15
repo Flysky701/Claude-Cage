@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-15",
+  "purpose": "Public source checkpoint for continuing development on another computer",
+  "executionStopped": true,
+  "acceptanceComplete": false,
+  "lastTestedArtifact": {
+    "name": "Cage-GBox-Privacy-12.apk",
+    "sha256": "709d796be9691f679722f8c2637f75262b5b821f17cbe4c0b9366c07985e82d5",
+    "includedInGit": false
+  },
+  "screening": {
+    "sim": "PASS_FOR_RECORDED_PROBE_PATHS",
+    "timezone": "PASS_FOR_RECORDED_PROBE_PATHS",
+    "vpnVisibility": "PASS_FOR_RECORDED_PROBE_PATHS",
+    "defaultChildEnvironment": "PASS_FOR_RECORDED_PROBE_PATHS",
+    "realWebViewFirstScriptAndAfterPage": "PASS",
+    "nativeHookInstallAndActualCallCount": 4,
+    "hostLoadRefreshCompleted": 3,
+    "hostLoadRefreshRefused": 0,
+    "freshProcessPreservedGuestMarker": true,
+    "arbitrarySyscallIsolationEstablished": false
+  },
+  "network": {
+    "ipv4HttpsEgressChecksPassed": 2,
+    "stoppedGatewayNewHttpsAttemptsWithoutPublicResponse": 3,
+    "onlineIpv6Tls": "NOT_COMPLETED",
+    "allProtocolsOrZeroPacketGuarantee": false
+  },
+  "realClaude": {
+    "versionName": "1.261111.19",
+    "versionCode": 26111119,
+    "originalSplitsAndSignaturesPreserved": true,
+    "containerUnsignedStartup": "PASS",
+    "selectedPrivacyBinding": "PASS",
+    "targetNativeReadsObservedDuringStartup": false,
+    "authenticatedContainerUiSeen": false
+  },
+  "googleLogin": {
+    "correctPasswordAccepted": true,
+    "termsAccepted": true,
+    "accountManagerEmptyAfterOneNormalReopen": true,
+    "accountPersistenceOrVisibilityEstablished": false,
+    "loginConfirmed": false,
+    "unchangedCredentialRetries": 0
+  },
+  "nextCandidate": {
+    "name": "Privacy13",
+    "status": "QUERY_DIAGNOSTIC_PLAN_ONLY_NO_APK_OR_RUNTIME_VALIDATION",
+    "plannedScope": "Fixed booleans and counts for the existing Google/vending account query; preserve results, permissions, and all Privacy12 modules"
+  },
+  "credentialsTokensProxyConfigDeviceIdentifiersAndRawAuthLogsIncluded": false
+}

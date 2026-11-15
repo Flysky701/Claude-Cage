@@ -1,0 +1,29 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'io.github.flysky701.integritytest'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'io.github.flysky701.integritytest'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.1'
+        buildConfigField 'long', 'CLOUD_PROJECT_NUMBER', '650458347604L'
+    }
+    buildFeatures { buildConfig true }
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('../.build/integrity-test/development.p12')
+            storePassword 'android'
+            keyAlias 'development'
+            keyPassword 'android'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies { implementation 'com.google.android.play:integrity:1.6.0' }
