@@ -25,6 +25,10 @@ final class SpacePackages {
     static final String[] GOOGLE = { FRAMEWORK, SERVICES, STORE };
     static final String[] MICROG = { SERVICES, STORE };
     static final String MICROG_SPACE = "top.niunaijun.microbox";
+    static final String DEMO_SPACE = "top.niunaijun.microdem";
+    static boolean microG(Context context) {
+        return MICROG_SPACE.equals(context.getPackageName()) || DEMO_SPACE.equals(context.getPackageName());
+    }
     private static final String MICROG_SIGNER = "9bd06727e62796c0130eb6dab39b73157451582cbd138e86c468acc395d14165";
     private static final String ROOT = "top.niunaijun.blackbox.";
     private static final int USER = 0;
@@ -75,7 +79,7 @@ final class SpacePackages {
     static PackageInfo inspect(Context context, File apk) throws Exception {
         PackageInfo info = context.getPackageManager().getPackageArchiveInfo(apk.getPath(),
                 Build.VERSION.SDK_INT >= 28 ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES);
-        boolean microG = MICROG_SPACE.equals(context.getPackageName());
+        boolean microG = microG(context);
         if (microG && (info == null || !(SERVICES.equals(info.packageName) || STORE.equals(info.packageName))))
             throw new IOException("请选择上游 microG Services 或 Google 签名的原版 Play 商店。");
         if (info == null || info.applicationInfo == null || !google(info.packageName))
@@ -152,8 +156,10 @@ final class SpacePackages {
     }
 
     boolean open(String pkg, boolean listing) throws Exception {
+        if (DEMO_SPACE.equals(context.getPackageName()) && CLAUDE.equals(pkg))
+            Class.forName("io.github.leexeo.cage.space.GuestSplits").getMethod("verify", Context.class).invoke(null, context);
         Intent target;
-        if (SERVICES.equals(pkg) && MICROG_SPACE.equals(context.getPackageName())) {
+        if (SERVICES.equals(pkg) && microG(context)) {
             target = new Intent(Intent.ACTION_APPLICATION_PREFERENCES).addCategory(Intent.CATEGORY_DEFAULT);
         } else {
             target = listing ? new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + CLAUDE))

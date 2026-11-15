@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.leexeo.cage.microdemo" android:versionCode="1" android:versionName="1">
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="35"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED"/>
+    <queries><package android:name="top.niunaijun.microdem"/></queries>
+    <application android:label="Cage 空间网关" android:allowBackup="false" android:debuggable="true" android:extractNativeLibs="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name="io.github.leexeo.cage.localcore.CoreActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="io.github.leexeo.cage.space.ENSURE_NETWORK"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+        <service android:name="io.github.leexeo.cage.localcore.CoreService" android:exported="true"
+            android:permission="android.permission.BIND_VPN_SERVICE" android:foregroundServiceType="systemExempted">
+            <intent-filter><action android:name="android.net.VpnService"/></intent-filter>
+            <meta-data android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON" android:value="true"/>
+        </service>
+        <service android:name="io.github.leexeo.cage.localcore.ExitCheckService" android:exported="true"
+            android:permission="top.niunaijun.microdem.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
+        <provider android:name="io.github.leexeo.cage.localcore.StatusProvider"
+            android:authorities="io.github.leexeo.cage.microdemo.status" android:exported="true"
+            android:readPermission="top.niunaijun.microdem.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+            android:writePermission="top.niunaijun.microdem.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
+    </application>
+</manifest>

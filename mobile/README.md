@@ -6,6 +6,14 @@ Android arm64 APK 可从[官网下载入口](https://claude-cage.com/#download)�
 
 ### Android 实验版：在本机空间打开 Claude
 
+#### 轻量 DEMO 与系统网关（2026-11-14）
+
+新增可与原空间并存的轻量 DEMO，使用手机上的系统 VPN 网关承载实际流量，并要求开启“始终开启”和“阻止未连接流量”。此网关覆盖当前 Android 用户的全手机流量。来宾网络接口显示的 VPN 标记经过兼容处理，不代表手机没有 VPN，也不是完整虚拟 Android。
+
+Android 16 arm64 真机已在此 DEMO 内完成测试账号的 Google 登录，Play 商店能加载 Claude 官方页面。固定使用「美国 Webshare（东京中转）」并核对实际出口；网关停止后的新建域名与数字 IPv4 HTTPS 连接被阻断，恢复后可连接。Claude 原版分包已保留数据升级至 `1.261111.19`，隔离测试通过失败回滚、进程中断恢复、覆盖重装和保留数据卸载后的恢复。Google 授权已从私有 microG 返回 Claude，但新版随后提示无法通过 Google Play 验证，**尚未完成 Claude 登录和实际回复**。详细证据、升级边界与构建方法见[轻量 DEMO](sandbox/blackbox-light/demo/README.md)，网关说明见[轻量网关](sandbox/light-gateway/README.md)。以下独立 microG 空间保留原有网络限制，其历史验证结果不等同于此 DEMO。
+
+17:36 定位到 Play Integrity 服务被送向个人区而遭隔离检查拒绝，现已改为空间内私有服务路由。随后修复 UID 查询与调用进程映射，`-7 / APP_UID_MISMATCH` 已消失；开启空间内 microG 的设备认证后，18:47 至 19:11 多次取得真实凭证，但 Claude 仍拒绝登录。新旧签名接口已返回真实官方签名，安装来源也如实显示空间导入。商店菜单崩溃已修复，下载偏好为“通过任何网络”，私有安装会话仍未实现。设备完整性、Claude 应用识别和 Play 许可判定尚未知。按用户要求结束今日测试，详见[当日分析与收尾记录](ANDROID-ANALYSIS-2026-11-14.md)。
+
 #### 独立 microG 空间
 
 在 Android 16 arm64 真机上，已从新空间导入上游 microG Services 0.3.18.252432 和 Google 签名的 Play 商店 45.7.17。它有自己的应用数据和代理助手，可以与原有套件空间并存。原版商店已打开到「登录」，microG 自带的「添加 Google 账号」也能打开。

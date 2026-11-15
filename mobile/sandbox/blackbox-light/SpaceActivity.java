@@ -18,11 +18,17 @@ import java.util.zip.ZipFile;
 
 public final class SpaceActivity extends Activity {
     private static final int PICK = 1;
+    private static final int NETWORK = 2;
+    private static final int PICK_CLAUDE = 3;
+    private static final String GATEWAY = "io.github.leexeo.cage.microdemo";
     private static final String ACTION = "io.github.leexeo.cage.space.";
     // The package service and base APKs are shared across activity instances.
     private static final ExecutorService tasks = Executors.newSingleThreadExecutor();
     private boolean launchRequested;
     private boolean microG;
+    private boolean demo;
+    private String pendingPackage;
+    private boolean pendingListing;
     private boolean busy;
     private boolean resumed;
     private int refreshGeneration;
@@ -32,7 +38,12 @@ public final class SpaceActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        microG = SpacePackages.MICROG_SPACE.equals(getPackageName());
+        microG = SpacePackages.microG(this);
+        demo = SpacePackages.DEMO_SPACE.equals(getPackageName());
+        if (state != null) {
+            pendingPackage = state.getString("pendingPackage");
+            pendingListing = state.getBoolean("pendingListing");
+        }
         String action = getIntent().getAction();
         launchRequested = (ACTION + "OPEN_CLAUDE").equals(action) || (ACTION + "OPEN_STORE").equals(action)
                 || (ACTION + "INSTALL_CLAUDE").equals(action);
@@ -46,6 +57,10 @@ public final class SpaceActivity extends Activity {
         content.setPadding(pad, pad, pad, pad);
         scroll.addView(content);
         setContentView(scroll);
+        if (demo && (ACTION + "CHECK_NETWORK").equals(action)) {
+            header("正在检查新建 HTTPS 连接…");
+            checkNetwork();
+        }
     }
 
     @Override protected void onResume() {
@@ -58,6 +73,8 @@ public final class SpaceActivity extends Activity {
         super.onSaveInstanceState(state);
         state.putBoolean("launch", launchRequested);
         state.putString("notice", notice);
+        state.putString("pendingPackage", pendingPackage);
+        state.putBoolean("pendingListing", pendingListing);
     }
 
     private TextView line(String value, int size) {
@@ -79,9 +96,22 @@ public final class SpaceActivity extends Activity {
 
     private void header(String message) {
         content.removeAllViews();
-        line(microG ? "Cage · microG 空间" : "Google 套件", 26).setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        line(demo ? "Cage · 轻量 DEMO" : microG ? "Cage · microG 空间" : "Google 套件", 26).setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         status = line(message, 16);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+    }
+
+    private void checkNetwork() {
+        if (!demo) return;
+        busy = true;
+        try {
+            Class.forName("io.github.leexeo.cage.space.DemoNetworkCheck")
+                    .getMethod("start", Activity.class, TextView.class, Runnable.class)
+                    .invoke(null, this, status, (Runnable) () -> busy = false);
+        } catch (ReflectiveOperationException unavailable) {
+            busy = false;
+            status.setText("连接检查暂不可用。");
+        }
     }
 
     private void refresh() {
@@ -103,10 +133,16 @@ public final class SpaceActivity extends Activity {
                             : info == null ? "待导入" : "需导入独立副本";
                     rows.add(label(pkg) + "　" + detail);
                 }
-                boolean claude = space.installed(SpacePackages.CLAUDE) != null;
+                PackageInfo claudeInfo = space.installed(SpacePackages.CLAUDE);
+                boolean claude = claudeInfo != null
+                        && (!demo || (Boolean) Class.forName("io.github.leexeo.cage.space.GuestSplits")
+                            .getMethod("ready", android.content.Context.class).invoke(null, this));
+                if (demo) rows.add("Claude　" + (claude
+                        ? "已导入" + (claudeInfo.versionName == null ? "" : " · " + claudeInfo.versionName)
+                        : "待导入或恢复"));
                 boolean ready = complete;
                 boolean showMicroGSettings = microG && servicesPresent;
-                boolean hasNetworkGuest = microG && getPackageManager().checkSignatures(getPackageName(),
+                boolean hasNetworkGuest = microG && !demo && getPackageManager().checkSignatures(getPackageName(),
                         "io.github.leexeo.cage.fullguest") == android.content.pm.PackageManager.SIGNATURE_MATCH;
                 // Android 16's authenticator checks the account-service caller's platform signature.
                 // Opening an already installed guest app does not require adding a Google account.
@@ -135,8 +171,16 @@ public final class SpaceActivity extends Activity {
                     if (showMicroGSettings) action("打开 microG 设置", () -> open(SpacePackages.SERVICES, false));
                     if (ready) {
                         if (warnAboutSignIn) line("Google 登录受限：在 Android 16 上，此空间暂时无法添加 Google 账号。", 15);
-                        if (microG) line("当前版本的登录网页无法经空间代理联网，添加 Google 账号会停在连接页。", 15);
-                        action(claude ? "打开 Claude" : "在 Play 商店安装 Claude",
+                        if (demo) {
+                            line("打开应用前会检查网关和系统断网保护。此网关会接管全手机流量。", 15);
+                            action("检查连接", this::checkNetwork);
+                            if (!claude) {
+                                line("商店安装暂不可用，可导入原版 Claude 分包。", 15);
+                            }
+                            action(claude ? "更新 Claude 原版分包" : "导入 Claude 原版分包", this::pickClaude);
+                        }
+                        else if (microG) line("当前版本的登录网页无法经空间代理联网，添加 Google 账号会停在连接页。", 15);
+                        action(claude ? "打开 Claude" : demo ? "查看 Claude 商店页" : "在 Play 商店安装 Claude",
                                 () -> prepare(claude ? "OPEN_CLAUDE" : "INSTALL_CLAUDE"));
                         action("打开空间里的 Play 商店", () -> prepare("OPEN_STORE"));
                     } else if (!microG) line("选择三个完整 APK，也可以选择包含这三个组件的套件 ZIP。", 14);
@@ -171,7 +215,7 @@ public final class SpaceActivity extends Activity {
 
     private void openRelay() {
         try {
-            startActivity(new Intent().setClassName("io.github.leexeo.cage.microcore",
+            startActivity(new Intent().setClassName(demo ? GATEWAY : "io.github.leexeo.cage.microcore",
                     "io.github.leexeo.cage.localcore.CoreActivity"));
         } catch (android.content.ActivityNotFoundException missing) {
             status.setText("请先安装配套的 microG 空间代理助手。");
@@ -179,6 +223,28 @@ public final class SpaceActivity extends Activity {
     }
 
     private void open(String pkg, boolean listing) {
+        if (demo) {
+            if (getPackageManager().checkSignatures(getPackageName(), GATEWAY)
+                    != android.content.pm.PackageManager.SIGNATURE_MATCH) {
+                status.setText("请先安装同一套 DEMO 的空间网关。");
+                return;
+            }
+            pendingPackage = pkg;
+            pendingListing = listing;
+            launchRequested = false;
+            try {
+                startActivityForResult(new Intent(ACTION + "ENSURE_NETWORK").setClassName(GATEWAY,
+                        "io.github.leexeo.cage.localcore.CoreActivity"), NETWORK);
+            } catch (android.content.ActivityNotFoundException missing) {
+                pendingPackage = null;
+                status.setText("配套网关无法打开。");
+            }
+            return;
+        }
+        openReady(pkg, listing);
+    }
+
+    private void openReady(String pkg, boolean listing) {
         busy = true;
         launchRequested = false;
         status.setText("正在打开" + label(pkg) + "…");
@@ -218,8 +284,60 @@ public final class SpaceActivity extends Activity {
         catch (android.content.ActivityNotFoundException missing) { status.setText("手机上没有可用的文件选择器。"); }
     }
 
+    private void pickClaude() {
+        if (!demo) return;
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+        try { startActivityForResult(picker, PICK_CLAUDE); }
+        catch (android.content.ActivityNotFoundException missing) { status.setText("手机上没有可用的文件选择器。"); }
+    }
+
+    private void importClaude(Uri uri) {
+        if (!demo || uri == null || !"content".equals(uri.getScheme())) return;
+        ++refreshGeneration;
+        busy = true;
+        header("正在验证 Claude 原版分包并导入空间…");
+        tasks.execute(() -> {
+            String feedback;
+            File input = null;
+            try {
+                input = File.createTempFile("claude-selection-", ".xapk", getCacheDir());
+                try (InputStream stream = getContentResolver().openInputStream(uri)) { copy(stream, input, 256L << 20); }
+                feedback = (String) Class.forName("io.github.leexeo.cage.space.ClaudeBundle")
+                        .getMethod("install", android.content.Context.class, File.class).invoke(null, this, input);
+            } catch (Exception failure) {
+                Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+                android.util.Log.w("CageDemo", "Claude bundle import failed: " + cause.getClass().getSimpleName());
+                feedback = cause instanceof IOException && cause.getMessage() != null
+                        ? cause.getMessage() : "Claude 分包导入失败，原有账号和数据已保留。";
+            } finally { if (input != null) input.delete(); }
+            final String message = feedback;
+            runOnUiThread(() -> {
+                if (isDestroyed() || isFinishing()) return;
+                busy = false;
+                launchRequested = false;
+                notice = message;
+                refresh();
+            });
+        });
+    }
+
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == PICK_CLAUDE) {
+            if (result == RESULT_OK && data != null) importClaude(data.getData());
+            return;
+        }
+        if (request == NETWORK) {
+            String pkg = pendingPackage;
+            pendingPackage = null;
+            if (result == RESULT_OK && data != null && data.getBooleanExtra("protectionReady", false) && pkg != null) {
+                openReady(pkg, pendingListing);
+            } else {
+                notice = "尚未启用网关和系统断网保护，应用未启动。";
+                refresh();
+            }
+            return;
+        }
         if (request != PICK || result != RESULT_OK || data == null) return;
         LinkedHashSet<Uri> files = new LinkedHashSet<>();
         if (data.getData() != null) files.add(data.getData());
