@@ -14,6 +14,8 @@ dist
 /ui/.generated/
 /internal/workbench/web/*
 !/internal/workbench/web/README
+/internal/windowslite/web/*
+!/internal/windowslite/web/README
 # Local acceptance artifacts may contain host paths, node addresses and sessions.
 /docs/test-reports/
 /docs/plans/
@@ -87,3 +89,6 @@ __pycache__/
 
 # Unfinished local native file-open prototype, excluded from compilation.
 /scripts/guest-os/guest-clipboard-windows/WindowsNativeOpen.cs.local
+
+# Generated local Windows Lite native components (rebuilt into each package).
+/tools/windows-lite/runtime-bin/

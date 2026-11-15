@@ -39,8 +39,13 @@ func (s *Server) workspaceLocked() string {
 	}
 	return s.preferences.Workspace
 }
-func (s *Server) workspace() string      { s.mu.Lock(); defer s.mu.Unlock(); return s.workspaceLocked() }
-func (s *Server) environmentDir() string { return environmentWorkspace(s.profile) }
+func (s *Server) workspace() string { s.mu.Lock(); defer s.mu.Unlock(); return s.workspaceLocked() }
+func (s *Server) environmentDir() string {
+	if s.isWindowsLite() {
+		return s.windowsLiteProfile()
+	}
+	return environmentWorkspace(s.profile)
+}
 func (s *Server) sshTarget() string {
 	if s.macosGuest != nil {
 		return "cage-macos"
@@ -52,6 +57,9 @@ func (s *Server) sshTarget() string {
 }
 
 func (s *Server) environmentPrepared() bool {
+	if s.isWindowsLite() {
+		return windowsLiteAdmitted(s.windowsLiteState())
+	}
 	if s.windowsGuest != nil {
 		return true
 	}
@@ -75,6 +83,9 @@ func (s *Server) sshCommandWithForwarding(ctx context.Context, args ...string) *
 	return s.sshCommandOptions(ctx, true, args...)
 }
 func (s *Server) sshCommandOptions(ctx context.Context, maintenance bool, args ...string) *exec.Cmd {
+	if s.isWindowsLite() {
+		return &exec.Cmd{Err: errors.New("Windows 轻量空间不使用客户机 SSH 控制")}
+	}
 	if s.windowsGuest != nil {
 		return &exec.Cmd{Err: errors.New("Windows 客机不支持 Linux SSH 控制脚本")}
 	}
@@ -101,6 +112,9 @@ func (s *Server) guest(ctx context.Context, script string) ([]byte, error) {
 }
 
 func (s *Server) guestControl(ctx context.Context, script, diagnosticSource string) ([]byte, error) {
+	if s.isWindowsLite() {
+		return nil, errors.New("Windows 轻量空间不执行 Linux 客户机脚本")
+	}
 	if s.windowsGuest != nil {
 		return nil, errors.New("Windows 客机不支持 Linux 控制脚本")
 	}
@@ -136,6 +150,10 @@ func (s *Server) guestControl(ctx context.Context, script, diagnosticSource stri
 	return data, nil
 }
 func (s *Server) attach() error {
+	if s.isWindowsLite() {
+		_, err := s.windowsLiteCall(s.lifetimeContext(), "status", nil)
+		return err
+	}
 	if err := s.requireStorageReady(); err != nil {
 		return err
 	}
@@ -229,6 +247,10 @@ func (s *Server) monitor(ctx context.Context) {
 	for ctx.Err() == nil {
 		timing := s.startMonitorTiming()
 		if s.op.TryLock() {
+			if s.isWindowsLite() {
+				s.op.Unlock()
+				return
+			}
 			skipped = 0
 			if !s.busy() {
 				s.mu.Lock()
@@ -271,6 +293,9 @@ func (s *Server) monitor(ctx context.Context) {
 }
 
 func (s *Server) runCage(args ...string) error {
+	if s.isWindowsLite() {
+		return errors.New("Windows 轻量空间不会执行虚拟机启动或维护命令")
+	}
 	if len(args) > 0 && args[0] == "up" {
 		if err := s.requireCurrentLinuxTransferMount(); err != nil {
 			return err
@@ -325,6 +350,9 @@ func (s *Server) runCage(args ...string) error {
 	return nil
 }
 func (s *Server) startEnvironment(syncTimezone bool) error {
+	if s.isWindowsLite() {
+		return s.startWindowsLite()
+	}
 	s.desktopViews.reset()
 	s.browserViews.reset()
 	s.controlSession.close()
@@ -503,6 +531,9 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 	return errors.New("环境已启动，但浏览器连接尚未就绪。请重试连接或查看操作详情。")
 }
 func (s *Server) stopEnvironment() (returned error) {
+	if s.isWindowsLite() {
+		return s.stopWindowsLite()
+	}
 	s.desktopStatus.invalidate()
 	defer s.desktopStatus.invalidate()
 	explicitStop := s.jobs.snapshot().Kind == "stop"
@@ -551,6 +582,9 @@ func (s *Server) stopEnvironment() (returned error) {
 	return nil
 }
 func (s *Server) apply(v savedProfile, validate bool) error {
+	if s.isWindowsLite() {
+		return s.applyWindowsLiteSettings(v)
+	}
 	old, err := loadConfig(s.configPath)
 	if err != nil {
 		return err
@@ -662,6 +696,9 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 // Interface recovery uses the ordinary cancellable job queue. Location changes
 // remain governed by the saved exit policy and never replace its baseline.
 func (s *Server) monitorNetworkTick() {
+	if s.isWindowsLite() {
+		return
+	}
 	timing := s.startMonitorTiming()
 	defer s.recordMonitorTiming("network", timing)
 	if s.storageRecoveryStatus().Required {
@@ -690,6 +727,10 @@ func (s *Server) monitorNetwork(ctx context.Context) {
 	skipped := 0
 	for ctx.Err() == nil {
 		if s.op.TryLock() {
+			if s.isWindowsLite() {
+				s.op.Unlock()
+				return
+			}
 			skipped = 0
 			s.monitorNetworkTick()
 			s.op.Unlock()
@@ -736,6 +777,9 @@ func vmAlive(profile, workspace string) bool {
 	return processExists(record.PID) && cage.ProcessStartMatches(record.PID, record.Started)
 }
 func (s *Server) vmRunning() bool {
+	if s.isWindowsLite() {
+		return s.windowsLiteRunning()
+	}
 	if s.windowsGuest != nil {
 		s.mu.Lock()
 		defer s.mu.Unlock()

@@ -1,0 +1,20 @@
+{
+  "sandboxie": {
+    "version": "1.18.8",
+    "file": "Sandboxie-Plus-x64-v1.18.8.exe",
+    "url": "https://github.com/sandboxie-plus/Sandboxie/releases/download/v1.18.8/Sandboxie-Plus-x64-v1.18.8.exe",
+    "sha256": "f27078ff74a07906fd51476079e1a7a8f5e20c8bb75a9d2ae86169d47179ae76"
+  },
+  "python": {
+    "version": "3.13.17",
+    "file": "python-3.13.17-embeddable-amd64.zip",
+    "url": "https://www.python.org/ftp/python/3.13.17/python-3.13.17-embeddable-amd64.zip",
+    "sha256": "0ba1ee4bfcbdc3a559d27e2e9ce76d04a7839947a23f46375872c755c0d463b8"
+  },
+  "mihomo": {
+    "version": "1.19.33",
+    "file": "mihomo-windows-amd64-compatible-v1.19.33.zip",
+    "url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.33/mihomo-windows-amd64-compatible-v1.19.33.zip",
+    "sha256": "7aaf636a4f2172dcd8ec34ac4f52797b059195e5afd6409508c963e545f8864d"
+  }
+}

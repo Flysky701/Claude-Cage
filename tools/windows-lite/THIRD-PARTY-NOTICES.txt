@@ -1,0 +1,32 @@
+Cage Windows Lite integrated local review build
+
+Sandboxie Plus 1.18.8
+Official installer downloaded separately by setup.
+Project and source: https://github.com/sandboxie-plus/Sandboxie/tree/v1.18.8
+License: GPL-3.0; see the official installer and source distribution.
+No commercial certificate is included or bypassed.
+
+CPython 3.13.17 Windows x64 embedded distribution
+Project: https://www.python.org/
+Source: https://www.python.org/ftp/python/3.13.17/Python-3.13.17.tar.xz
+License: Python Software Foundation License; see resources/python/LICENSE.txt.
+
+Mihomo 1.19.33 Windows amd64 compatible
+Project and corresponding source: https://github.com/MetaCubeX/mihomo/tree/v1.19.33
+Source archive: https://github.com/MetaCubeX/mihomo/archive/refs/tags/v1.19.33.zip
+License: GNU General Public License version 3.
+License text: https://github.com/MetaCubeX/mihomo/blob/v1.19.33/LICENSE
+The upstream executable is bundled without changes.
+
+Node.js 24.22.2 Windows x64
+Project and source: https://nodejs.org/download/release/v24.22.2/
+License: MIT and included third-party notices; see resources/NODE-LICENSE.txt.
+
+Playwright and Playwright Core
+Pinned version, official npm artifacts and SHA-256 values:
+scripts/guest-os/windows-workbench-packages.json in the Cage source tree.
+Project and source: https://github.com/microsoft/playwright
+License: Apache-2.0; see resources/windows-lite/browser/playwright/LICENSE.
+No browser executable is bundled. This local review uses installed x64 Edge or Chrome.
+
+Existing Cage and Windows Lite source license notices remain applicable.

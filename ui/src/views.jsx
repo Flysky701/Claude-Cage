@@ -30,7 +30,7 @@ import "@xterm/xterm/css/xterm.css";
 const terminalAccountRequest = (path, options) => api("/cli" + path, options.body);
 
 export const RemoteView = forwardRef(function RemoteView(
-  { visible, focused = true, keyboard, guestPlatform = "linux", systemClipboard = true, tabId, copyScope = tabId, onStatus, onFallback, desktop = false, zoom = 1 },
+  { visible, focused = true, keyboard, guestPlatform = "linux", systemClipboard = true, allowFileTransfer = true, tabId, copyScope = tabId, onStatus, onFallback, desktop = false, zoom = 1 },
   ref,
 ) {
   const windowVisible = useWindowVisibility();
@@ -40,7 +40,7 @@ export const RemoteView = forwardRef(function RemoteView(
     input = useRef(),
     current = useRef({ visible, keyboard, onStatus, onFallback }),
     displayResize = useRef();
-  current.current = { visible: screenVisible && focused, keyboard, guestPlatform, systemClipboard, tabId, onStatus, onFallback, zoom };
+  current.current = { visible: screenVisible && focused, keyboard, guestPlatform, systemClipboard, allowFileTransfer, tabId, onStatus, onFallback, zoom };
   const failures = useRef(0);
   const [connection, setConnection] = useState("connecting"),
     [attempt, setAttempt] = useState(0),
@@ -186,6 +186,7 @@ export const RemoteView = forwardRef(function RemoteView(
               return client.cagePasteContent(content,
                 (payload) => {
                   if (!valid()) throw new Error("输入目标已切换，请重新粘贴图片");
+                  if (!current.current.allowFileTransfer) throw new Error("当前沙箱尚未开放图片和文件传递；文字复制粘贴仍可使用。");
                   return payload.files || payload.fileSelection
                     ? sendFiles(payload, desktop ? "desktop" : "browser", id, { valid })
                     : sendImage(payload, desktop ? "desktop" : "browser", id, { prepared });
@@ -303,7 +304,7 @@ export const RemoteView = forwardRef(function RemoteView(
   );
 });
 
-export function TerminalView({ session, visible, focused = true, onStatus, onControls, onAccountChanged, onLoginTab }) {
+export function TerminalView({ session, visible, focused = true, onStatus, onControls, onAccountChanged, onLoginTab, onOpenURL, managedLogin = true, allowFileTransfer = true }) {
   const { appearance, theme, variant } = useAppearance();
   const box = useRef(),
     instance = useRef(),
@@ -317,6 +318,8 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
   visibleRef.current = visible;
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
+  const runtimeOptions = useRef({ onOpenURL, managedLogin, allowFileTransfer });
+  runtimeOptions.current = { onOpenURL, managedLogin, allowFileTransfer };
   useEffect(() => {
     let disposed = false, emittingPaste = false, inputChain = Promise.resolve();
     const enqueue = (action) => {
@@ -329,6 +332,11 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
     const activateLogin = async (_event, uri) => {
       if (disposed || !visibleRef.current || !focusedRef.current || !isClaudeLoginLink(uri)) return;
       try {
+        if (!runtimeOptions.current.managedLogin) {
+          if (!runtimeOptions.current.onOpenURL) throw new Error("当前环境尚未接入终端登录链接。");
+          await runtimeOptions.current.onOpenURL(uri);
+          return;
+        }
         const tab = await api(`/terminals/${session.id}/login-link`, { url: uri });
         if (!disposed && visibleRef.current && focusedRef.current) onLoginTab?.(tab);
       } catch (error) { if (!disposed) onStatus(error.message); }
@@ -337,7 +345,10 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
       linkHandler: { activate(event, uri) {
         if (isClaudeLoginLink(uri)) return void activateLogin(event, uri);
         // Keep xterm's user confirmation for other explicit HTTP(S) links.
-        if (window.confirm(`打开此终端链接？\n${uri}`)) window.open(uri, "_blank", "noopener,noreferrer");
+        if (window.confirm(`打开此终端链接？\n${uri}`)) {
+          if (runtimeOptions.current.onOpenURL) void Promise.resolve(runtimeOptions.current.onOpenURL(uri)).catch(error => onStatus(error.message));
+          else window.open(uri, "_blank", "noopener,noreferrer");
+        }
       } },
       fontFamily: theme.fonts.code || systemCodeFont,
       fontSize: appearance.codeFontSize,
@@ -448,6 +459,7 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
         const { value, error } = await ready;
         if (error) throw error;
         if (disposed || !visibleRef.current || !focusedRef.current || ws.readyState !== WebSocket.OPEN) throw new Error("终端已切换或断开，请重新粘贴");
+        if (!runtimeOptions.current.allowFileTransfer && (value.files || value.fileSelection || value.png)) throw new Error("当前沙箱尚未开放图片和文件传递；文字复制粘贴仍可使用。");
         let text = value.text || "";
         if (value.files || value.fileSelection) {
           const result = await sendFiles(value, "terminal", session.id, { valid: () => !disposed && visibleRef.current && focusedRef.current && ws.readyState === WebSocket.OPEN });
@@ -617,7 +629,7 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
   return (
     <div className={`terminal-view ${visible ? "" : "concealed"}`}>
       {session.workspace_notice && <p className="connection-banner" role="status">{session.workspace_notice}</p>}
-      {visible && session.cli_session_id && <SessionAccount id={session.cli_session_id} request={terminalAccountRequest} compact
+      {visible && managedLogin && session.cli_session_id && <SessionAccount id={session.cli_session_id} request={terminalAccountRequest} compact
         onChanged={onAccountChanged} />}
       <div className={`terminal-host ${preparing ? "terminal-preparing" : ""}`} ref={box} aria-hidden={preparing || undefined} />
       {preparing && (

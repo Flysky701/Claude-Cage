@@ -17,8 +17,12 @@ func (s *Server) accountStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) accountView(r *http.Request) accountView {
 	v := s.account.viewFor(s.hasTrustedView(r))
+	v.WindowsLiteReview = s.windowsLiteReview()
 	v.MacOSAccountHost = s.macAccountHost()
 	v.BackgroundRunning = s.vmRunning()
+	if s.isWindowsLite() {
+		v.GuestSystem = "windows-lite"
+	}
 	if s.macosGuest != nil {
 		v.GuestSystem = "macos"
 		v.InitialMacSetup = s.macSetupPending()

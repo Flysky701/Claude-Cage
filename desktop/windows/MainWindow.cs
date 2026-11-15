@@ -27,7 +27,7 @@ internal sealed class MainWindow : Form
         nativeInput = new NativeInput(value => Script("window.dispatchEvent(new CustomEvent('cage-native-input',{detail:" + JsonSerializer.Serialize(value) + "}));"));
         Deactivate += (_, _) => Script("window.dispatchEvent(new Event('cage-window-deactivated'));");
         AutoScaleMode = AutoScaleMode.Dpi; AutoScaleDimensions = new SizeF(96, 96);
-        Text = "Cage";
+        Text = Backend.WindowsLite ? "Cage · Windows 轻量空间（测试）" : "Cage";
         StartPosition = FormStartPosition.CenterScreen; BackColor = Color.FromArgb(247, 247, 247);
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? SystemIcons.Application;
         status.Controls.AddRange([message, retry, existing, complete]);
@@ -308,7 +308,7 @@ internal sealed class MainWindow : Form
             }
             var entry = UpdatePolicy.Entry(data.Text("url")); expectedPort = entry.Port;
             smokePhase = "loading_workbench";
-            Text = controllerNeedsUpdate ? "Cage（更新待完成）" : "Cage";
+            Text = controllerNeedsUpdate ? "Cage（更新待完成）" : Backend.WindowsLite ? "Cage · Windows 轻量空间（测试）" : "Cage";
             web.CoreWebView2.Navigate(entry.AbsoluteUri);
         }
         catch (OperationCanceledException) { if (!lifetime.IsCancellationRequested) Error("启动工作台失败：等待本机后台响应超时。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。"); }

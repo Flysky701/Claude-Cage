@@ -19,20 +19,22 @@ function bytes(value) {
 
 export function SetupProgress({ job, onDetails, onStop, onRetry, disconnected }) {
   const { phase, label, received, total, bytes_per_second, operation } = job.setup_progress;
+  const lite = job.kind === "windows-lite-setup" || job.setup_progress.system === "windows-lite";
+  const progressStages = lite ? stages.map(([key, , icon], index) => [key, ["下载组件", "安装沙箱", "运行组件", "启动检查"][index], icon]) : stages;
   const native = job.kind === "guest-install";
   const windows = native && job.setup_progress.system === "windows-11";
-  const stage = stages.find(([key]) => key === phase);
+  const stage = progressStages.find(([key]) => key === phase);
   const Icon = stage?.[2] || Box;
   const hasBytes = Number.isFinite(received) && received >= 0;
   const knownSize = hasBytes && Number.isFinite(total) && total > 0 && received <= total;
   const percent = knownSize ? Math.floor(received / total * 100) : null;
-  const failed = Boolean(job.error);
+  const failed = Boolean(job.error || lite && job.canceled);
   const waitingForWindows = windows && operation === "oobe";
   const canContinue = failed || (waitingForWindows && !job.running);
   const meter = knownSize ? `${bytes(received)} / ${bytes(total)}` : hasBytes ? `已接收 ${bytes(received)}` : "";
   return <section className={`setup-progress${failed ? " setup-progress-failed" : ""}`} aria-label="环境安装进度">
     <ol className="setup-stages" aria-label="安装阶段">
-      {stages.map(([key, name]) => <li key={key} aria-current={key === phase ? "step" : undefined}>{native && key === "image" ? "安装材料" : native && key === "packages" ? "系统安装" : name}</li>)}
+      {progressStages.map(([key, name]) => <li key={key} aria-current={key === phase ? "step" : undefined}>{native && key === "image" ? "安装材料" : native && key === "packages" ? "系统安装" : name}</li>)}
     </ol>
     <div className="setup-transfer">
       <div className="setup-transfer-heading">
@@ -54,8 +56,10 @@ export function SetupProgress({ job, onDetails, onStop, onRetry, disconnected })
       {waitingForWindows && <p className="setup-transfer-hint">在虚拟机连接（VMConnect）窗口选择 Windows 版本、磁盘和区域，使用安装前设置的本地管理员登录桌面，再回到 Cage 继续。本轮 PowerShell 创建窗口会自动关闭。</p>}
       {windows && operation === "credentials" && <p className="setup-transfer-hint">确认客机已登录桌面，在 PowerShell 安装窗口输入客机管理员账户。请保持该窗口开启，等待组件安装结束。</p>}
       {windows && ["media", "tools", "services"].includes(operation) && <p className="setup-transfer-hint">请保持 PowerShell 安装窗口开启，Cage 完成组件安装后会自动关闭。</p>}
+      {lite && phase === "packages" && !failed && <p className="setup-transfer-hint">如果 Windows 请求管理员授权，请确认安装沙箱组件；安装结果会自动返回 Cage。</p>}
+      {lite && phase === "services" && !failed && <p className="setup-transfer-hint">正在检查已安装组件。应用隔离和网络出口以实际检查结果为准，尚未通过的能力会继续阻止运行。</p>}
       {failed && <>
-        <p className="setup-transfer-error" role="alert"><SafetyMessage message={job.error} /></p>
+        <p className="setup-transfer-error" role="alert"><SafetyMessage message={job.error || job.message || "安装已停止"} /></p>
         <p className="setup-transfer-hint">可手动继续安装，已保存的下载会尝试续传。</p>
       </>}
     </div>

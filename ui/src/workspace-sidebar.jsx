@@ -53,6 +53,12 @@ export function WorkspaceSidebar({
   busy,
   ready,
   running,
+  terminalReady = running,
+  editorReady = ready,
+  desktopReady = running,
+  applicationEntries = false,
+  applicationReason = "",
+  applicationFeatures = {},
   runtimeLabel,
   network,
   onHome,
@@ -125,7 +131,7 @@ export function WorkspaceSidebar({
             onClick={onBrowser}
             disabled={!ready || busy}
             aria-label="打开浏览器"
-            title="打开浏览器"
+            title={applicationReason || (applicationEntries && !applicationFeatures.browser ? "浏览器尚未接入当前轻量沙箱" : "打开浏览器")}
           >
             <Globe2 size={17} />
             浏览器
@@ -135,14 +141,16 @@ export function WorkspaceSidebar({
             onClick={onClaudeWeb}
             disabled={!ready || busy}
             aria-label="claude.ai"
-            title="打开 claude.ai"
+            title={applicationReason || (applicationEntries && !applicationFeatures.browser ? "Claude 网页需要沙箱浏览器能力" : "打开 claude.ai")}
           >
             <img src={claudeLogo} width="18" height="18" alt="" />
           </button>
         </div>
         <button className={`sidebar-link ${tailscaleOpen ? "selected" : ""}`} aria-current={tailscaleOpen ? "page" : undefined} onClick={onTailscale} aria-label="打开 Tailscale"><Network size={17} />Tailscale</button>
         {ssh && <button className="sidebar-link ssh-navigation" onClick={ssh.open} aria-label="SSH 主机"><Server size={17} />SSH</button>}
-        <button className={`sidebar-link ${desktopOpen ? "selected" : ""}`} onClick={onClaudeDesktop} disabled={!running || busy} title="安装或打开 Claude Desktop"><Monitor size={17} />Claude Desktop</button>
+        <button className={`sidebar-link ${desktopOpen ? "selected" : ""}`} onClick={onClaudeDesktop} disabled={!desktopReady || busy} title={applicationReason || (applicationEntries && !applicationFeatures.desktop ? "Claude Desktop 尚未接入当前轻量沙箱" : "安装或打开 Claude Desktop")}><Monitor size={17} />Claude Desktop</button>
+        {applicationEntries && <button className="sidebar-link" onClick={event => onNewTerminal(workspace, event.currentTarget)} data-terminal-location="sidebar-lite" aria-haspopup="menu" disabled={busy || !terminalReady} title={applicationReason || (applicationFeatures.terminals ? "新建终端" : "终端尚未接入当前轻量沙箱")}><SquareTerminal size={17} />新建终端</button>}
+        {applicationEntries && terminalMenuAt("sidebar-lite")}
         <button className={`sidebar-link ${claudeAccountsOpen ? "selected" : ""}`} onClick={onClaudeAccounts}
           aria-current={claudeAccountsOpen ? "page" : undefined}>
           <UsersRound size={17} />Claude 账号管理
@@ -232,8 +240,8 @@ export function WorkspaceSidebar({
                 <button
                   className="icon-button"
                   aria-label={`打开 ${project} 的编辑器`}
-                  title="在 code-server 中打开项目目录"
-                  disabled={!ready || busy}
+                  title={applicationReason || (applicationEntries && !applicationFeatures.editor ? "项目编辑器尚未接入当前轻量沙箱" : "在 code-server 中打开项目目录")}
+                  disabled={!editorReady || busy}
                   onClick={() => onEditor(path)}
                 >
                   <ExternalLink size={15} />
@@ -244,7 +252,7 @@ export function WorkspaceSidebar({
                   title="新建终端"
                   aria-haspopup="menu"
                   data-terminal-location={path}
-                  disabled={!running || busy}
+                  disabled={!terminalReady || busy}
                   onClick={(event) => {
                     setCollapsed((previous) => ({
                       ...previous,
@@ -258,7 +266,7 @@ export function WorkspaceSidebar({
               </div>
               {terminalMenuAt(path)}
               {expanded && folders.length > 1 && <div className="sidebar-project-folders" aria-label={`${project} 的文件夹`}>
-                {folders.map((folder, index) => <button key={folder} title={folder} disabled={!ready || busy} onClick={() => onEditor(folder)} aria-label={`打开文件夹 ${projectName(folder)} 的编辑器`}><Folder size={13} /><span>{projectName(folder)}</span>{index === 0 && <small>默认</small>}</button>)}
+                {folders.map((folder, index) => <button key={folder} title={applicationReason || folder} disabled={!editorReady || busy} onClick={() => onEditor(folder)} aria-label={`打开文件夹 ${projectName(folder)} 的编辑器`}><Folder size={13} /><span>{projectName(folder)}</span>{index === 0 && <small>默认</small>}</button>)}
               </div>}
               <div
                 className={`project-children ${expanded ? "expanded" : ""}`}
@@ -308,8 +316,8 @@ export function WorkspaceSidebar({
                       {showAllSessions ? "收起显示" : "展开显示"}
                     </button>
                   )}
-                  {!rows.length && !running && (
-                    <p className="sidebar-empty">启动后可新建终端</p>
+                  {!rows.length && !terminalReady && (
+                    <p className="sidebar-empty">{applicationEntries ? applicationFeatures.terminals ? "空间检查通过后可新建终端" : "终端能力尚未开放" : "启动后可新建终端"}</p>
                   )}
                 </div>
               </div>

@@ -31,6 +31,10 @@ func browserDownloadName(name string) bool {
 }
 
 func (s *Server) browserUpload(w http.ResponseWriter, r *http.Request) {
+	if !s.windowsLiteFeatureAvailable("file_transfer") {
+		http.Error(w, "轻量空间文件传输尚未通过检查", http.StatusConflict)
+		return
+	}
 	id, name := r.PathValue("id"), r.URL.Query().Get("name")
 	if !browserFileID.MatchString(id) || !browserFileName(name) {
 		http.Error(w, "文件名或上传窗口无效", 400)
@@ -74,7 +78,7 @@ func (s *Server) browserUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) proxyBrowserFile(w http.ResponseWriter, r *http.Request, token, method, path string, body io.Reader) {
-	if s.macosGuest != nil || s.windowsGuest != nil {
+	if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() {
 		s.nativeBrowserFile(w, r, method, path, body)
 		return
 	}
@@ -117,6 +121,9 @@ func (s *Server) downloadInfo(ctx context.Context, id string) (browserDownloadIn
 	if saved, err := readSavedDownload(s.profile, id); err == nil {
 		return browserDownloadInfo{ID: id, Name: saved.Name, Path: saved.Path, State: "saved"}, nil
 	}
+	if !s.windowsLiteFeatureAvailable("file_transfer") {
+		return browserDownloadInfo{}, errors.New("轻量空间文件传输尚未通过检查")
+	}
 	s.mu.Lock()
 	ready, token := s.ready, s.credentials.Token
 	s.mu.Unlock()
@@ -127,7 +134,7 @@ func (s *Server) downloadInfo(ctx context.Context, id string) (browserDownloadIn
 	if err != nil {
 		return browserDownloadInfo{}, err
 	}
-	if s.macosGuest != nil || s.windowsGuest != nil {
+	if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() {
 		if item.State != "saved" && !(item.State == "failed" && item.Retryable) {
 			item.Path = ""
 			return item, nil
@@ -215,6 +222,9 @@ type nativeDownload struct {
 }
 
 func (s *Server) startNativeDownload(item browserDownloadInfo) (*nativeDownload, error) {
+	if !s.windowsLiteFeatureAvailable("file_transfer") {
+		return nil, errors.New("轻量空间文件传输尚未通过检查")
+	}
 	if !browserFileID.MatchString(item.ID) || !browserDownloadName(item.Name) {
 		return nil, errors.New("下载文件记录无效")
 	}
@@ -323,6 +333,10 @@ func (s *Server) nativeDownloadForHost(item browserDownloadInfo) browserDownload
 	if saved, err := readSavedDownload(s.profile, item.ID); err == nil {
 		item.Name, item.Path, item.State, item.Retryable = saved.Name, saved.Path, "saved", false
 		item.Error = ""
+		return item
+	}
+	if !s.windowsLiteFeatureAvailable("file_transfer") {
+		item.State, item.Retryable, item.Error = "failed", false, "轻量空间文件传输尚未通过检查，文件保留在空间内"
 		return item
 	}
 	if item.State != "saved" && !(item.State == "failed" && item.Retryable) {

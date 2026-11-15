@@ -89,7 +89,7 @@ func (s *Server) browserExtensionUpload(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
-	if s.macosGuest != nil || s.windowsGuest != nil {
+	if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() {
 		data, err := s.nativeBrowserClient().uploadExtension(r.Context(), r.Body, r.ContentLength)
 		if err != nil {
 			requestError(w, err)

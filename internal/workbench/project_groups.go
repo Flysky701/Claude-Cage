@@ -164,7 +164,7 @@ func (s *Server) saveProject(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	ready, closing := s.ready, s.closing
 	s.mu.Unlock()
-	if closing || !ready || s.busy() {
+	if closing || (!ready && !s.isWindowsLite()) || s.busy() {
 		http.Error(w, "环境尚未就绪或正在处理其他操作，请稍后重试", http.StatusConflict)
 		return
 	}
@@ -239,7 +239,7 @@ func (s *Server) saveProject(w http.ResponseWriter, r *http.Request) {
 	if len(removed) > 0 {
 		affected = previous.Folders
 	}
-	if err := s.checkProjectFoldersIdle(r.Context(), affected, true); err != nil {
+	if err := s.checkProjectFoldersIdle(r.Context(), affected, ready); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}

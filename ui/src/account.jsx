@@ -320,7 +320,7 @@ export function AccountGate({ children }) {
         </h1>
         <p className="account-entry-intro">
           {creating
-            ? isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : "先注册用户名和密码，再选择客机系统并安装环境。macOS 客机会使用同一套账密。"
+            ? isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : account.windows_lite_review ? "先注册用户名和密码，再自动下载并安装 Windows 轻量沙箱。账户、项目与已保存的登录资料会持续保留。" : "先注册用户名和密码，再选择客机系统并安装环境。macOS 客机会使用同一套账密。"
             : account
               ? account.trusted_local ? "本机工作区" : "输入密码，继续你的工作。"
               : isRemoteClient() ? "正在读取云端账户…" : "正在读取本机账户…"}

@@ -36,6 +36,8 @@ import { DiagnosticSettings } from "./diagnostics.jsx";
 import { MacOSLogin } from "./macos-login";
 import { AccountSettings } from "./account";
 import { AboutSettings } from "./about-settings";
+import { isWindowsLite, WindowsLiteSettings } from "./windows-lite-panel";
+import { workbenchCapabilities } from "./runtime-capabilities.mjs";
 const sections = [
   ["account", "账户", UserRound],
   ["vault", "密码保险箱", KeyRound],
@@ -61,6 +63,10 @@ export function SettingsPanel({
   const [proxyDraft, setProxyDraft] = useState("");
   const proxyDirty = Boolean(proxyDraft);
   const [resourceDirty, setResourceDirty] = useState(false);
+  const [liteDirty, setLiteDirty] = useState(false);
+  const [liteBusy, setLiteBusy] = useState(false);
+  const windowsLite = isWindowsLite(status);
+  const runtimeFeatures = workbenchCapabilities(status);
   const [draft, setDraft] = useState({ ...current }),
     [section, setSection] = useState(initialSection),
     [probe, setProbe] = useState(null),
@@ -95,7 +101,7 @@ export function SettingsPanel({
       : draft[k] !== current[k],
   );
   const busy =
-    Boolean(status.job?.running) || Boolean(status.storage_recovery?.required) || probing || submitting || Boolean(jobId);
+    Boolean(status.job?.running) || Boolean(status.storage_recovery?.required) || probing || submitting || liteBusy || Boolean(jobId);
   // Project folders of the other guest systems are always read directly.
   const linuxGuest = !/^(windows|macos)/.test(status.guest_system || "");
   const update = (key, value) => {
@@ -104,13 +110,13 @@ export function SettingsPanel({
     setError("");
   };
   const close = async () => {
-    if (submitting) return;
+    if (submitting || liteBusy) return;
     if (status.job?.running && jobId) {
       onClose();
       return;
     }
     if (
-      (!changed && !accountDirty && !proxyDirty && !resourceDirty) ||
+      (!changed && !accountDirty && !proxyDirty && !resourceDirty && !liteDirty) ||
       (await onConfirm({
         title: "放弃尚未保存的修改？",
         body: "当前环境不会改变。关闭后会丢弃这次表单修改。",
@@ -232,6 +238,8 @@ export function SettingsPanel({
               className={section === id ? "selected" : ""}
               aria-current={section === id ? "page" : undefined}
               onClick={async () => {
+                if (liteBusy) return;
+                if (id !== section && liteDirty && !(await onConfirm({ title: "放弃尚未保存的空间设置？", body: "已保存的空间和应用配置会保留。", confirm: "放弃修改" }))) return;
                 if (id !== section && accountDirty && !(await onConfirm({ title: "放弃尚未保存的修改？", body: "已保存的资料和密码保持不变。", confirm: "放弃修改" }))) return;
                 if (id !== section && proxyDirty && !(await onConfirm({ title: "放弃尚未应用的代理修改？", body: "当前代理仍按已应用的链路运行。离开会丢弃这次节点选择。", confirm: "放弃修改" }))) return;
                 setSection(id);
@@ -247,10 +255,10 @@ export function SettingsPanel({
         <div className={section === "archived-sessions" ? "settings-content settings-content--archives" : section === "mobile" ? "settings-content settings-content--remote" : "settings-content"} ref={contentRef}>
           {section === "appearance" && <AppearanceSettings />}
           {section === "about" && <AboutSettings />}
-          {section === "archived-sessions" && <ArchivedSessions ready={status.ready && !busy} />}
+          {section === "archived-sessions" && (runtimeFeatures.cliSessions ? <ArchivedSessions ready={status.ready && !busy} /> : <section className="section-title"><h3>已归档会话</h3><p>轻量沙箱尚未接入托管 CLI 会话与历史恢复。已有记录会保留，普通终端从工作台新建。</p></section>)}
           {section === "vault" && <PasswordVaultSettings onConfirm={onConfirm} onDirty={setAccountDirty} />}
           {section === "account" && <AccountSettings busy={busy} onDirty={setAccountDirty} />}
-          <fieldset className="settings-fields" disabled={busy && !(section === "project" && status.storage_recovery?.required)}>
+          <fieldset className="settings-fields" disabled={busy && !(section === "project" && (status.storage_recovery?.required || windowsLite))}>
             {section === "mobile" && (isRemoteClient()
               ? <section className="section-title"><h3>连接这台电脑</h3><p>请先切换到这台电脑的本机环境，再生成或管理手机配对码。</p></section>
               : <MobilePairSettings relay={draft.mobile_relay ?? ""} savedRelay={current.mobile_relay ?? ""} onChange={value => update("mobile_relay",value)} onConfirm={onConfirm} />)}
@@ -583,9 +591,10 @@ export function SettingsPanel({
               <>
                 <div className="section-title">
                   <h3>环境与恢复</h3>
-                  <p>{isRemoteClient() ? "项目位于云端，Cage 中的改动会直接保存到云端文件。" : "本机与 Cage 中的改动会双向同步。"}</p>
+                  <p>{windowsLite ? "管理固定空间、工作台应用入口和诊断。项目记录与运行权限分别保存。" : isRemoteClient() ? "项目位于云端，Cage 中的改动会直接保存到云端文件。" : "本机与 Cage 中的改动会双向同步。"}</p>
                 </div>
-                {status.local_vm_storage && !isRemoteClient() && <EnvironmentStorage status={status} onConfirm={onConfirm} />}
+                {windowsLite && <WindowsLiteSettings status={status} onDirtyChange={setLiteDirty} onBusyChange={setLiteBusy} onSaved={onSaved} onConfirm={onConfirm} />}
+                {!windowsLite && status.local_vm_storage && !isRemoteClient() && <EnvironmentStorage status={status} onConfirm={onConfirm} />}
                 <div className="setting-summary-row">
                   <span>当前项目</span>
                   <strong title={current.workspace}>
@@ -600,17 +609,17 @@ export function SettingsPanel({
                   <div>
                     <strong>所有项目共用一个 Cage 环境</strong>
                     <p>
-                      明确打开的项目文件夹会共享到同一个环境。主机的 Claude
+                      {windowsLite ? runtimeFeatures.projects ? "在侧栏添加、选择和整理项目。仅已明确打开的文件夹可供沙箱应用使用，目录访问仍受沙箱规则约束。" : "在侧栏添加、选择和整理项目记录。当前轻量沙箱尚未开放项目文件共享。" : <>明确打开的项目文件夹会共享到同一个环境。主机的 Claude
                       登录、SSH 密钥和个人配置不会自动导入。浏览器下载统一保存到
-                      独立的下载暂存目录，可从下载面板查看或另存为。
+                      独立的下载暂存目录，可从下载面板查看或另存为。</>}
                     </p>
                   </div>
                 </div>
-                <p className="footnote">
+                {!windowsLite && <p className="footnote">
                   切换项目只改变新终端和文件编辑器的起始位置；已有终端、网页和登录态会保留。
-                </p>
-                {!status.storage_recovery?.required && <EnvironmentVersions status={status} onConfirm={onConfirm} />}
-                {!status.storage_recovery?.required && <EnvironmentCache status={status} onConfirm={onConfirm} />}
+                </p>}
+                {!windowsLite && !status.storage_recovery?.required && <EnvironmentVersions status={status} onConfirm={onConfirm} />}
+                {!windowsLite && !status.storage_recovery?.required && <EnvironmentCache status={status} onConfirm={onConfirm} />}
                 {status.guest_system === "macos" && <section aria-label="客机系统权限">
                   <h4>客机系统权限</h4>
                   <p className="field-help">在受限的客机系统设置窗口中完成授权，Cage 会自动检查并重新连接项目。</p>
@@ -620,7 +629,7 @@ export function SettingsPanel({
                     <MacOSLogin maintenance="input" label="辅助功能权限" disabled={!status.ready || busy} />
                   </div>
                 </section>}
-                {!status.storage_recovery?.required && <ResourceSettings status={status} onConfirm={onConfirm} onDirtyChange={setResourceDirty} />}
+                {!windowsLite && !status.storage_recovery?.required && <ResourceSettings status={status} onConfirm={onConfirm} onDirtyChange={setResourceDirty} />}
  <DiagnosticSettings />
                 {status.can_restore && (
                   <button

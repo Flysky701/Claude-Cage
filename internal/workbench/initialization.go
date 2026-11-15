@@ -19,13 +19,18 @@ type initializationRecord struct {
 }
 
 type initializationView struct {
-	Required bool `json:"required"`
-	Started  bool `json:"started"`
-	Tracked  bool `json:"tracked"`
-	Prepared bool `json:"prepared"`
+	WindowsLiteReview bool `json:"windows_lite_review,omitempty"`
+	Required          bool `json:"required"`
+	Started           bool `json:"started"`
+	Tracked           bool `json:"tracked"`
+	Prepared          bool `json:"prepared"`
 }
 
 func (s *Server) initializationState() (initializationView, error) {
+	if s.isWindowsLite() || s.windowsLiteReview() {
+		prepared, err := s.windowsLiteComponentsPrepared()
+		return initializationView{WindowsLiteReview: s.windowsLiteReview(), Required: !prepared, Tracked: true, Prepared: prepared}, err
+	}
 	if !s.localVMStorage() || s.storageRecoveryStatus().Required {
 		return initializationView{}, nil
 	}
@@ -58,6 +63,9 @@ func (s *Server) initializationState() (initializationView, error) {
 }
 
 func (s *Server) finishInitialization() error {
+	if s.isWindowsLite() {
+		return errors.New(windowsLiteUnverified)
+	}
 	if s.macSetupPending() {
 		return errors.New("请先完成客机的系统权限确认")
 	}

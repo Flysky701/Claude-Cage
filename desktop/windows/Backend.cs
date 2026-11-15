@@ -7,9 +7,11 @@ namespace Cage.Windows;
 internal static class Backend
 {
     public static bool ClientOnly => File.Exists(Path.Combine(AppContext.BaseDirectory, "resources", "client-only"));
+    private static bool WindowsLiteStandalone => File.Exists(Path.Combine(AppContext.BaseDirectory, "resources", "windows-lite-preview"));
+    public static bool WindowsLite => WindowsLiteStandalone || File.Exists(Path.Combine(AppContext.BaseDirectory, "resources", "windows-lite-workbench"));
     private static string ConfigPath => Path.GetFullPath(
         Environment.GetEnvironmentVariable("CLAUDE_CAGE_CONFIG") is { Length: > 0 } configured
-            ? configured : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude-cage", ClientOnly ? "client" : "", "config.json"));
+            ? configured : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude-cage", WindowsLite ? "windows-lite" : ClientOnly ? "client" : "", "config.json"));
     public static string Root => Path.GetDirectoryName(ConfigPath)!;
     public static string Executable => Path.Combine(AppContext.BaseDirectory, "resources", "cage.exe");
 
@@ -18,9 +20,9 @@ internal static class Backend
         var processes = new List<Process>();
         try
         {
-            foreach (var profile in new[] { Root, Path.Combine(Root, "desktop-entry") })
+            foreach (var profile in WindowsLiteStandalone ? new[] { Root } : new[] { Root, Path.Combine(Root, "desktop-entry") })
             {
-                var record = Path.Combine(profile, "control.json");
+                var record = Path.Combine(profile, WindowsLiteStandalone ? "lite-control.json" : "control.json");
                 if (!File.Exists(record)) continue;
                 using var data = JsonDocument.Parse(File.ReadAllText(record));
                 Process process;

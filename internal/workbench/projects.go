@@ -82,7 +82,7 @@ func (s *Server) openProject(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	ready, closing, preferences := s.ready, s.closing, s.preferences
 	s.mu.Unlock()
-	if closing || !ready || s.busy() {
+	if closing || (!ready && !s.isWindowsLite()) || s.busy() {
 		http.Error(w, "环境尚未就绪或正在处理其他操作，请稍后重试", 409)
 		return
 	}
@@ -196,6 +196,11 @@ func (s *Server) ensureProjectShare(path string) (returned error) {
 	if err != nil {
 		return err
 	}
+	if s.isWindowsLite() {
+		// This records a project selection only. Sandboxie file grants are
+		// applied and verified by the runtime, never by a host SSHFS mount.
+		return s.requireWindowsLiteStopped(s.operationContext())
+	}
 	defer func() {
 		if returned != nil {
 			if _, err := s.projectWorkspace(path); err != nil {
@@ -305,6 +310,10 @@ func projectShareOptions(cache bool) string {
 // files, so that changes made on the host are visible at once. A file some
 // process holds open keeps its cached attributes until they expire.
 func (s *Server) refreshProjectFiles(w http.ResponseWriter, r *http.Request) {
+	if s.isWindowsLite() {
+		http.Error(w, "轻量空间的项目资料已保存；盒内文件共享尚未开放，不需要刷新虚拟机缓存", http.StatusConflict)
+		return
+	}
 	if s.windowsGuest != nil || s.macosGuest != nil {
 		http.Error(w, "此环境的项目文件始终直接读取，无需刷新", 409)
 		return
@@ -430,6 +439,9 @@ func (s *Server) rememberSharedProject(path string) error {
 	return writePrivate(filepath.Join(s.profile, "projects.json"), saved)
 }
 func (s *Server) restoreProjectShares() {
+	if s.isWindowsLite() {
+		return
+	}
 	var saved sharedProjects
 	if b, err := os.ReadFile(filepath.Join(s.profile, "projects.json")); err == nil {
 		_ = json.Unmarshal(b, &saved)

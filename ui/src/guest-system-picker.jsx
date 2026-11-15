@@ -61,7 +61,9 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
     api("/environment/guest-systems").then((next) => {
       if (!active) return;
       setView(next);
-      if (next.fresh || next.pending) {
+      if (next.windows_lite_review || next.system === "windows-lite") {
+        onChange({ guest_system: "windows-lite", windows_lite_review: Boolean(next.windows_lite_review), media: "", sha256: "", editor_terms: false });
+      } else if (next.fresh || next.pending) {
         onChange(current => !next.pending && current && !current.pending ? current : ({ guest_system: next.pending?.system || "debian-13", media: next.pending?.media || "",
           sha256: next.pending?.sha256 || "", editor_terms: Boolean(next.pending?.editor_terms),
           clone: Boolean(next.pending?.source && !next.pending?.source_kind), clone_key: "", clone_ready: false,
@@ -77,6 +79,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
   if (!view || !system) return error ? <div className="guest-system-picker"><span role="alert">{error}</span>
     <button type="button" onClick={() => retry((n) => n + 1)}>重新检查安装选项</button></div> : null;
   const os = system.guest_system;
+  const liteOnly = view.windows_lite_review || view.system === "windows-lite";
   const change = (changes) => onChange((current) => current?.guest_system === os ? { ...current, ...changes } : current);
   async function choose() {
     try {
@@ -90,18 +93,20 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
   }
   return (
     <div className="guest-system-picker">
-      <span>客户机系统</span>
-      <InlineSelect aria-label="客户机系统" value={system.clone ? "host" : os} disabled={system.pending}
+      <span>{liteOnly ? "安装内容" : "运行环境"}</span>
+      <InlineSelect aria-label={liteOnly ? "安装内容" : "运行环境"} value={system.clone ? "host" : os} disabled={system.pending || liteOnly}
         onValueChange={(value) => onChange({ guest_system: value === "host" ? view.system : value, clone: value === "host", clone_key: "", clone_ready: false, media: "", sha256: "", editor_terms: false })}>
-        {Boolean(view.system) && <option value="host" disabled={!view.available}>自动匹配本机系统版本{view.available ? "" : "（暂不可用）"}</option>}
-        <option value="debian-13">Debian 13</option>
-        <option value="ubuntu-22.04" disabled={!view.linux_systems?.includes("ubuntu-22.04")}>Ubuntu 22.04{view.linux_systems?.includes("ubuntu-22.04") ? "" : "（此构建暂不可用）"}</option>
-        <option value="macos" disabled={view.system !== "macos" || !view.available}>macOS{view.system === "macos" ? view.available ? "" : "（暂不可用）" : "（需要 Apple Silicon Mac）"}</option>
-        <option value="windows-11" disabled={view.system !== "windows-11" || !view.available}>Windows 11{view.system === "windows-11" ? view.available ? "" : "（暂不可用）" : "（需要 Windows 11 与 Hyper-V）"}</option>
+        {!liteOnly && Boolean(view.system) && <option value="host" disabled={!view.available}>自动匹配本机系统版本{view.available ? "" : "（暂不可用）"}</option>}
+        {(liteOnly || view.windows_lite_available) && <option value="windows-lite">Windows 轻量沙箱（实验）</option>}
+        {!liteOnly && <option value="debian-13">Debian 13</option>}
+        {!liteOnly && <option value="ubuntu-22.04" disabled={!view.linux_systems?.includes("ubuntu-22.04")}>Ubuntu 22.04{view.linux_systems?.includes("ubuntu-22.04") ? "" : "（此构建暂不可用）"}</option>}
+        {!liteOnly && <option value="macos" disabled={view.system !== "macos" || !view.available}>macOS{view.system === "macos" ? view.available ? "" : "（暂不可用）" : "（需要 Apple Silicon Mac）"}</option>}
+        {!liteOnly && <option value="windows-11" disabled={view.system !== "windows-11" || !view.available}>Windows 11{view.system === "windows-11" ? view.available ? "" : "（暂不可用）" : "（需要 Windows 11 与 Hyper-V）"}</option>}
       </InlineSelect>
       {system.clone && !system.activate && (deferMatch ? <small className="guest-install-fields">Cage 会检测本机系统版本，在下一步显示匹配的官方镜像、下载量与空间要求。</small> : <HostCloneSummary pending={system.pending} onChange={onChange} />)}
-      {!system.activate && <small className="guest-install-fields">系统镜像通过主机网络下载，遵循主机系统代理或 TUN 设置，不使用 Cage 的客机代理。使用 Clash 等软件时，请先开启系统代理或 TUN；代理规则决定镜像网站的实际出口。</small>}
-      {!system.clone && os !== "debian-13" && !system.activate && <div className="guest-install-fields">
+      {os === "windows-lite" && <div className="guest-install-fields"><small>自动下载并安装轻量沙箱，使用一个固定的 Windows 持久空间，无需下载虚拟机系统镜像。</small><small>隔离核心约 25 MB，另需运行组件。下载使用主机网络，遵循系统代理或 TUN 设置；安装期间会出现 Windows 管理员授权。</small><small>安装完成后回到原 Cage 工作台管理账户、外观、代理和项目。组件安装完成不代表所有应用能力已适配，真实运行仍须通过隔离与出口检查。</small></div>}
+      {os !== "windows-lite" && !system.activate && <small className="guest-install-fields">系统镜像通过主机网络下载，遵循主机系统代理或 TUN 设置，不使用 Cage 的客机代理。使用 Clash 等软件时，请先开启系统代理或 TUN；代理规则决定镜像网站的实际出口。</small>}
+      {!system.clone && os !== "debian-13" && os !== "windows-lite" && !system.activate && <div className="guest-install-fields">
         {os === "ubuntu-22.04" ? <>
           <small>从 Ubuntu 官方源下载 Ubuntu 22.04 LTS 镜像，并校验 SHA-256。Cage 按主机架构选择 ARM64 或 x86_64。</small>
           <small>自动安装开发工具、浏览器和编辑器。客机账户、文件和登录状态保存在独立的持久虚拟磁盘中。</small>
@@ -133,7 +138,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
         <label><input type="checkbox" checked={system.editor_terms} disabled={system.pending}
           onChange={(e) => change({ editor_terms: e.target.checked })} />我接受上述编辑器许可条款</label>
       </div>}
-      {view.reason && !view.available && <small className="guest-install-fields">{view.reason}</small>}
+      {os !== "windows-lite" && view.reason && !view.available && <small className="guest-install-fields">{view.reason}</small>}
       {view.reselect && <button type="button" className="guest-install-fields" onClick={async () => {
         try {
           await api("/environment/guest-systems", { id: view.pending.id }, "DELETE");
@@ -149,7 +154,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
 
 export function validGuestChoice(value) {
   if (value?.clone && !value.activate) return Boolean(value.clone_key && value.clone_ready && (value.guest_system !== "windows-11" || value.editor_terms));
-  if (!value || value.activate || value.guest_system === "debian-13" || value.guest_system === "ubuntu-22.04") return true;
+  if (!value || value.activate || value.guest_system === "debian-13" || value.guest_system === "ubuntu-22.04" || value.guest_system === "windows-lite") return true;
   if (value.guest_system === "macos") return true;
   return value.media && /^[a-f\d]{64}$/i.test(value.sha256) && value.editor_terms;
 }

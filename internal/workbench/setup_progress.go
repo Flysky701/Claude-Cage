@@ -20,6 +20,18 @@ type SetupProgress struct {
 // continues through the existing redacted operation log.
 func parseSetupProgress(line string) *SetupProgress {
 	line = strings.TrimSpace(line)
+	if strings.HasPrefix(line, "CAGE_HOST_BYTES Sandboxie ") {
+		fields := strings.Fields(line)
+		if len(fields) != 4 {
+			return nil
+		}
+		received, err := strconv.ParseInt(fields[2], 10, 64)
+		total, te := strconv.ParseInt(fields[3], 10, 64)
+		if err != nil || te != nil || received < 0 || total < 0 || (total > 0 && received > total) {
+			return nil
+		}
+		return &SetupProgress{Phase: "image", Label: "正在下载轻量沙箱隔离组件", System: windowsLiteKind, Operation: "download", Received: &received, Total: total}
+	}
 	if strings.HasPrefix(line, "CAGE_HOST_RETRY ") {
 		fields := strings.Fields(line)
 		if len(fields) != 3 || (fields[2] != "2" && fields[2] != "3") {

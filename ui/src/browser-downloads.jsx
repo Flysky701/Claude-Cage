@@ -25,13 +25,17 @@ export function useDownloadNotifications(
   downloads = [],
   onStatus,
   uploading = false,
+  allowFileTransfer = true,
 ) {
+  const allowed = useRef(allowFileTransfer);
+  allowed.current = allowFileTransfer;
   const previous = useRef(new Map());
   const mountedAt = useRef(Date.now());
   const observed = useRef(new Set()),
     prompted = useRef(new Set()),
     queue = useRef(Promise.resolve());
   useEffect(() => {
+    if (!allowFileTransfer) return;
     for (const item of downloads) {
       if (
         ["downloading", "saving"].includes(item.state) ||
@@ -67,12 +71,15 @@ export function useDownloadNotifications(
       ) {
         prompted.current.add(item.id);
         queue.current = queue.current
-          .then(() => saveDownload(item))
+          .then(() => {
+            if (allowed.current) return saveDownload(item);
+            prompted.current.delete(item.id);
+          })
           .catch((error) => onStatus(error.message));
       }
     }
     previous.current = new Map(downloads.map((item) => [item.id, { state: item.state, openError: item.openError }]));
-  }, [downloads, uploading]);
+  }, [downloads, uploading, allowFileTransfer]);
 }
 
 export function useDesktopFiles(ready, onStatus, desktopVisible) {
@@ -186,10 +193,14 @@ async function saveDownload(item) {
 export function BrowserDownloads({
   downloads = [],
   ready,
+  allowFileTransfer = true,
+  unavailableReason = "当前环境尚未开放文件下载与保存。",
   onStatus,
   menu = false,
   anchorRef,
 }) {
+  const allowed = useRef(allowFileTransfer);
+  allowed.current = allowFileTransfer;
   const remote = isRemoteClient();
   const panelId = useId();
   const trigger = useRef(),
@@ -247,15 +258,19 @@ export function BrowserDownloads({
     };
   }, [open, anchorRef]);
   useEffect(() => {
-    const refresh = () =>
-      api("/browser/files/saved")
-        .then((value) => setSaved(Array.isArray(value) ? value : []))
+    if (!allowFileTransfer) { setSaved([]); return; }
+    let live = true;
+    const refresh = () => {
+      if (!live || !allowed.current) return;
+      return api("/browser/files/saved")
+        .then((value) => { if (live && allowed.current) setSaved(Array.isArray(value) ? value : []); })
         .catch(() => {});
+    };
     refresh();
     window.addEventListener("cage-download-saved", refresh);
-    return () => window.removeEventListener("cage-download-saved", refresh);
-  }, [open]);
-  const items = downloads.map((item) => {
+    return () => { live = false; window.removeEventListener("cage-download-saved", refresh); };
+  }, [open, allowFileTransfer]);
+  const items = (allowFileTransfer ? downloads : []).map((item) => {
     const local = saved.find((entry) => entry.id === item.id);
     return local
       ? {
@@ -268,7 +283,7 @@ export function BrowserDownloads({
         }
       : item;
   });
-  for (const item of saved)
+  for (const item of allowFileTransfer ? saved : [])
     if (!items.some((entry) => entry.id === item.id))
       items.push({ ...item, localSaved: true, state: "saved" });
   const failed = items.some((item) => item.state === "failed" || item.openError);
@@ -293,7 +308,7 @@ export function BrowserDownloads({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        title={failed ? "有下载需要处理，点击查看" : "下载文件"}
+        title={!allowFileTransfer ? unavailableReason : failed ? "有下载需要处理，点击查看" : "下载文件"}
         onClick={() => setOpen((value) => !value)}
       >
         <ArrowDownToLine size={16} />
@@ -328,8 +343,8 @@ export function BrowserDownloads({
               {!items.length && (
                 <div className="browser-download-empty">
                   <ArrowDownToLine size={28} />
-                  <strong>暂无下载</strong>
-                  <p>下载的文件会显示在这里。</p>
+                  <strong>{allowFileTransfer ? "暂无下载" : "文件下载暂不可用"}</strong>
+                  <p>{allowFileTransfer ? "下载的文件会显示在这里。" : unavailableReason}</p>
                 </div>
               )}
               {items.map((item) => (
@@ -380,6 +395,7 @@ export function BrowserDownloads({
                             className="download-text-action"
                             disabled={Boolean(retrying)}
                             onClick={async () => {
+                              if (!allowed.current) { onStatus(unavailableReason); return; }
                               setRetrying(item.id);
                               try {
                                 await saveDownload(item);
@@ -411,6 +427,7 @@ export function BrowserDownloads({
                               aria-label={label}
                               title={label}
                               onClick={async () => {
+                                if (!allowed.current) { onStatus(unavailableReason); return; }
                                 try {
                                   await native("browserDownloadAction", {
                                     operation,
@@ -433,6 +450,7 @@ export function BrowserDownloads({
                             className="download-text-action"
                             disabled={!ready || Boolean(retrying)}
                             onClick={async () => {
+                              if (!allowed.current) { onStatus(unavailableReason); return; }
                               setRetrying(item.id);
                               try {
                                 await api(

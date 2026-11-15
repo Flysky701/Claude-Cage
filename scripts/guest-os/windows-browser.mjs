@@ -124,6 +124,7 @@ export function browserExecutable() {
 // guest's browser mode, fixed executable, and Cage-owned profile.
 export function createNativeBrowserService(options = {}) {
   const mac = options.platform === "darwin";
+  const headless = mac || options.headless === true || (options.testing === true && options.headless !== false);
   const continuousFrames = !mac && options.continuousFrames !== false;
   // The dedicated Windows controller streams the live viewport even when a
   // site hasn't finished downloading fonts. Playwright otherwise waits on
@@ -446,7 +447,7 @@ export function createNativeBrowserService(options = {}) {
           format: "jpeg", quality: 85,
           maxWidth: Math.round(size.width * displayScale), maxHeight: Math.round(size.height * displayScale),
         });
-        if (!mac && !(options.testing && options.headless !== false)) {
+        if (!headless) {
           await connection.send("Emulation.setFocusEmulationEnabled", { enabled: false });
         }
         let timeout;
@@ -594,7 +595,7 @@ export function createNativeBrowserService(options = {}) {
     tab.frameSessions.set(page.mainFrame(), sid);
     // Playwright enables focus emulation for every page. Native input proofs
     // must observe the real selected document and native Chrome UI focus.
-    if (!mac && !(options.testing === true && options.headless !== false)) await connection.send("Emulation.setFocusEmulationEnabled", { enabled: false });
+    if (!headless) await connection.send("Emulation.setFocusEmulationEnabled", { enabled: false });
     tab.browserContextId = (await connection.send("Target.getTargetInfo")).targetInfo.browserContextId;
     tab.nativeTarget = (await connection.send("Target.getTargetInfo")).targetInfo.targetId;
     for (const method of ["Runtime.executionContextCreated", "Runtime.executionContextDestroyed", "Runtime.executionContextsCleared", "Runtime.bindingCalled", "Page.frameDetached", "Page.frameNavigated"]) {
@@ -656,7 +657,7 @@ export function createNativeBrowserService(options = {}) {
       const extensionTools = typeof modules.BrowserExtensions === "function" && existsSync(path.join(splitDirectory, "manifest.json"));
       try {
         context = await chromium.launchPersistentContext(options.profileDirectory ?? path.join(directory, "Profile"), {
-          executablePath: options.executablePath ?? browserExecutable(), headless: mac || (options.testing === true && options.headless !== false),
+          executablePath: options.executablePath ?? browserExecutable(), headless,
           chromiumSandbox: true, viewport, deviceScaleFactor: displayScale, acceptDownloads: true,
           ...(timezone ? { timezoneId: timezone } : {}), ...(language ? { locale: language } : {}),
           ...(networkMode === "proxy" ? { proxy: { server: proxy, bypass: proxyBypass } } : {}),
@@ -1187,10 +1188,13 @@ export function createNativeBrowserService(options = {}) {
     }
   }
   const tailnet = createTailnetClient();
-  if (!options.testing) void tailnet.restore().catch(() => {});
+  if (!options.testing && options.tailnet !== false) void tailnet.restore().catch(() => {});
   async function request({ method, path: route, input = {}, operation } = {}, { signal } = {}) {
     signal?.throwIfAborted();
-    if (method === "POST" && route === "/tailnet") return tailnet.request(input);
+    if (method === "POST" && route === "/tailnet") {
+      if (options.tailnet === false) throw failure("action_unavailable", "当前环境未启用远程网络功能");
+      return tailnet.request(input);
+    }
     if (operation === "configure") return configure(input);
     if (operation === "input-release-pointer") {
       const held = rfbPointer, mask = rfbMask;

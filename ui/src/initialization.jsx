@@ -7,6 +7,7 @@ import { GuestSystemPicker, HostCloneSummary, validGuestChoice } from "./guest-s
 import { InitializationStorage } from "./initialization-storage";
 import { ProxySettings } from "./proxy-settings";
 import { SetupProgress } from "./setup-progress";
+import { WindowsLiteSetup } from "./windows-lite-setup";
 import { DiagnosticSettings } from "./diagnostics.jsx";
 import { MacOSFirstSetup } from "./macos-first-setup";
 import { InitializationProjectApproval } from "./macos-project-approval";
@@ -43,11 +44,12 @@ export function InitializationGate({ children }) {
       if (live) setState(next);
     })().catch(error => { if (live) setError(error.message); });
     return () => { live = false; };
-  }, [remote, attempt, account?.initial_mac_setup]);
+  }, [remote, attempt, account?.initial_mac_setup, account?.guest_system]);
   if (remote) return children;
   if (account?.initial_mac_setup) return <MacOSAccountGate><MacOSFirstSetup /></MacOSAccountGate>;
   if (error) return <InitializationFrame><section className="initialization-content"><h1>继续准备 Cage</h1><p role="alert"><SafetyMessage message={error} /></p><button className="primary" onClick={() => retry(value => value + 1)}>重新连接</button><DiagnosticSettings /></section></InitializationFrame>;
   if (!state) return <InitializationFrame><section className="initialization-content"><h1>正在读取环境状态</h1><p role="status"><LoaderCircle size={18} className="spin" />正在检查已有配置和安装进度…</p></section></InitializationFrame>;
+  if (state.required && (state.windows_lite_review || account?.guest_system === "windows-lite")) return <InitializationFrame><WindowsLiteSetup initial={state} onComplete={() => setState({ required: false })} /></InitializationFrame>;
   return state.required ? <MacOSAccountGate><Initialization initial={state} onComplete={() => setState({ required: false })} /></MacOSAccountGate> : children;
 }
 
@@ -222,6 +224,11 @@ function Initialization({ initial, onComplete }) {
   }
   async function nextFromSystem() {
     await run(async () => {
+      if (choice?.guest_system === "windows-lite") {
+        await api("/windows-lite/setup", {});
+        await refresh();
+        return;
+      }
       const directory = storage.directory.trim();
       if (directory !== storage.location.directory) {
         const accepted = await api("/environment/storage", { directory, previous: storage.location.directory, migrate: false });
@@ -273,7 +280,7 @@ function Initialization({ initial, onComplete }) {
         <div className="initialization-stage" key={step}>
           {step === "system" && <>
             <GuestSystemPicker system={choice} onChange={setChoice} preserveOnUnmount deferMatch />
-            <InitializationStorage value={storage} onChange={setStorage} disabled={busy} />
+            {choice?.guest_system !== "windows-lite" && <InitializationStorage value={storage} onChange={setStorage} disabled={busy} />}
           </>}
           {step === "proxy" && <><ProxySettings initializing status={status} onConfirm={confirm} onDraftChange={setProxyDraft} onApplied={async () => { setProxy(await api("/proxy")); pollNow.current?.(); }} />{choice?.clone && !needsProxySetup(null, status, proxy) && <HostCloneSummary pending={choice.pending} onChange={setChoice} />}</>}
           {step === "install" && (ready ? <div className="initialization-ready"><ShieldCheck size={36} /><h2>环境已就绪</h2><p>独立客机已安装，工具、文件和登录状态会持续保存。以后打开 Cage 可直接进入工作台。</p></div> : <>
@@ -321,7 +328,7 @@ function Initialization({ initial, onComplete }) {
         {error && <p className="initialization-notice" role="alert"><SafetyMessage message={error} /></p>}
         <footer className="initialization-actions">
           {step === "system" ? <span /> : <button className="text-button" disabled={busy} onClick={back}><ChevronLeft size={16} />上一步</button>}
-          {step === "system" && <button className="primary" disabled={busy || !storage?.directory.trim() || choice === undefined || (!choice?.clone && !validGuestChoice(choice)) || choice?.clone && choice.guest_system === "windows-11" && !choice.editor_terms || Boolean(connectionError)} onClick={nextFromSystem}>{submitting && <LoaderCircle size={16} className="spin" />}下一步：配置代理</button>}
+          {step === "system" && <button className="primary" disabled={busy || (choice?.guest_system !== "windows-lite" && !storage?.directory.trim()) || choice === undefined || (!choice?.clone && !validGuestChoice(choice)) || choice?.clone && choice.guest_system === "windows-11" && !choice.editor_terms || Boolean(connectionError)} onClick={nextFromSystem}>{submitting && <LoaderCircle size={16} className="spin" />}{choice?.guest_system === "windows-lite" ? "下载并安装轻量沙箱" : "下一步：配置代理"}</button>}
           {step === "proxy" && <div className="initialization-start">
             {startHint && <span className="field-help" id="installation-hint" role="status">{startHint}</span>}
             <button className="primary" disabled={Boolean(startHint)} aria-describedby={startHint ? "installation-hint" : undefined} onClick={install}>{submitting && <LoaderCircle size={16} className="spin" />}开始安装</button>

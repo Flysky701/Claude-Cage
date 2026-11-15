@@ -139,6 +139,9 @@ func (s *Server) closeService() error {
 			s.closeErr = s.closeProxyGate("控制服务正在退出，外网保持关闭")
 		}
 		s.closeWindowsNetwork()
+		if s.isWindowsLite() {
+			s.closeErr = errors.Join(s.closeErr, s.closeWindowsLite())
+		}
 		s.mu.Lock()
 		browser := s.browserControl
 		s.ready = false
@@ -148,7 +151,7 @@ func (s *Server) closeService() error {
 			browser.close()
 		}
 		s.controlSession.close()
-		if s.windowsGuest == nil {
+		if s.windowsGuest == nil && !s.isWindowsLite() {
 			s.closeErr = s.closeProxyGate("控制服务正在退出，外网保持关闭")
 		}
 		s.closeErr = errors.Join(s.closeErr, managedproxy.Stop(s.profile))

@@ -34,7 +34,7 @@ func (s *Server) browserStateForHost(body []byte) ([]byte, error) {
 			if json.Unmarshal(encoded, &item) != nil {
 				continue
 			}
-			if s.macosGuest != nil || s.windowsGuest != nil {
+			if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() {
 				item.Target = "browser"
 				mapped := s.nativeDownloadForHost(item)
 				record["name"], _ = json.Marshal(mapped.Name)
@@ -60,7 +60,7 @@ func (s *Server) browserStateForHost(body []byte) ([]byte, error) {
 				downloadsChanged = true
 			}
 		}
-		if s.macosGuest != nil || s.windowsGuest != nil {
+		if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() {
 			visible := make(map[string]bool, len(downloads))
 			for _, record := range downloads {
 				var id string

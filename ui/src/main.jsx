@@ -61,6 +61,8 @@ import { useWindowVisibility } from "./window-visibility";
 import { AppUpdateButton, useAppUpdates } from "./app-updates";
 import "./appearance.css";
 import { stopAndExit } from "./quit";
+import { isWindowsLite, WindowsLiteHome, WindowsLiteMonitorDetails } from "./windows-lite-panel";
+import { workbenchCapabilities, terminalCapability, windowsLiteAdmitted, windowsLiteMonitor } from "./runtime-capabilities.mjs";
 
 function App() {
   const { account } = useAccount();
@@ -75,6 +77,9 @@ function App() {
   const [tailnetLogin, setTailnetLogin] = useState(null);
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [terminalChoice, setTerminalChoice] = useState(null);
+  const [liteRequest, setLiteRequest] = useState(false);
+  const [monitorNow, setMonitorNow] = useState(Date.now);
+  const liteRequestActive = useRef(false);
   const [openingSession, setOpeningSession] = useState("");
   const [sessionOpenError, setSessionOpenError] = useState(null);
   const sessionOpenRequest = useRef(null);
@@ -117,6 +122,7 @@ function App() {
     [fatal, setFatal] = useState(""),
     [connectionError, setConnectionError] = useState(""),
     [browserError, setBrowserError] = useState(""),
+    [terminalError, setTerminalError] = useState(""),
     [dialog, setDialog] = useState(null),
     [transfer, setTransfer] = useState(null),
     [details, setDetails] = useState(false),
@@ -125,9 +131,25 @@ function App() {
   // Keep feedback continuous until polling observes the accepted start job.
   const clientStatus = serverStatus && { ...serverStatus, keyboard: clientKeyboard(serverStatus.keyboard) };
   const status = clientStatus && startRequest
-    ? { ...clientStatus, job: { running: true, kind: "start", message: "正在启动 Cage 环境…" } }
+    ? { ...clientStatus, job: { running: true, kind: "start", message: startRequest.message || "正在启动 Cage 环境…" } }
     : clientStatus;
   const system = status?.guest_system || account?.guest_system;
+  const windowsLite = isWindowsLite(status);
+  const features = workbenchCapabilities(status);
+  const liteMonitor = windowsLiteMonitor(status, monitorNow);
+  const applicationsAdmitted = !windowsLite || !connectionError && !liteRequest && windowsLiteAdmitted(status, monitorNow);
+  const browserReady = Boolean(status?.ready && features.browser && applicationsAdmitted);
+  const terminalReady = Boolean(status?.vm_running && features.terminals && applicationsAdmitted);
+  const editorReady = Boolean(browserReady && features.editor);
+  const desktopReady = Boolean(status?.vm_running && features.desktop && applicationsAdmitted);
+  const fileTransferAllowed = features.files && applicationsAdmitted;
+  const liteAdmissionReason = windowsLite && !applicationsAdmitted ? connectionError ? "工作台与应用监控连接中断，运行状态无法确认。" : liteMonitor.reason || status?.windows_lite?.message : "";
+  useEffect(() => {
+    if (!windowsLite) return;
+    setMonitorNow(Date.now());
+    const timer = setInterval(() => setMonitorNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [windowsLite]);
   const macGuest = system === "macos";
   const nativeGuestLabel = {macos: "macOS", "windows-11": "Windows"}[system];
   const { active } = layout;
@@ -143,6 +165,7 @@ function App() {
     initialized = useRef(false),
     browserStreamReady = useRef(false),
     browserSnapshot = useRef({ tabs: [] }),
+    terminalSnapshot = useRef([]),
     refreshStatus = useRef(null),
     launchAcknowledged = useRef(false),
     lastJob = useRef(""),
@@ -152,10 +175,10 @@ function App() {
   const storageRecovery = status?.storage_recovery?.required;
   const current = tabs.find((t) => t.id === active),
     terminal = !desktopOpen && current?.kind === "terminal",
-    busy = Boolean(status?.job?.running),
+    busy = Boolean(status?.job?.running) || liteRequest,
     showHome = storageRecovery || !desktopOpen && (home || !status?.vm_running || !current);
   const setupProgress = status?.job?.setup_progress && (busy || status.job.error);
-	const cliSessions = useCLISessions(Boolean(status && !busy && !storageRecovery), windowVisible);
+	const cliSessions = useCLISessions(Boolean(status && features.cliSessions && !busy && !storageRecovery), windowVisible);
   useEffect(() => {
     if (storageRecovery) {
       setDesktopOpen(false);
@@ -168,7 +191,7 @@ function App() {
   const panes = !split ? [current].filter(Boolean)
     : layout.side === "left" ? [current, other] : [other, current];
   const webPanes = panes.filter(tab => tab.kind !== "terminal");
-  const passwordVault = usePasswordVault(Boolean(status?.ready && !macGuest), browser.active);
+  const passwordVault = usePasswordVault(Boolean(browserReady && !macGuest), browser.active);
   const dualBrowser = split && webPanes.length === 2;
   const leftId = dualBrowser ? panes[0].id : "";
   const rightId = dualBrowser ? panes[1].id : "";
@@ -177,7 +200,7 @@ function App() {
     ? nativeSplit?.left === leftId && nativeSplit?.right === rightId
     : !nativeSplit;
   const liveBrowser = webPanes.find(tab => tab.id === browser.active) || webPanes[0];
-  const liveBrowserVisible = !managementPage && !desktopOpen && !showHome && status?.ready &&
+  const liveBrowserVisible = !managementPage && !desktopOpen && !showHome && browserReady &&
     liveBrowser && splitReady && (!split || browser.active === liveBrowser.id);
   const viewBeforeBrowser = useRef(null);
   const browserDismissed = useRef(false);
@@ -210,7 +233,7 @@ function App() {
   const nativeSplitRef = useRef(null);
   nativeSplitRef.current = nativeSplit;
   useEffect(() => {
-    if (!status?.ready) { requestedSplit.current = false; return; }
+    if (!browserReady) { requestedSplit.current = false; return; }
     if (!leftId && !requestedSplit.current && !nativeSplitRef.current) return;
     requestedSplit.current = Boolean(leftId);
     let cancelled = false;
@@ -232,7 +255,7 @@ function App() {
     };
     splitQueue.current = splitQueue.current.then(apply);
     return () => { cancelled = true; };
-  }, [leftId, rightId, status?.ready, Boolean(!leftId && nativeSplit)]);
+  }, [leftId, rightId, browserReady, Boolean(!leftId && nativeSplit)]);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   useEffect(() => {
@@ -240,24 +263,24 @@ function App() {
     if (!status?.vm_running || !other || !current) {
       const survivor = current || other;
       setLayout({ active: survivor?.id || "" });
-      if (!current && survivor && survivor.kind !== "terminal" && status?.ready) {
+      if (!current && survivor && survivor.kind !== "terminal" && browserReady) {
         api("/browser/activate", { id: survivor.id }).catch(error => setToast(error.message));
       }
     }
-  }, [layout, other, current, status?.vm_running, status?.ready]);
+  }, [layout, other, current, status?.vm_running, browserReady]);
   const paneSide = id => !split ? "" : id === active ? layout.side :
     layout.side === "left" ? "right" : "left";
   const running = Boolean(status?.vm_running);
   const mixedBrowserId = split && !dualBrowser ? webPanes[0]?.id : null;
   useEffect(() => {
-    if (status?.ready && mixedBrowserId && mixedBrowserId !== browser.active)
+    if (browserReady && mixedBrowserId && mixedBrowserId !== browser.active)
       api("/browser/activate", { id: mixedBrowserId }).catch(error => setToast(error.message));
-  }, [mixedBrowserId, status?.ready, browser.active]);
+  }, [mixedBrowserId, browserReady, browser.active]);
   const finishedLogins = tabs.filter((tab) => tab.terminalKind === "claude-login" && tab.closed).map((tab) => tab.id).sort().join(",");
   useEffect(() => {
     if (finishedLogins) claudeProfiles.load();
   }, [finishedLogins, claudeProfiles.load]);
-  const audio = useAudioOutput(running && !storageRecovery && !status?.environment_update_required && !connectionError);
+  const audio = useAudioOutput(running && features.audio && applicationsAdmitted && !storageRecovery && !status?.environment_update_required && !connectionError);
   useEffect(() => {
     if (audio.error) setToast(audio.error);
   }, [audio.error]);
@@ -267,12 +290,18 @@ function App() {
   const workspace = groups.find(group => group.folders.includes(selectedWorkspace))?.workspace || selectedWorkspace;
   const contentWorkspace =
     terminal && !showHome ? current.workspace : workspace;
-  const setupProxy = !nativeGuestLabel && needsProxySetup(settings, status, proxy);
+  const setupProxy = !windowsLite && guestSystem?.guest_system !== "windows-lite" && !nativeGuestLabel && needsProxySetup(settings, status, proxy);
   const network = connectionError
     ? { mode: "unknown", label: "外网状态待确认" }
-    : networkState(status);
+    : windowsLite ? !running ? { mode: "stopped", label: "空间已停止" }
+      : applicationsAdmitted ? { mode: "open", label: "应用监控已放行" }
+        : liteMonitor.phase === "checking" ? { mode: "checking", label: "应用正在检查" }
+          : { mode: "closed", label: "应用已阻断运行" }
+      : networkState(status);
   const runtimeLabel = connectionError
     ? "连接中断"
+    : windowsLite && !applicationsAdmitted && !busy
+      ? liteMonitor.phase === "checking" ? "应用检查中" : liteMonitor.phase === "expired" ? "监控已失效" : running ? "运行已阻断" : "已停止"
     : busy
       ? network.mode === "checking" || status?.job?.kind === "safety"
         ? "检查中"
@@ -287,7 +316,7 @@ function App() {
           : "离线可用"
         : running
           ? status?.environment_update_required ? "环境待更新" : "浏览器待恢复"
-          : "已停止";
+          : windowsLite && status.windows_lite?.phase === "blocked" ? "应用启动受阻" : "已停止";
   const notify = (text) => setToast(text);
   // A Linux environment keeps what it learned about project files for a while.
   const projectFilesCached = settings?.project_file_cache === true &&
@@ -305,7 +334,7 @@ function App() {
   };
   const clipboardConnection = getClientContext().connection_id;
   useEffect(() => {
-    if (!status?.ready || !nativeAvailable()) return;
+    if (!status?.ready || !features.clipboard || !applicationsAdmitted || !nativeAvailable()) return;
     const clipboard = shareClipboard({
       connect: () => new WebSocket(runtimeSocketURL("/clipboard")), native,
       onStatus: setToast,
@@ -313,10 +342,10 @@ function App() {
     });
     window.cageSyncClipboard = () => clipboard.sync();
     return () => { clipboard.dispose(); delete window.cageSyncClipboard; };
-  }, [status?.ready, clipboardConnection]);
-  const desktopFiles = useDesktopFiles(Boolean(status?.ready), notify, desktopOpen && !settingsOpen && !storageRecovery && windowVisible);
+  }, [status?.ready, features.clipboard, applicationsAdmitted, clipboardConnection]);
+  const desktopFiles = useDesktopFiles(Boolean(status?.ready && features.files && applicationsAdmitted), notify, desktopOpen && !settingsOpen && !storageRecovery && windowVisible);
   const downloads = [...(browser.downloads || []), ...desktopFiles.downloads];
-  useDownloadNotifications(downloads, notify, Boolean(browser.uploads?.length || desktopFiles.uploads.length));
+  useDownloadNotifications(downloads, notify, Boolean(browser.uploads?.length || desktopFiles.uploads.length), fileTransferAllowed);
   const refreshSettings = async () => {
     const results = await Promise.allSettled([api("/settings"), api("/proxy")]);
     if (results[0].status === "fulfilled") setSettings(results[0].value);
@@ -332,6 +361,8 @@ function App() {
     setSettingsOpen(true);
   };
   const select = async (id, focusContent = true) => {
+    const nextTab = tabs.find(tab => tab.id === id);
+    if (windowsLite && nextTab?.kind !== "terminal" && !applicationsAdmitted) { notify(liteAdmissionReason); return; }
     setTailnetLogin(null);
     setManagementPage("");
     const tab = tabs.find((t) => t.id === id);
@@ -386,12 +417,43 @@ function App() {
       return null;
     }
   };
+  const liteOperation = async (path, body = {}) => {
+    if (liteRequestActive.current) return null;
+    liteRequestActive.current = true;
+    setLiteRequest(true);
+    try {
+      const result = await action(path, body);
+      if (result?.ok === false) notify(result.error || "应用启动受阻，请查看空间检查结果。");
+      if (result?.id) setStartRequest({ id: result.id, message: "应用正在自动检查沙箱与网络出口…" });
+      await refreshStatus.current?.();
+      return result?.ok === false ? null : result;
+    } finally {
+      liteRequestActive.current = false;
+      setLiteRequest(false);
+    }
+  };
+  const checkLiteSpace = () => liteOperation("/windows-lite/check");
+  const unsupportedLite = label => {
+    notify(`${label}尚未接入当前轻量沙箱；请在工作台查看已开放能力。`);
+    return null;
+  };
+  const checkLiteAdmission = () => {
+    if (applicationsAdmitted) return true;
+    notify(liteAdmissionReason);
+    return false;
+  };
   const starting = useRef(false);
   const startEnvironment = async (options = {}) => {
     if (starting.current) return;
     starting.current = true;
     setStartRequest({ id: null });
     try {
+      if (options.guest_system === "windows-lite" && !windowsLite) {
+        const chosen = await action("/windows-lite/setup", {});
+        setStartRequest(null);
+        if (chosen) await refreshStatus.current?.();
+        return;
+      }
       const result = await action("/start", options);
       setStartRequest(result ? { id: result.id } : null);
       if (result) refreshStatus.current?.();
@@ -403,6 +465,8 @@ function App() {
     url = settings?.browser_home_url || "https://www.bing.com/",
     incognito = Boolean(current?.incognito),
   ) => {
+    if (!features.browser) return unsupportedLite("浏览器");
+    if (!checkLiteAdmission()) return null;
     setTailnetLogin(null);
     browserDismissed.current = false;
     const result = await action("/browser/new", { url, incognito });
@@ -440,15 +504,21 @@ function App() {
     setLayout({ active: result.id });
   };
   const openBrowserSettings = async (section = "general") => {
+    if (!features.browser) return unsupportedLite("浏览器设置");
+    if (!checkLiteAdmission()) return null;
     const result = await action("/browser/settings", { mode: section });
     if (result) showBrowserResult(result);
   };
   const openInternalPage = async (mode, id) => {
+    if (!features.browser) return unsupportedLite("浏览器内部页面");
+    if (!checkLiteAdmission()) return null;
     const result = await action("/browser/internal-page", { mode, id });
     if (result) showBrowserResult(result);
   };
   const openSettingsPageResult = result => result.id ? showBrowserResult(result) : openBrowserPage(result.url, false);
   const openBrowser = () => {
+    if (!features.browser) return unsupportedLite("浏览器");
+    if (!checkLiteAdmission()) return null;
     const tab =
       tabs.find(
         (t) => t.id === lastBrowserTab.current && t.kind !== "terminal",
@@ -458,13 +528,16 @@ function App() {
     return tab ? select(tab.id) : newPage();
   };
   const newTerminal = (path = workspace, anchor = terminalTrigger.current) => {
-    if (!path) { setProjectDialog({}); return; }
+    if (windowsLite && !terminalReady) { notify(liteAdmissionReason || "普通终端尚未接入当前轻量沙箱。"); return; }
+    if (!path && !windowsLite) { setProjectDialog({}); return; }
     setTerminalChoice((previous) =>
       previous?.anchor === anchor ? null : { path, anchor },
     );
   };
   const createTerminal = async (path, kind, loginAccountId) => {
     setTerminalChoice(null);
+    if (!terminalCapability(status, kind)) return unsupportedLite(kind === "claude-login" ? "托管 Claude 账户登录" : kind === "claude" ? "Claude 终端" : "普通终端");
+    if (!checkLiteAdmission()) return null;
     const result = await api("/terminals", {
       workspace: path, kind,
       ...(loginAccountId && { claude_account_id: loginAccountId }),
@@ -490,6 +563,8 @@ function App() {
     setActive(tab.id);
   };
   const openSessionTerminal = async session => {
+    if (!features.cliSessions) return unsupportedLite("历史终端会话恢复");
+    if (!checkLiteAdmission()) return null;
     if (session.running) return;
     if (sessionOpenRequest.current?.id === session.id) return;
     sessionOpenRequest.current?.controller.abort();
@@ -540,11 +615,14 @@ function App() {
     newTerminal(contentWorkspace, event?.currentTarget?.tagName === "BUTTON"
       ? event.currentTarget : terminalTrigger.current);
   const terminalMenuAt = (location) => terminalChoice?.anchor?.dataset.terminalLocation === location && (
-    <TerminalMenu choice={terminalChoice} busy={busy}
+    <TerminalMenu choice={terminalChoice} busy={busy} shellAvailable={!windowsLite || terminalReady}
+      claudeAvailable={!windowsLite || terminalReady && features.claudeTerminal}
       onClose={() => setTerminalChoice(null)}
       onSelect={(kind) => createTerminal(terminalChoice.path, kind).catch((e) => notify(e.message))} />
   );
   const openEditor = async (path = workspace) => {
+    if (!features.editor) return unsupportedLite("项目编辑器");
+    if (!checkLiteAdmission()) return null;
     if (!path) { setProjectDialog({}); return; }
     browserDismissed.current = false;
     setTailnetLogin(null);
@@ -704,10 +782,14 @@ function App() {
           }
           if (next.job.error) notify(next.job.error);
         }
-        if (next.ready) {
+        const nextFeatures = workbenchCapabilities(next);
+        const admitted = !nextFeatures.lite || windowsLiteAdmitted(next);
+        const canReadBrowser = next.ready && nextFeatures.browser && admitted;
+        const canReadTerminals = next.vm_running && nextFeatures.terminals && admitted;
+        if (canReadBrowser || canReadTerminals) {
           // A guest waiting for a component update cannot serve browser tabs;
           // the update banner replaces a request that fails on every poll.
-          const fetchBrowser = (!browserStreamReady.current || !initialized.current) && !next.environment_update_required;
+          const fetchBrowser = canReadBrowser && (!browserStreamReady.current || !initialized.current) && !next.environment_update_required;
           const [browserResult, t] = await Promise.all([
             fetchBrowser ? api("/browser/tabs").then(result => {
               if (live) setBrowserError("");
@@ -716,10 +798,18 @@ function App() {
               if (live) setBrowserError(next.guest_system === "macos" ? "请在环境设置中同步 macOS 组件，并确认已登录客机图形账户。" : error.message);
               return null;
             }) : null,
-            api("/terminals"),
+            canReadTerminals ? api("/terminals").then(result => {
+              terminalSnapshot.current = result;
+              if (live) setTerminalError("");
+              return result;
+            }).catch(error => {
+              if (!nextFeatures.lite) throw error;
+              if (live) setTerminalError(error.message);
+              return terminalSnapshot.current;
+            }) : [],
           ]);
           if (!live) return;
-          const b = browserResult || browserSnapshot.current;
+          const b = nextFeatures.browser ? browserResult || browserSnapshot.current : { tabs: [] };
           const legacyMetadata = readLocal(clientStorageKey("cage-tab-layout"), {})[next.environment_identity_directory || next.environment_directory || next.workspace] || {};
           for (const item of t) {
             const saved = legacyMetadata["terminal:" + item.id];
@@ -827,7 +917,7 @@ function App() {
     return () => { live = false; };
   }, [settings, status, fatal, connectionError]);
   useEffect(() => {
-    if (!status?.ready) return;
+    if (!browserReady) return;
     const stream = new EventSource(runtimeURL("/browser/events"));
     stream.addEventListener("clipboard", (event) => {
       remote.current?.receiveCopy?.(JSON.parse(event.data));
@@ -837,7 +927,7 @@ function App() {
     stream.onmessage = (event) => {
       const b = JSON.parse(event.data);
       setBrowserError("");
-      if (b.desktopFocus === true) {
+        if (b.desktopFocus === true && features.desktop) {
         setDesktopOpen(true);
         setHome(false);
         setSettingsOpen(false);
@@ -879,7 +969,7 @@ function App() {
       browserStreamReady.current = false;
       stream.close();
     };
-  }, [status?.ready]);
+  }, [browserReady, features.desktop]);
   useEffect(() => {
     if (current && current.kind !== "terminal")
       lastBrowserTab.current = current.id;
@@ -896,7 +986,7 @@ function App() {
   }, [toast]);
   useEffect(() => {
     if (!tailnetLogin) return;
-    if (!status?.ready || managementPage || showHome || desktopOpen) {
+    if (!browserReady || managementPage || showHome || desktopOpen) {
       setTailnetLogin(null);
       return;
     }
@@ -918,7 +1008,7 @@ function App() {
     };
     void check();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [tailnetLogin, managementPage, settingsOpen, desktopOpen, showHome, status?.ready]);
+  }, [tailnetLogin, managementPage, settingsOpen, desktopOpen, showHome, browserReady]);
   useEffect(() => {
     if (!managementPage) return;
     document.getElementById(managementPage + "-title")?.focus();
@@ -983,7 +1073,7 @@ function App() {
           document.dispatchEvent(new Event("cage-show-favorites"));
           return;
         }
-        if (!busy && running) setProjectDialog({ path: "" });
+        if (!busy && (running || windowsLite)) setProjectDialog({ path: "" });
         return;
       }
       if (k === "t" && !event.shiftKey) handle = newPage;
@@ -1015,7 +1105,7 @@ function App() {
         event.stopImmediatePropagation();
         if (
           !busy &&
-          (status?.ready ||
+          (status?.ready || windowsLite ||
             (running && k === "enter") ||
             (k === "w" && terminal))
         )
@@ -1063,7 +1153,7 @@ function App() {
       if (command === "openProject") {
         if (
           !busy &&
-          running &&
+          (running || windowsLite) &&
           !settingsOpen &&
           !managementPage &&
           !dialog &&
@@ -1078,8 +1168,8 @@ function App() {
         ["newTab", "newTerminal"].includes(command)
       )
         return;
-      if (command === "newTab" && status?.ready) await newPage();
-      if (command === "newTerminal" && status?.vm_running)
+      if (command === "newTab" && (status?.ready || windowsLite)) await newPage();
+      if (command === "newTerminal" && (status?.vm_running || windowsLite))
         await newTerminalHere();
       if (command === "closeTab") {
         if (document.querySelector("[data-browser-dialog], .mac-login-fullscreen")) {
@@ -1144,6 +1234,10 @@ function App() {
     };
   }, [
     status,
+    applicationsAdmitted,
+    browserReady,
+    terminalReady,
+    liteAdmissionReason,
     settingsOpen,
     managementPage,
     safetyOpen,
@@ -1301,7 +1395,8 @@ function App() {
     item.id === tab.id || (tab.id === leftId && item.id !== rightId));
   const browserHeader = tab => <BrowserHeader vault={passwordVault} onManageVault={() => openSettings("vault")} tab={tab} tabs={paneTabs(tab)} metadata={metadata}
     vertical={browserTabLayout === "vertical"}
-    ready={status.ready} busy={busy} focused={active === tab.id} compact={split} splitDrag={splitDrag}
+    ready={browserReady} busy={busy} focused={active === tab.id} compact={split} splitDrag={splitDrag}
+    allowFileTransfer={fileTransferAllowed} fileTransferReason={liteAdmissionReason || "当前轻量沙箱尚未开放文件下载与保存。"}
     sidebarButton={sidebarButton(paneSide(tab.id))} exitButton={expandButton(tab)}
     triggerRef={tab.id === active ? terminalTrigger : undefined}
     location={split ? `heading-${tab.id}` : "heading"} menu={terminalMenuAt(split ? `heading-${tab.id}` : "heading")}
@@ -1454,7 +1549,13 @@ function App() {
             active={managementPage ? "" : active}
             home={!managementPage && showHome}
             busy={busy || storageRecovery}
-            ready={status.ready}
+            ready={browserReady}
+            terminalReady={terminalReady}
+            editorReady={editorReady}
+            desktopReady={desktopReady}
+            applicationEntries={windowsLite}
+            applicationReason={liteAdmissionReason}
+            applicationFeatures={features}
             running={running}
             runtimeLabel={runtimeLabel}
             network={network}
@@ -1478,7 +1579,7 @@ function App() {
             }}
             desktopOpen={!managementPage && desktopOpen}
             onClaudeWeb={() => openBrowserPage("https://claude.ai/")}
-            onClaudeDesktop={() => { setManagementPage(""); setHome(false); setDesktopOpen(true); }}
+            onClaudeDesktop={() => { if (!features.desktop) { unsupportedLite("Claude Desktop"); return; } if (!checkLiteAdmission()) return; setManagementPage(""); setHome(false); setDesktopOpen(true); }}
             onEditor={openEditor}
             onSettings={openSettings}
             onAccountConfirm={confirm}
@@ -1492,9 +1593,10 @@ function App() {
         <div className="workbench-main">
           {!managementPage && showHome && terminalHeader(null)}
           {browserError && running && !connectionError && <div className="connection-banner" role="status">
-            <span>客机浏览器暂时无法连接。{browserError}</span>
+            <span>{windowsLite ? "沙箱" : "客机"}浏览器暂时无法连接。{browserError}</span>
             <button onClick={() => refreshStatus.current?.()}>重试</button>
           </div>}
+          {terminalError && windowsLite && running && !connectionError && <div className="connection-banner" role="status"><span>沙箱终端列表暂时无法更新。{terminalError}</span><button onClick={() => refreshStatus.current?.()}>重试</button></div>}
           {connectionError && (
             <div className="connection-banner" role="alert">
               工作台连接中断，后台状态暂时未知。
@@ -1526,7 +1628,7 @@ function App() {
                     if (nativeGuest && !await confirm({ title: "更新环境组件？", body: "更新会重新连接浏览器和显示组件，请先保存工作。设备身份、公钥和个人数据保留。", confirm: "更新组件" })) return;
                     await action(nativeGuest ? "/environment/update" : "/tailscale/install", {});
                   }} /> : <ClaudeAccountsPanel store={claudeProfiles} tabs={tabs} onConfirm={confirm}
-                  running={status.vm_running} environmentBusy={busy || storageRecovery}
+                  running={terminalReady && features.terminalLogin} environmentBusy={busy || storageRecovery}
                   login={(id) => createTerminal(workspace, "claude-login", id)} />}
               </div>
             </main>
@@ -1537,7 +1639,7 @@ function App() {
             {!storageRecovery && desktopOpen && macGuest && <MacOSAppWindow key="claude-desktop" uploads={desktopFiles.uploads} keyboard={status.keyboard} remoteRef={remote}
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={!settingsOpen && !managementPage} onConfirm={confirm}
               sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />}
-            {!storageRecovery && desktopOpen && !macGuest && <ClaudeDesktop
+            {!storageRecovery && desktopOpen && !macGuest && desktopReady && <ClaudeDesktop
               uploads={desktopFiles.uploads}
               onProjectOpened={() => refreshStatus.current?.()}
               status={status} visible={!settingsOpen && !managementPage} remoteRef={remote}
@@ -1565,7 +1667,7 @@ function App() {
                 {!macGuest && !desktopOpen && !showHome && webPanes.length > 0 && (
                   <section className={`pane-lane browser-lane ${browserTabLayout === "vertical" ? "vertical-browser" : ""} ${dualBrowser ? "" : "split-" + paneSide(webPanes[0].id)}`}>
                     {browserTabLayout === "vertical" && <BrowserTabRail tabs={browserTabs} metadata={metadata}
-                      active={liveBrowser?.id} ready={status.ready} busy={busy} splitDrag={splitDrag}
+                      active={liveBrowser?.id} ready={browserReady} busy={busy} splitDrag={splitDrag}
                       sidebarButton={sidebarButton(paneSide(webPanes[0].id))}
                       onSelect={select} onClose={closeTab} onRename={renameTab} onPin={pinTab} onReorder={reorder}
                       onNew={newPage} />}
@@ -1577,25 +1679,26 @@ function App() {
                     <div className="pane-body" onPointerDownCapture={() => {
                       if (!dualBrowser && liveBrowser?.id !== active) focusHeader(liveBrowser);
                     }}>
-                      {status.ready && liveBrowser?.kind === "browser-settings" && <BrowserSettingsPage
+                      {browserReady && liveBrowser?.kind === "browser-settings" && <BrowserSettingsPage
                         key={`${liveBrowser.id}:${browserSettingsRevision}`} tab={liveBrowser} tabs={tabs}
                         currentHome={settings.browser_home_url} layout={browserTabLayout}
                         onLayoutChange={value => persist("cage-browser-tab-layout", value, setBrowserTabLayout)}
                         onSectionChange={openBrowserSettings}
                         onSaved={next => setSettings(previous => ({ ...previous, ...next }))}
                         onInternal={openInternalPage} onOpenPage={openSettingsPageResult} onConfirm={confirm} />}
-                      {status.ready && <RemoteView ref={remote} visible={Boolean(liveBrowserVisible && !settingsOpen && liveBrowser?.kind !== "browser-settings")}
+                      {browserReady && <RemoteView ref={remote} visible={Boolean(liveBrowserVisible && !settingsOpen && liveBrowser?.kind !== "browser-settings")}
                         copyScope={webPanes.map(tab => `${tab.id}:${tab.document || ""}`).join("|")}
                         focused={dualBrowser || liveBrowser?.id === active} keyboard={status.keyboard}
-                        guestPlatform={status.guest_system} systemClipboard={browser.capabilities?.systemClipboard !== false}
+                        guestPlatform={windowsLite ? "windows" : status.guest_system} systemClipboard={browser.capabilities?.systemClipboard !== false}
+                        allowFileTransfer={features.files}
                         tabId={liveBrowser?.id} onStatus={notify}
                         onFallback={(text, message) => setTransfer({ text, message })} />}
-                      {!status.ready && <div className="view-overlay">
+                      {!browserReady && <div className="view-overlay">
                         <RefreshCw /><h3>浏览器连接暂时不可用</h3>
-                        <p>环境和终端仍可运行；恢复浏览器不会停止现有终端。</p>
-                        <button className="primary" disabled={busy} onClick={() => startEnvironment({})}>恢复浏览器</button>
+                        <p>{windowsLite ? liteAdmissionReason || "当前沙箱未提供已验证的浏览器画面连接。" : "环境和终端仍可运行；恢复浏览器不会停止现有终端。"}</p>
+                        <button className="primary" disabled={busy} onClick={() => windowsLite ? checkLiteSpace() : startEnvironment({})}>{windowsLite ? "重新检查空间" : "恢复浏览器"}</button>
                       </div>}
-                      {status.ready && !splitReady && <div className="view-overlay">正在调整浏览器布局…</div>}
+                      {browserReady && !splitReady && <div className="view-overlay">正在调整浏览器布局…</div>}
                     </div>
                   </section>
                 )}
@@ -1606,8 +1709,11 @@ function App() {
                     onPointerDownCapture={() => focusHeader(tab)} onFocusCapture={() => focusHeader(tab)}>
                     {visible && terminalHeader(tab)}
                     <div className="pane-body">
-                      <TerminalView
+                      {(!windowsLite || terminalReady) ? <TerminalView
                         session={{ ...tab, id: tab.sessionId }}
+                        onOpenURL={windowsLite ? openBrowserPage : undefined}
+                        managedLogin={features.terminalLogin}
+                        allowFileTransfer={features.files}
                         onLoginTab={({ id }) => showBrowserResult({ id, kind: "web", login: true, incognito: true, title: "账号授权" })}
                         onControls={(control) =>
                           control
@@ -1618,7 +1724,7 @@ function App() {
                         focused={active === tab.id}
                         onStatus={notify}
                         onAccountChanged={view => { if (view?.desktop_terminal_id && view.desktop_terminal_id !== tab.sessionId) void openSessionTerminal({id:tab.cli_session_id}); }}
-                      />
+                      /> : <div className="view-overlay"><RefreshCw /><h3>终端输入已暂停</h3><p>{liteAdmissionReason || "当前沙箱未提供已验证的终端连接。"}</p><button disabled={busy} onClick={checkLiteSpace}>重新检查空间</button></div>}
                     </div>
                   </section>;
                 })}
@@ -1628,7 +1734,9 @@ function App() {
               <div className="welcome">
                 <div className="welcome-content">
                   <img className="welcome-logo" src={logo} alt="Cage" />
-                  {storageRecovery ? <>
+                  {windowsLite ? <WindowsLiteHome status={status} monitorNow={monitorNow} disconnected={Boolean(connectionError)} busy={busy}
+                    onCheck={checkLiteSpace} onStart={() => startEnvironment()}
+                    onSettings={() => openSettings("project")} onProject={() => setProjectDialog({})} onOpenPage={openBrowserPage} /> : storageRecovery ? <>
                     <h1>环境存储需要恢复</h1>
                     <p className="welcome-subtitle"><SafetyMessage message={status.storage_recovery.error} /></p>
                     <p className="field-help">在设置中恢复环境存储后，再启动浏览器和终端。诊断包可以从同一页面导出。</p>
@@ -1755,7 +1863,7 @@ function App() {
                           : !running
                             ? setupProxy
                               ? "配置网络与代理"
-                              : guestSystem?.activate ? "打开工作台" : guestSystem?.pending ? "继续安装" :
+                              : guestSystem?.guest_system === "windows-lite" ? "进入轻量空间" : guestSystem?.activate ? "打开工作台" : guestSystem?.pending ? "继续安装" :
                                 guestSystem && guestSystem.guest_system !== "debian-13" ? "安装客户机" : "启动 Cage 环境"
                             : !status.ready
                               ? "恢复浏览器"
@@ -1877,7 +1985,7 @@ function App() {
             <span className="status-divider" />
             <NetworkLatency
               key={`${proxy?.selected}:${proxy?.revision}:${running}:${busy}:${Boolean(connectionError)}`}
-              enabled={running && !busy && !connectionError}
+              enabled={running && !windowsLite && !busy && !connectionError}
               revision={proxy?.revision}
               selected={proxy?.selected}
             />
@@ -1890,7 +1998,7 @@ function App() {
                   ? status.job.message
                   : running
                     ? status.ready
-                      ? isRemoteClient() ? "文件保存在云端" : "文件与本机同步"
+                      ? windowsLite && !features.projects ? "空间已运行 · 项目共享尚未开放" : isRemoteClient() ? "文件保存在云端" : "文件与本机同步"
                       : "环境运行中 · 浏览器待恢复"
                     : "")} />
             </span>
@@ -1912,7 +2020,7 @@ function App() {
           </footer>
         </div>
       </div>
-      <BrowserUploads requests={status.ready ? browser.uploads : []} onStatus={notify} />
+      <BrowserUploads requests={browserReady && features.files ? browser.uploads : []} onStatus={notify} />
       {settingsOpen && (
         <SettingsPanel
           current={settings}
@@ -2045,7 +2153,7 @@ function App() {
           </div>
         </Modal>
       )}
-      {safetyOpen && (
+      {safetyOpen && (windowsLite ? <Modal title="轻量沙箱实时监控" onClose={() => setSafetyOpen(false)} footer={<><button onClick={() => openSettings("project")}>运行组件设置</button><button className="primary" disabled={busy || Boolean(connectionError)} onClick={checkLiteSpace}>重新检查</button></>}><WindowsLiteMonitorDetails status={status} now={monitorNow} disconnected={Boolean(connectionError)} /></Modal> :
         <SafetyPanel
           status={
             connectionError

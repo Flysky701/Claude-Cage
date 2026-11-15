@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -67,7 +68,17 @@ func (s *Server) diagnosticExport(w http.ResponseWriter, r *http.Request) {
 	defer s.diagnosticMu.Unlock()
 	guestState := "environment unavailable"
 	var guest []byte
-	if s.storageRecoveryStatus().Required {
+	if s.isWindowsLite() {
+		state := s.windowsLiteState()
+		// Deliberately exclude settings, application arguments and absolute
+		// paths: the shared export's runtime section contains diagnostics only.
+		guest, _ = json.Marshal(map[string]any{
+			"runtime": windowsLiteKind, "phase": state.Phase, "network": state.Network,
+			"process_count": state.ProcessCount, "acceptance": state.Acceptance,
+			"capabilities": windowsLiteCapabilities(state),
+		})
+		guestState = "Windows Lite runtime status; isolation acceptance not established"
+	} else if s.storageRecoveryStatus().Required {
 		guestState = "environment storage recovery pending"
 	} else if s.vmRunning() {
 		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)

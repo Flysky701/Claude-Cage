@@ -43,7 +43,12 @@ func (s *Server) removeProject(w http.ResponseWriter, r *http.Request) {
 		jsonReply(w, map[string]string{"workspace": s.workspace()})
 		return
 	}
-	if !ready {
+	if s.isWindowsLite() {
+		if err := s.requireWindowsLiteStopped(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+	} else if !ready {
 		running, err := controllerVMState(s.profile)
 		if err != nil || running {
 			http.Error(w, "环境仍在运行或运行状态无法确认。请恢复连接，或保存工作并停止环境后再移除项目。", http.StatusConflict)
@@ -106,6 +111,9 @@ func (s *Server) removeProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) checkProjectFoldersIdle(ctx context.Context, folders []string, ready bool) error {
+	if s.isWindowsLite() {
+		return s.requireWindowsLiteStopped(ctx)
+	}
 	if len(folders) == 0 {
 		return nil
 	}

@@ -106,6 +106,9 @@ type browserObservation struct {
 }
 
 func (s *Server) gateClient() (*cage.GateClient, error) {
+	if s.isWindowsLite() {
+		return nil, errors.New("Windows 轻量空间使用独立的网络检查，不调用虚拟机网络控制器")
+	}
 	return cage.OpenGateClient(s.instanceDir())
 }
 
@@ -271,6 +274,12 @@ func (s *Server) revokeNetworkNow(reason string, pause bool) error {
 	s.mu.Unlock()
 	s.safetyOp.Lock()
 	defer s.safetyOp.Unlock()
+	if s.isWindowsLite() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		_, err := s.windowsLiteCall(ctx, "stop", nil)
+		return errors.Join(intentErr, err)
+	}
 	client, err := s.gateClient()
 	if err != nil {
 		return errors.Join(intentErr, err)
@@ -635,6 +644,10 @@ func (s *Server) checkExitPolicy(ctx context.Context, cfg cage.Config, ip string
 }
 
 func (s *Server) runSafetyCheck() (returned error) {
+	if s.isWindowsLite() {
+		_, err := s.windowsLiteCall(s.operationContext(), "start", nil)
+		return err
+	}
 	defer func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -1079,6 +1092,9 @@ func (s *Server) monitorSafety() {
 }
 
 func (s *Server) monitorSafetyWithProbe(probe func(context.Context, cage.Config) (string, error)) {
+	if s.isWindowsLite() {
+		return
+	}
 	if !s.monitorSafetyOp.TryLock() {
 		return
 	}

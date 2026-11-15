@@ -22,7 +22,7 @@ func (s *Server) vnc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "环境尚未就绪", 409)
 		return
 	}
-	if s.macosGuest != nil || s.windowsGuest != nil {
+	if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() {
 		s.nativeBrowserVNC(w, r)
 		return
 	}

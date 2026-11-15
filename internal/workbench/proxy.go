@@ -67,7 +67,7 @@ func (s *Server) proxyStatus(w http.ResponseWriter, r *http.Request) {
 		state, label = "stopped", "代理已停止"
 		if running {
 			state, label = "prepared", "待启动环境"
-			if s.vmRunning() {
+			if s.vmRunning() && !s.isWindowsLite() {
 				state, label = "paused", "外网未放行"
 				if client, e := s.gateClient(); e == nil {
 					if gate, e := client.Status(ctx); e == nil {
@@ -96,7 +96,10 @@ func (s *Server) proxyStatus(w http.ResponseWriter, r *http.Request) {
 	if routeErr != nil && selected {
 		routeError = routeErr.Error()
 	}
-	jsonReply(w, map[string]any{"route": route, "route_error": routeError, "sources": sources, "selected": p.Selected, "port": p.Port, "running": running, "active": active, "state": state, "state_label": label, "network_open": state == "ready", "core_available": coreErr == nil, "version": version.Version, "revision": p.Revision, "bootstrap_dns": strings.Join(managedproxy.BootstrapDNSURLs(), "、"), "udp_blocked": true, "ipv6_blocked": true})
+	if s.isWindowsLite() && running && active {
+		state, label = "prepared", "节点已应用，空间联网尚未验收"
+	}
+	jsonReply(w, map[string]any{"route": route, "route_error": routeError, "sources": sources, "selected": p.Selected, "port": p.Port, "running": running, "active": active, "state": state, "state_label": label, "network_open": state == "ready", "core_available": coreErr == nil, "version": version.Version, "revision": p.Revision, "bootstrap_dns": strings.Join(managedproxy.BootstrapDNSURLs(), "、"), "udp_blocked": !s.isWindowsLite(), "ipv6_blocked": !s.isWindowsLite()})
 }
 func (s *Server) proxyMutation(w http.ResponseWriter, r *http.Request) {
 	var input proxyInput
@@ -305,6 +308,9 @@ func (s *Server) proxySourceFailure(id string, failure error) {
 	}
 }
 func (s *Server) closeProxyGate(reason string) error {
+	if s.isWindowsLite() {
+		return s.revokeNetworkNow(reason, false)
+	}
 	if !s.vmRunning() {
 		return nil
 	}
@@ -319,6 +325,11 @@ func (s *Server) activateProxy(p managedproxy.Store, old cage.Config) (returned 
 
 func (s *Server) applyProxy(p managedproxy.Store, old cage.Config, resumeVersion *uint64, selectExit bool) (returned error) {
 	ctx := s.operationContext()
+	if s.isWindowsLite() {
+		if err := s.requireWindowsLiteStopped(ctx); err != nil {
+			return err
+		}
+	}
 	previous, err := managedproxy.Load(s.profile)
 	if err != nil {
 		return err
@@ -364,6 +375,17 @@ func (s *Server) applyProxy(p managedproxy.Store, old cage.Config, resumeVersion
 		return err
 	}
 	committed = true
+	if s.isWindowsLite() {
+		settings := map[string]any{"connectionFile": s.configPath}
+		if core, err := managedproxy.CorePath(); err == nil {
+			settings["proxyCore"] = core
+		}
+		if _, err := s.windowsLiteCall(ctx, "configure", map[string]any{"settings": settings}); err != nil {
+			return err
+		}
+		s.setMessage("代理节点已应用，可在此检查连接；空间内联网仍需通过隔离与断线阻断验收")
+		return nil
+	}
 	if resumeVersion != nil {
 		if err := s.resumeNetworkIntentAt(*resumeVersion); err != nil {
 			return err
@@ -467,6 +489,9 @@ func (s *Server) proxyLogs(w http.ResponseWriter, r *http.Request) {
 	// Whitelisted lifecycle messages avoid publishing upstream raw log lines,
 	// which can contain subscription secrets, credentials and host paths.
 	lines := []string{"客机公网 UDP、IPv6、ICMP：阻断", "业务 DNS：经选定节点转发", "代理基础设施 DNS：" + strings.Join(managedproxy.BootstrapDNSURLs(), "、") + "（主机网络，并行查询）"}
+	if s.isWindowsLite() {
+		lines = []string{"Windows 轻量空间：应用联网尚未通过验收，未启动盒内应用", "节点与核心状态只表示 Cage 代理配置，不代表空间 DNS 或协议阻断已验证", "代理基础设施 DNS：" + strings.Join(managedproxy.BootstrapDNSURLs(), "、") + "（主机网络，并行查询）"}
+	}
 	if managedproxy.Running(r.Context(), s.profile, p) {
 		lines = append(lines, "内置核心运行中；已读回当前节点选择")
 	} else {

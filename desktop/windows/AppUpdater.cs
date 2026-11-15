@@ -35,6 +35,12 @@ internal sealed class AppUpdater : IDisposable
 
     public Dictionary<string, object?> Handle(string operation)
     {
+        if (Backend.WindowsLite)
+        {
+            if (state["phase"] as string != "manual" || operation != "status")
+                Change("manual", "Windows 轻量空间测试包由独立构建更新，空间数据会保留。");
+            return new(state);
+        }
         if (Backend.ClientOnly)
         {
             if (state["phase"] as string != "manual" || operation != "status")

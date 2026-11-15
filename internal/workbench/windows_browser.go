@@ -22,7 +22,9 @@ func (s *Server) nativeBrowserClient() *windowsBrowserClient {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.windowsBrowserControl == nil {
-		if s.macosGuest != nil {
+		if s.isWindowsLite() {
+			s.windowsBrowserControl = s.newWindowsLiteBrowserClient(s.lifetimeContextLocked())
+		} else if s.macosGuest != nil {
 			ctx, cancel := context.WithCancel(s.lifetimeContextLocked())
 			s.windowsBrowserControl = &windowsBrowserClient{ctx: ctx, cancel: cancel, ownsBrowser: true, start: func(ctx context.Context) (*exec.Cmd, error) {
 				const base = guestos.MacOSBrowserTools + "/"
@@ -261,8 +263,8 @@ func (s *Server) nativeBrowserVNC(w http.ResponseWriter, r *http.Request) {
 	release := func() {}
 	// Whether this viewer's guest connection is its own, so that ending it
 	// releases only this viewer's held input.
-	ownConnection := s.macosGuest == nil
-	if s.macosGuest != nil {
+	ownConnection := s.macosGuest == nil && !s.isWindowsLite()
+	if s.macosGuest != nil || s.isWindowsLite() {
 		client = s.nativeBrowserClient()
 	} else {
 		client = newWindowsBrowserClient(ctx, s.profile)
@@ -336,7 +338,7 @@ func (s *Server) nativeBrowserVNC(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 409)
 		return
 	}
-	if s.macosGuest != nil {
+	if s.macosGuest != nil || s.isWindowsLite() {
 		owner := client
 		client, release = owner.viewer(ctx)
 		ownConnection = client != owner

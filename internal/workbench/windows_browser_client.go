@@ -24,6 +24,7 @@ type windowsBrowserClient struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	start       func(context.Context) (*exec.Cmd, error)
+	admit       func() error
 	cmd         *exec.Cmd
 	input       io.WriteCloser
 	output      *bufio.Scanner
@@ -178,6 +179,11 @@ func (c *windowsBrowserClient) releaseViewerInput() {
 }
 
 func (c *windowsBrowserClient) request(ctx context.Context, method, path string, input any) ([]byte, error) {
+	if c.admit != nil {
+		if err := c.admit(); err != nil {
+			return nil, err
+		}
+	}
 	if !validWindowsBrowserRoute(method, path) {
 		return nil, browserInputError{errors.New("客机浏览器操作无效")}
 	}

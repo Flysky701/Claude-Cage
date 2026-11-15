@@ -25,6 +25,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -41,6 +42,7 @@ type controlFile struct {
 	Controller ControllerIdentity `json:"controller"`
 }
 type Server struct {
+	windowsLite                                      atomic.Pointer[windowsLiteRuntime]
 	desktopViews                                     displayViewDemand
 	desktopDisplayUpdate                             func(bool) error
 	browserViews                                     displayViewDemand
@@ -205,27 +207,37 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 	}
 	defer s.remote.close()
 	if workload {
-		if err = guestos.RecoverWindowsStorage(context.Background(), profile); err != nil {
-			s.failStorageRecovery(err)
-		}
-		s.macosGuest, err = guestos.LoadMacOSProfile(profile)
-		if err != nil {
+		if err = s.loadWindowsLiteMode(); err != nil {
 			return err
 		}
-		s.windowsGuest, err = guestos.LoadWindowsProfile(profile)
-		if err != nil {
-			return err
+		if s.windowsLiteReview() && !s.isWindowsLite() {
+			if err = s.chooseWindowsLiteLocked(); err != nil {
+				return err
+			}
 		}
-		if s.macosGuest != nil && s.windowsGuest != nil {
-			return errors.New("一个配置只能绑定一个客机系统")
-		}
-		if s.windowsGuest != nil {
-			pending, err := guestos.WindowsCloneCleanupPending(profile)
+		if !s.isWindowsLite() {
+			if err = guestos.RecoverWindowsStorage(context.Background(), profile); err != nil {
+				s.failStorageRecovery(err)
+			}
+			s.macosGuest, err = guestos.LoadMacOSProfile(profile)
 			if err != nil {
 				return err
 			}
-			if pending {
-				s.windowsGuest = nil
+			s.windowsGuest, err = guestos.LoadWindowsProfile(profile)
+			if err != nil {
+				return err
+			}
+			if s.macosGuest != nil && s.windowsGuest != nil {
+				return errors.New("一个配置只能绑定一个客机系统")
+			}
+			if s.windowsGuest != nil {
+				pending, err := guestos.WindowsCloneCleanupPending(profile)
+				if err != nil {
+					return err
+				}
+				if pending {
+					s.windowsGuest = nil
+				}
 			}
 		}
 		s.instanceID, err = ensureRemoteInstance(profile)
@@ -245,7 +257,7 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 			s.preferences.BalancedDisplay = false
 			_ = json.Unmarshal(b, &s.preferences)
 		}
-		if !s.storageRecoveryStatus().Required {
+		if !s.isWindowsLite() && !s.storageRecoveryStatus().Required {
 			if err = s.prepareEnvironment(); err != nil {
 				if s.windowsGuest == nil {
 					return err
@@ -254,7 +266,9 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 			}
 		}
 		// Invalid intent keeps the gate paused and its error visible in status.
-		s.restoreNetworkIntent()
+		if !s.isWindowsLite() {
+			s.restoreNetworkIntent()
+		}
 		if s.preferences.Keyboard == "" {
 			s.preferences.Keyboard = defaultKeyboard()
 		}
@@ -264,19 +278,24 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 			}
 		}
 		// A previously running VM cannot keep an unmanaged endpoint online.
-		if s.macosGuest != nil {
+		if s.isWindowsLite() {
+			// The Lite worker is optional during UI startup; unavailable runtime
+			// dependencies remain a visible blocked state in the normal workbench.
+		} else if s.macosGuest != nil {
 			_ = s.closeProxyGate("控制服务已重新连接，外网等待重新检查")
 		} else if cfg, e := loadConfig(configPath); s.windowsGuest == nil && (e != nil || cfg.RequireManagedProxy(profile) != nil) {
 			_ = s.closeProxyGate("尚未配置有效节点，外网保持关闭")
 		}
-		if s.networkPaused && s.windowsGuest == nil {
+		if !s.isWindowsLite() && s.networkPaused && s.windowsGuest == nil {
 			_ = s.closeProxyGate("网络保持暂停，请手动恢复后再联网")
 		}
-		s.startMonitors()
-		if err = s.restorePhone(); err != nil {
-			s.phones.status = "无法恢复手机配对，请移除旧记录后重试"
+		if !s.isWindowsLite() {
+			s.startMonitors()
+			if err = s.restorePhone(); err != nil {
+				s.phones.status = "无法恢复手机配对，请移除旧记录后重试"
+			}
+			defer s.stopPhone()
 		}
-		defer s.stopPhone()
 	}
 	s.identity, err = currentController()
 	if err != nil {
@@ -371,6 +390,12 @@ func (s *Server) handler() http.Handler {
 		jsonReply(w, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("GET /api/status", s.status)
+	mux.HandleFunc("POST /api/environment/runtime", s.selectEnvironmentRuntime)
+	mux.HandleFunc("GET /api/windows-lite", s.windowsLiteEndpoint)
+	mux.HandleFunc("POST /api/windows-lite", s.windowsLiteEndpoint)
+	mux.HandleFunc("POST /api/windows-lite/check", s.windowsLiteEndpoint)
+	mux.HandleFunc("POST /api/windows-lite/launch", s.windowsLiteEndpoint)
+	mux.HandleFunc("POST /api/windows-lite/setup", s.setupWindowsLiteEndpoint)
 	mux.HandleFunc("GET /api/environment/initialization", s.initialization)
 	mux.HandleFunc("POST /api/environment/initialization", s.initialization)
 	mux.HandleFunc("GET /api/remote/manifest", s.remoteManifest)
@@ -460,6 +485,10 @@ func (s *Server) handler() http.Handler {
 		}
 		// A Linux guest scrolls its page by the viewer's distance, outside the
 		// display stream. The native guests negotiate it inside theirs.
+		if s.isWindowsLite() {
+			jsonReply(w, map[string]any{"password": "", "display_scale": 1, "dynamic_scale": true, "pixel_wheel": false})
+			return
+		}
 		jsonReply(w, map[string]any{"password": s.credentials.VNCPassword, "display_scale": s.credentials.DisplayScale, "dynamic_scale": s.credentials.DynamicScale, "pixel_wheel": s.macosGuest == nil && s.windowsGuest == nil})
 	})
 	mux.HandleFunc("GET /api/vnc", s.vnc)
@@ -535,7 +564,7 @@ func (s *Server) handler() http.Handler {
 			mux.ServeHTTP(w, r)
 			return
 		}
-		if s.macosGuest == nil && !s.desktopEntry && !s.clientOnly && strings.HasPrefix(r.URL.Path, "/api/") {
+		if !s.isWindowsLite() && s.macosGuest == nil && !s.desktopEntry && !s.clientOnly && strings.HasPrefix(r.URL.Path, "/api/") {
 			pending, err := guestos.LoadInstallation(s.profile)
 			if err != nil {
 				if !macOSInstallRecoveryRoute(r.Method, r.URL.Path) {
@@ -547,6 +576,10 @@ func (s *Server) handler() http.Handler {
 				http.Error(w, "macOS 客机尚未完成安装", http.StatusConflict)
 				return
 			}
+		}
+		if s.isWindowsLite() && !windowsLiteWorkbenchRoute(r.Method, r.URL.Path) {
+			http.Error(w, "此功能尚未接入 Windows 轻量空间；原数据已保留", http.StatusConflict)
+			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/agent/native") || r.URL.Path == "/api/agent/routes" {
 			mux.ServeHTTP(w, r)
@@ -574,7 +607,7 @@ func (s *Server) handler() http.Handler {
 				http.Error(w, "请连接运行 Cage 环境的主机", http.StatusConflict)
 				return
 			}
-		} else if s.macosGuest == nil && s.windowsGuest == nil && s.routeRemote(w, r) {
+		} else if !s.isWindowsLite() && s.macosGuest == nil && s.windowsGuest == nil && s.routeRemote(w, r) {
 			return
 		}
 		ctx, finish, err := s.beginActivity(r.Context())
@@ -664,6 +697,14 @@ func requestError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusBadRequest)
 }
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
+	var lite windowsLiteSnapshot
+	if s.isWindowsLite() {
+		if s.busy() {
+			lite = s.windowsLiteState()
+		} else {
+			lite, _ = s.windowsLiteCall(r.Context(), "status", nil)
+		}
+	}
 	if s.windowsGuest != nil && !s.storageRecoveryStatus().Required {
 		s.refreshWindowsComponents()
 	}
@@ -698,7 +739,17 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		"location": s.location, "network_error": s.currentNetworkErrorLocked(), "can_restore": e == nil,
 		"safety": s.safety, "environment_update_required": s.guestUpdateRequired, "environment_update_error": s.guestUpdateError,
 	}
-	if s.windowsGuest != nil {
+	if s.isWindowsLite() {
+		view["runtime_kind"], view["guest_system"] = windowsLiteKind, windowsLiteKind
+		view["windows_lite"] = lite
+		view["runtime_capabilities"] = windowsLiteCapabilities(lite)
+		view["ready"] = windowsLiteAdmitted(lite)
+		view["vm_running"] = lite.ProcessCount > 0 || lite.Phase == "running"
+		view["environment_directory"] = s.windowsLiteProfile()
+		view["environment_identity_directory"] = s.windowsLiteProfile()
+		view["network_error"] = lite.Message
+		view["safety"] = map[string]any{"gate": nil, "report": nil, "error": lite.Message}
+	} else if s.windowsGuest != nil {
 		view["guest_system"] = guestos.Windows11
 		view["guest_capabilities"] = s.windowsCapabilitiesLocked()
 		view["location"] = nil
@@ -808,6 +859,14 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 	if r.ContentLength != 0 && !readJSON(w, r, &input) {
 		return
 	}
+	if s.isWindowsLite() {
+		if input.System != "" && input.System != windowsLiteKind || input.CloneKey != "" {
+			http.Error(w, "当前配置已选择 Windows 轻量空间，不会启动其他客户机", http.StatusConflict)
+			return
+		}
+		s.launch(w, "start", s.startWindowsLite)
+		return
+	}
 	if s.windowsGuest != nil {
 		if input.System != "" && input.System != guestos.Windows11 {
 			http.Error(w, "此配置已绑定 Windows 客机", http.StatusConflict)
@@ -891,6 +950,15 @@ func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) requestStop(w http.ResponseWriter, logout bool) {
+	if s.isWindowsLite() {
+		s.jobs.cancelRunning()
+		kind := "stop"
+		if logout {
+			kind = "logout"
+		}
+		s.launch(w, kind, s.stopWindowsLite)
+		return
+	}
 	if err := s.requireStorageReady(); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return

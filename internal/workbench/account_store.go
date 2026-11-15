@@ -52,6 +52,7 @@ type localAccount struct {
 }
 
 type accountView struct {
+	WindowsLiteReview     bool              `json:"windows_lite_review,omitempty"`
 	RecoveryReady         bool              `json:"recovery_ready"`
 	MacOSAccountHost      bool              `json:"macos_account_host,omitempty"`
 	MacOSCredentialsReady bool              `json:"macos_credentials_ready,omitempty"`

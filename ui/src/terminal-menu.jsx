@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useRef } from "react";
 import { TerminalSquare } from "lucide-react";
 import { AgentIcon } from "./agent-icon";
 
-export function TerminalMenu({ choice, busy, onClose, onSelect }) {
+export function TerminalMenu({ choice, busy, shellAvailable = true, claudeAvailable = true, onClose, onSelect }) {
   const menu = useRef(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -52,10 +52,10 @@ export function TerminalMenu({ choice, busy, onClose, onSelect }) {
 
   return (
     <div ref={menu} id="terminal-create-menu" className="menu terminal-create-menu" role="menu" aria-label="新建终端">
-      <button role="menuitem" disabled={busy} onClick={() => onSelect("shell")}>
+      <button role="menuitem" disabled={busy || !shellAvailable} title={!shellAvailable ? "普通终端尚未就绪" : undefined} onClick={() => onSelect("shell")}>
         <TerminalSquare size={16} />普通终端
       </button>
-      <button role="menuitem" disabled={busy} onClick={() => onSelect("claude")}>
+      <button role="menuitem" disabled={busy || !claudeAvailable} title={!claudeAvailable ? "Claude 终端尚未完成适配或空间检查未通过" : undefined} onClick={() => onSelect("claude")}>
         <AgentIcon />Claude 终端
       </button>
     </div>

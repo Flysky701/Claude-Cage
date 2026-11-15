@@ -29,18 +29,29 @@ type guestInstallRequest struct {
 }
 
 type guestInstallView struct {
-	LinuxSystems []string              `json:"linux_systems,omitempty"`
-	Reselect     bool                  `json:"reselect,omitempty"`
-	System       string                `json:"system,omitempty"`
-	Available    bool                  `json:"available"`
-	Reason       string                `json:"reason,omitempty"`
-	Fresh        bool                  `json:"fresh"`
-	Pending      *guestos.Installation `json:"pending,omitempty"`
-	Activate     bool                  `json:"activate,omitempty"`
+	WindowsLiteReview    bool                  `json:"windows_lite_review"`
+	WindowsLiteAvailable bool                  `json:"windows_lite_available"`
+	LinuxSystems         []string              `json:"linux_systems,omitempty"`
+	Reselect             bool                  `json:"reselect,omitempty"`
+	System               string                `json:"system,omitempty"`
+	Available            bool                  `json:"available"`
+	Reason               string                `json:"reason,omitempty"`
+	Fresh                bool                  `json:"fresh"`
+	Pending              *guestos.Installation `json:"pending,omitempty"`
+	Activate             bool                  `json:"activate,omitempty"`
 }
 
 func (s *Server) guestInstallView() (guestInstallView, error) {
-	v := guestInstallView{}
+	v := guestInstallView{WindowsLiteAvailable: windowsLiteHostAvailable(), WindowsLiteReview: s.windowsLiteReview()}
+	if v.WindowsLiteReview {
+		v.System, v.Available, v.Fresh = windowsLiteKind, true, true
+		return v, nil
+	}
+	if s.isWindowsLite() {
+		v.System = windowsLiteKind
+		v.Reason = "已选择 Windows 轻量空间；无需安装客户机系统，隔离状态以空间检查为准"
+		return v, nil
+	}
 	if !s.localVMStorage() || s.macosGuest != nil || s.windowsGuest != nil {
 		return v, nil
 	}
@@ -114,7 +125,7 @@ func (s *Server) guestInstallView() (guestInstallView, error) {
 }
 
 func (s *Server) guestInstallation(w http.ResponseWriter, r *http.Request) {
-	if !s.hasTrustedView(r) || !s.localVMStorage() {
+	if !s.hasTrustedView(r) || (!s.localVMStorage() && !(r.Method == http.MethodGet && (s.isWindowsLite() || s.windowsLiteReview()))) {
 		http.Error(w, "请在本机 Cage 窗口选择客户机系统", http.StatusForbidden)
 		return
 	}

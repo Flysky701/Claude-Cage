@@ -81,6 +81,7 @@ export function BrowserTabRail({ tabs, metadata, active, ready, busy, splitDrag,
 }
 
 export function BrowserHeader({ vault, onManageVault, tab, tabs, metadata, ready, busy, focused, compact, triggerRef, vertical,
+  allowFileTransfer = true, fileTransferReason,
   sidebarButton, exitButton, splitDrag, onSelect, onClose, onRename, onPin, onReorder, onNew,
   location, menu, back, forward, action, onNavigate, onOpen, onNewPrivate, onNewRegular, onCloseBrowser, onSettings, onReload, downloads, onStatus, onEditor, onRecover, recoveringEditor }) {
   const [address, setAddress] = useState("");
@@ -207,7 +208,7 @@ export function BrowserHeader({ vault, onManageVault, tab, tabs, metadata, ready
         </button>
       </form>
       <BrowserFavorites current={tab} shortcuts={focused} ready={ready && !busy} onOpen={onOpen} />
-      <BrowserDownloads downloads={downloads} ready={ready && !busy} onStatus={onStatus} />
+      <BrowserDownloads downloads={downloads} ready={ready && !busy} allowFileTransfer={allowFileTransfer} unavailableReason={fileTransferReason} onStatus={onStatus} />
       <button className="icon-button browser-more-trigger" aria-label="浏览器菜单" title="浏览器菜单"
         ref={toolsTrigger} aria-haspopup="menu"
         aria-expanded={toolsOpen} aria-controls={`browser-menu-${tab.id}`}
@@ -231,7 +232,7 @@ export function BrowserHeader({ vault, onManageVault, tab, tabs, metadata, ready
         {tab.incognito && <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={onNewRegular}><Globe2 size={16} />新建普通标签</button>}
         {!tab.login && tab.kind !== "browser-settings" && <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={() => setCookiesOpen(true)}><Cookie size={16} />管理 Cookie</button>}
         <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={() => onSettings('extensions')}><Puzzle size={16} />扩展</button>
-        <BrowserDownloads menu anchorRef={toolsTrigger} downloads={downloads} ready={ready && !busy} onStatus={onStatus} />
+        <BrowserDownloads menu anchorRef={toolsTrigger} downloads={downloads} ready={ready && !busy} allowFileTransfer={allowFileTransfer} unavailableReason={fileTransferReason} onStatus={onStatus} />
         {tab.kind === "editor" && <button className="browser-menu-item" role="menuitem" aria-label="恢复编辑器" title="单独重启编辑器"
           disabled={!ready || busy || recoveringEditor} onClick={onRecover}>
           <RefreshCw size={16} className={recoveringEditor ? "spin" : ""} /><span>恢复编辑器</span>

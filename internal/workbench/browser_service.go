@@ -83,7 +83,7 @@ func (s *Server) browserClient() *browserClient {
 }
 
 func (s *Server) guestAPI(ctx context.Context, token, method, path string, body []byte) ([]byte, error) {
-	if s.macosGuest != nil || s.windowsGuest != nil {
+	if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() {
 		return s.nativeBrowserAPI(ctx, method, path, body)
 	}
 	return s.browserClient().request(ctx, token, method, path, body)
@@ -96,6 +96,12 @@ func (s *Server) setBrowserHome(ctx context.Context, token, home string) error {
 }
 
 func (s *Server) browserAction(ctx context.Context, action string, input *browserInput) ([]byte, error) {
+	if (action == "download-retry" || action == "upload-finish" || action == "upload-cancel") && !s.windowsLiteFeatureAvailable("file_transfer") {
+		return nil, errBrowserNotReady
+	}
+	if s.isWindowsLite() && !windowsLiteAdmitted(s.windowsLiteState()) {
+		return nil, errBrowserNotReady
+	}
 	s.mu.Lock()
 	ready, token := s.ready, s.credentials.Token
 	s.mu.Unlock()
@@ -106,7 +112,7 @@ func (s *Server) browserAction(ctx context.Context, action string, input *browse
 	var body []byte
 	if input != nil {
 		method = http.MethodPost
-		if action == "download-retry" && (s.macosGuest != nil || s.windowsGuest != nil) {
+		if action == "download-retry" && (s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite()) {
 			if handled, err := s.retryNativeDownload(input.ID); handled {
 				return []byte(`{"ok":true}`), err
 			}
@@ -126,7 +132,7 @@ func (s *Server) browserAction(ctx context.Context, action string, input *browse
 		if action == "wheel" {
 			// Only the Linux guest's controller scrolls a page by a distance.
 			// The native displays take it inside their own display stream.
-			if s.macosGuest != nil || s.windowsGuest != nil || !validWheel(input) {
+			if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() || !validWheel(input) {
 				return nil, browserInputError{errors.New("滚动位置或距离无效")}
 			}
 			body, _ := json.Marshal(map[string]int{"x": input.X, "y": input.Y, "deltaX": input.DeltaX, "deltaY": input.DeltaY})
@@ -230,7 +236,7 @@ func (s *Server) subscribeBrowser(ctx context.Context) (io.ReadCloser, error) {
 	if !ready {
 		return nil, errBrowserNotReady
 	}
-	if s.macosGuest != nil || s.windowsGuest != nil {
+	if s.macosGuest != nil || s.windowsGuest != nil || s.isWindowsLite() {
 		return s.subscribeNativeBrowser(ctx), nil
 	}
 	return s.browserClient().events(ctx, token)

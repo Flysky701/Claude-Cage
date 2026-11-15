@@ -194,7 +194,8 @@ func (m *jobManager) finishLocked(execution *jobExecution, err error) {
 
 func jobName(kind string) string {
 	names := map[string]string{
-		"start": "启动环境", "stop": "停止环境", "setup": "准备环境", "settings": "应用设置", "project": "连接项目目录", "storage": "迁移环境目录", "restore": "恢复配置", "resources": "应用资源配置", "safety": "检查联网条件", "network-recovery": "恢复联网", "proxy": "应用代理节点", "proxy-network": "恢复代理连接", "environment-update": "更新环境组件", "environment-tools": "更新环境工具", "claude-desktop-install": "安装 Claude Desktop", "claude-desktop-start": "打开 Claude Desktop", "claude-desktop-stop": "关闭 Claude Desktop",
+		"windows-lite-setup": "安装轻量沙箱",
+		"start":              "启动环境", "stop": "停止环境", "setup": "准备环境", "settings": "应用设置", "project": "连接项目目录", "storage": "迁移环境目录", "restore": "恢复配置", "resources": "应用资源配置", "safety": "检查联网条件", "network-recovery": "恢复联网", "proxy": "应用代理节点", "proxy-network": "恢复代理连接", "environment-update": "更新环境组件", "environment-tools": "更新环境工具", "claude-desktop-install": "安装 Claude Desktop", "claude-desktop-start": "打开 Claude Desktop", "claude-desktop-stop": "关闭 Claude Desktop",
 	}
 	if name := names[kind]; name != "" {
 		return name

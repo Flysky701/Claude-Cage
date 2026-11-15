@@ -1,0 +1,35 @@
+.windows-lite-overview { width: 100%; text-align: left; }
+.windows-lite-overview > h1, .windows-lite-overview > .welcome-subtitle { text-align: center; }
+.windows-lite-overview .environment-summary small { white-space: normal; overflow-wrap: anywhere; }
+.windows-lite-facts { display: flex; flex-wrap: wrap; gap: 20px; padding: 0 18px 16px; color: var(--muted); font-size: .9286rem; }
+.windows-lite-facts strong { margin-left: 8px; color: var(--ink); font-weight: 500; }
+.windows-lite-capabilities { margin: 22px 0; }
+.windows-lite-capabilities p { display: grid; grid-template-columns: 100px 1fr; gap: 14px; margin: 12px 0; font-size: .9286rem; line-height: 1.7; }
+.windows-lite-capabilities p span { color: var(--muted); }
+.windows-lite-favorites { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--muted); font-size: .9286rem; }
+.windows-lite-monitor { border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 16px; }
+.windows-lite-monitor > strong { font-size: 1rem; }
+.windows-lite-monitor .windows-lite-facts { padding: 10px 0 0; gap: 14px; }
+.windows-lite-monitor time { margin-left: 6px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.windows-lite-monitor p { color: var(--muted); line-height: 1.7; margin: 8px 0 0; font-size: .9286rem; overflow-wrap: anywhere; }
+.windows-lite-checks { border: 1px solid var(--line); border-radius: 10px; text-align: left; }
+.windows-lite-checks summary { padding: 12px 14px; cursor: pointer; font-weight: 500; }
+.windows-lite-checks summary span { float: right; margin-left: 10px; color: var(--muted); font-weight: 400; }
+.windows-lite-checks ul { list-style: none; margin: 0; padding: 0 14px; }
+.windows-lite-checks li { display: flex; align-items: flex-start; gap: 9px; padding: 12px 0; border-top: 1px solid var(--line); font-size: .9286rem; }
+.windows-lite-checks li > svg { flex-shrink: 0; margin-top: 3px; color: var(--muted); }
+.windows-lite-checks li div { flex: 1; min-width: 0; }
+.windows-lite-checks li strong { font-weight: 500; }
+.windows-lite-checks li p { margin: 4px 0 0; color: var(--muted); overflow-wrap: anywhere; line-height: 1.6; }
+.windows-lite-checks li > small { flex-shrink: 0; color: var(--muted); }
+.windows-lite-profile { display: flex; gap: 7px; margin: 16px 0 0; color: var(--muted); font-size: .8571rem; overflow-wrap: anywhere; }
+.windows-lite-profile svg { flex-shrink: 0; margin-top: 2px; }
+.windows-lite-settings { margin: 28px 0; }
+.windows-lite-settings fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.windows-lite-settings .setting-summary-row strong { overflow-wrap: anywhere; white-space: normal; }
+.windows-lite-app-setting { border-top: 1px solid var(--line); padding: 12px 0; }
+.windows-lite-app-setting summary { cursor: pointer; }
+.windows-lite-app-setting summary small { float: right; color: var(--muted); }
+.windows-lite-app-setting label { margin-top: 14px; }
+.windows-lite-settings-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
+@media (max-width: 600px) { .windows-lite-capabilities p { grid-template-columns: 1fr; gap: 2px; } .windows-lite-overview .start-project-footer { flex-wrap: wrap; gap: 10px; } }
