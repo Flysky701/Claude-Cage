@@ -23,6 +23,7 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/docker/go-units v0.5.0
 	github.com/google/uuid v1.6.0
+	github.com/klauspost/compress v1.18.5
 	github.com/lima-vm/lima/v2 v2.0.0
 	github.com/lima-vm/sshocker v0.3.11
 	github.com/mattn/go-isatty v0.0.24
@@ -137,4 +138,11 @@ require (
 	gopkg.in/op/go-logging.v1 v1.0.0-20160211212156-b2cb9fa56473 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gvisor.dev/gvisor v0.0.0-20240916094835-a174eb65023f // indirect
+)
+
+require (
+	github.com/anchore/go-lzo v0.1.0 // indirect
+	github.com/elliotwutingfeng/asciiset v0.0.0-20260129054604-cfde2086bc57 // indirect
+	github.com/pkg/xattr v0.4.12 // indirect
+	github.com/ulikunitz/xz v0.5.15 // indirect
 )

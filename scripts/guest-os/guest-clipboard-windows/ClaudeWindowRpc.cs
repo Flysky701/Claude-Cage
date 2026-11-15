@@ -17,11 +17,27 @@ internal static class ClaudeWindowRpc
     private const string Family = "Claude_pzs8sxrjxfjjc";
     private const string Publisher = "CN=\"Anthropic, PBC\", O=\"Anthropic, PBC\", L=San Francisco, S=California, C=US, SERIALNUMBER=4860621, OID.2.5.4.15=Private Organization, OID.1.3.6.1.4.1.311.60.2.1.2=Delaware, OID.1.3.6.1.4.1.311.60.2.1.3=US";
     private static readonly SemaphoreSlim Operations = new(1, 1);
-    private static readonly SemaphoreSlim Captures = new(1, 1);
+    // Operations protects publication, not the graphics driver or PNG encoder.
+    private static Task<CapturedFrame>? capturing;
+    private static long captureStarted;
+    private static CapturedFrame? latestFrame;
     [ModuleInitializer] internal static void Register() => GuestOperations.Register("desktop", Run);
 
     private sealed record Registration(string Executable, string Version);
     private sealed record Window(Process Process, IntPtr Handle, Rect Bounds, string Executable);
+    private sealed record CapturedFrame(string Target, string Sequence, string PNG, int Width, int Height, double Density)
+    {
+        internal JsonObject Reply(string? after) => after == Sequence
+            ? new JsonObject { ["unchanged"] = true, ["sequence"] = Sequence }
+            : new JsonObject { ["png"] = PNG, ["sequence"] = Sequence, ["width"] = Width, ["height"] = Height, ["target"] = Target, ["density"] = Density };
+    }
+    // A thread-local Windows setting must end before any await or GUI dispatch.
+    private readonly ref struct PhysicalPixels
+    {
+        private readonly IntPtr previous;
+        public PhysicalPixels() => previous = SetThreadDpiAwarenessContext(new IntPtr(-4));
+        public void Dispose() { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
+    }
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
     [StructLayout(LayoutKind.Sequential)] private struct Keyboard { public ushort Key, Scan; public uint Flags, Time; public UIntPtr Extra; }
@@ -86,6 +102,7 @@ internal static class ClaudeWindowRpc
 
     private static Window Find(string executable)
     {
+        using var dpi = new PhysicalPixels();
         var session = Process.GetCurrentProcess().SessionId;
         foreach (var p in Process.GetProcessesByName("Claude"))
         {
@@ -127,6 +144,7 @@ internal static class ClaudeWindowRpc
     // Bring only the requested part of this window into the guest work area.
     private static Point PositionPointer(Window w, int x, int y)
     {
+        using var dpi = new PhysicalPixels();
         Validate(w,true);
         var point=new Point {X=x, Y=y};
         var monitor=new MonitorInfo {Size=(uint)Marshal.SizeOf<MonitorInfo>()};
@@ -154,6 +172,7 @@ internal static class ClaudeWindowRpc
     // authenticated app's visible button without using the global pointer.
     private static AutomationElement? WelcomeButton(Window w, int x, int y)
     {
+        using var dpi = new PhysicalPixels();
         Validate(w,false);
         var point=new Point {X=x,Y=y};
         if(!ClientToScreen(w.Handle,ref point)) return null;
@@ -183,12 +202,21 @@ internal static class ClaudeWindowRpc
         {
         while (await Protocol.Read(stream, Protocol.WireLimit, token) is { } value)
         {
-            await Operations.WaitAsync(token);
-            var dpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
+            var ownsOperation = false;
             try
             {
                 if (!available()) throw new InvalidDataException("requires_gui_login");
                 var action = value["action"]?.GetValue<string>() ?? "";
+                if (action == "frame")
+                {
+                    var frame = await ReadFrame(value["after"]?.GetValue<string>(), token, available);
+                    if (!available()) throw new InvalidDataException("requires_gui_login");
+                    await Protocol.Write(stream, frame, token);
+                    continue;
+                }
+                await Operations.WaitAsync(token);
+                ownsOperation = true;
+                if (!available()) throw new InvalidDataException("requires_gui_login");
                 if (action is "files-download-open" or "files-download-read" or "files-download-close" or "files-download-retry" or "files-download-ack")
                 {
                     await Protocol.Write(stream, WindowsDesktopDownloads.Read(value), token); continue;
@@ -297,47 +325,16 @@ internal static class ClaudeWindowRpc
                 if (action == "ime")
                 {
                     Validate(w, true);
-                    var origin = new Point();
-                    if (!ClientToScreen(w.Handle, ref origin)) throw new InvalidDataException("desktop_target_changed");
+                    var origin = ClientOrigin(w);
                     var result = await WindowsIme.Handle(value, w.Process.Id, Target(w), origin.X, origin.Y,
                         content => Emit(w, content.SelectMany(c => new[] { Unicode(c, false), Unicode(c, true) }).ToArray()), token);
                     await Protocol.Write(stream, result, token); continue;
-                }
-                if (action == "frame")
-                {
-                    if (!await Captures.WaitAsync(0, token)) throw new InvalidDataException("desktop_capture_busy");
-                    // A driver timeout retains one capture slot until its native
-                    // copy finishes. Later requests do not accumulate workers.
-                    Process? retainedProcess=null;
-                    Window retained;
-                    try{
-                        retainedProcess=Process.GetProcessById(w.Process.Id);
-                        if(retainedProcess.StartTime!=w.Process.StartTime)throw new InvalidDataException("desktop_target_changed");
-                        retained=w with { Process=retainedProcess };
-                    }catch{retainedProcess?.Dispose();Captures.Release();throw;}
-                    var capture = Task.Run(() => {
-                        using var owner=retained.Process;
-                        try { return Capture(retained); } finally { Captures.Release(); }
-                    });
-                    var bytes = await capture.WaitAsync(TimeSpan.FromSeconds(10), token);
-                    var target = Target(w);
-                    var sequence = target + Convert.ToHexString(SHA256.HashData(bytes));
-                    if (value["after"]?.GetValue<string>() == sequence)
-                        await Protocol.Write(stream, new JsonObject { ["unchanged"] = true, ["sequence"] = sequence }, token);
-                    else
-                        await Protocol.Write(stream, new JsonObject { ["png"] = Convert.ToBase64String(bytes), ["sequence"] = sequence, ["width"] = w.Bounds.Right, ["height"] = w.Bounds.Bottom, ["target"] = target, ["density"] = GetDpiForWindow(w.Handle) / 96.0 }, token);
-                    continue;
                 }
                 if (action == "resize")
                 {
                     int width = value["width"]?.GetValue<int>() ?? 0, height = value["height"]?.GetValue<int>() ?? 0;
                     if (width < 320 || height < 240 || width > 8192 || height > 8192 || (long)width * height > 40_000_000) throw new InvalidDataException("desktop_size_invalid");
-                    // Electron's custom title bar occupies its client area. Measure
-                    // the actual window decorations instead of assuming stock chrome.
-                    if (!GetWindowRect(w.Handle,out var outer) ||
-                        !SetWindowPos(w.Handle,IntPtr.Zero,0,0,width+outer.Right-outer.Left-w.Bounds.Right,
-                            height+outer.Bottom-outer.Top-w.Bounds.Bottom,0x0002|0x0004|0x0010))
-                        throw new InvalidDataException("desktop_resize_failed");
+                    Resize(w, width, height);
                     await Protocol.Write(stream, new JsonObject { ["ok"] = true }, token); continue;
                 }
                 if (action == "stop") {
@@ -418,13 +415,104 @@ internal static class ClaudeWindowRpc
                     ["exception_type"] = e.GetType().Name, ["native_code"] = e.HResult.ToString("X8"),
                 }, token);
             }
-            finally { if (dpi != IntPtr.Zero) SetThreadDpiAwarenessContext(dpi); Operations.Release(); }
+            finally { if (ownsOperation) Operations.Release(); }
         }
         }
         finally
         {
             NativeGuestInput.CloseLease(inputLease);
         }
+    }
+    private static Point ClientOrigin(Window w)
+    {
+        using var dpi = new PhysicalPixels();
+        Validate(w, false);
+        var point = new Point();
+        if (!ClientToScreen(w.Handle, ref point)) throw new InvalidDataException("desktop_target_changed");
+        return point;
+    }
+    private static void Resize(Window w, int width, int height)
+    {
+        using var dpi = new PhysicalPixels();
+        Validate(w, false);
+        // Electron's custom title bar occupies its client area.
+        if (!GetWindowRect(w.Handle, out var outer) ||
+            !SetWindowPos(w.Handle, IntPtr.Zero, 0, 0, width + outer.Right - outer.Left - w.Bounds.Right,
+                height + outer.Bottom - outer.Top - w.Bounds.Bottom, 0x0002 | 0x0004 | 0x0010))
+            throw new InvalidDataException("desktop_resize_failed");
+    }
+    private static void ValidateFrame(Window w, string target)
+    {
+        using var dpi = new PhysicalPixels();
+        Validate(w, false);
+        if (!GetClientRect(w.Handle, out var bounds) || bounds.Right != w.Bounds.Right || bounds.Bottom != w.Bounds.Bottom || Target(w) != target)
+            throw new InvalidDataException("desktop_target_changed");
+    }
+    private static Task<CapturedFrame> StartFrame(Window w, string target)
+    {
+        Process? retained = null;
+        try
+        {
+            retained = Process.GetProcessById(w.Process.Id);
+            if (retained.StartTime != w.Process.StartTime) throw new InvalidDataException("desktop_target_changed");
+            var window = w with { Process = retained };
+            var density = GetDpiForWindow(w.Handle) / 96.0;
+            captureStarted = Stopwatch.GetTimestamp();
+            return Task.Run(async () =>
+            {
+                using var owner = window.Process;
+                var bytes = await ClaudeGraphicsCapture.Capture(window.Handle, owner.Id, window.Bounds.Right, window.Bounds.Bottom, () => ValidateFrame(window, target));
+                ValidateFrame(window, target);
+                return new CapturedFrame(target, target + Convert.ToHexString(SHA256.HashData(bytes)), Convert.ToBase64String(bytes), window.Bounds.Right, window.Bounds.Bottom, density);
+            });
+        }
+        catch { retained?.Dispose(); throw; }
+    }
+    private static async Task<JsonObject> ReadFrame(string? after, CancellationToken token, Func<bool> available)
+    {
+        Task<CapturedFrame> pending;
+        TimeSpan remaining;
+        await Operations.WaitAsync(token);
+        try
+        {
+            if (!available()) throw new InvalidDataException("requires_gui_login");
+            var executable = RegisteredExecutable()?.Executable ?? throw new InvalidDataException("desktop_not_installed");
+            var window = Find(executable);
+            using var owner = window.Process;
+            var target = Target(window);
+            if (capturing is { IsCompleted: true } completed)
+            {
+                capturing = null;
+                latestFrame = null;
+                latestFrame = completed.GetAwaiter().GetResult();
+            }
+            if (latestFrame?.Target != target) latestFrame = null;
+            // One in-flight capture, including a driver call that outlives the
+            // response deadline. A slow driver never spawns replacement workers.
+            capturing ??= StartFrame(window, target);
+            pending = capturing;
+            remaining = TimeSpan.FromSeconds(10) - Stopwatch.GetElapsedTime(captureStarted);
+            if (remaining <= TimeSpan.Zero) { latestFrame = null; throw new TimeoutException(); }
+            if (latestFrame is { } ready) return ready.Reply(after);
+        }
+        finally { Operations.Release(); }
+
+        // Only a first frame/new target waits, without holding the input lock.
+        // Established viewers immediately reuse the last validated frame while
+        // the next WGC copy/PNG encode runs in the background.
+        var frame = await pending.WaitAsync(remaining, token);
+        await Operations.WaitAsync(token);
+        try
+        {
+            if (!available()) throw new InvalidDataException("requires_gui_login");
+            var executable = RegisteredExecutable()?.Executable ?? throw new InvalidDataException("desktop_not_installed");
+            var window = Find(executable);
+            using var owner = window.Process;
+            ValidateFrame(window, frame.Target);
+            if (ReferenceEquals(capturing, pending)) { capturing = null; latestFrame = frame; }
+            return frame.Reply(after);
+        }
+        finally { Operations.Release(); }
     }
     private static string Target(Window w) {
         Validate(w, false);
@@ -436,13 +524,14 @@ internal static class ClaudeWindowRpc
     {
         var target=Target(w);if(kind=="drop")return target;
         if(kind is not ("paste" or "image"))throw new InvalidDataException("attachment_request_invalid");
-        var origin=new Point();if(!ClientToScreen(w.Handle,ref origin))throw new InvalidDataException("desktop_target_changed");
+        var origin=ClientOrigin(w);
         var focus=await WindowsIme.Handle(new JsonObject{["mode"]="status"},w.Process.Id,target,origin.X,origin.Y,_=>throw new InvalidDataException("attachment_request_invalid"),token);
         if(focus["available"]?.GetValue<bool>()!=true)throw new InvalidDataException("desktop_input_not_focused");
         return target+":"+focus["context"]!.GetValue<string>();
     }
     private static void DropFiles(Window w,string[] paths,double x,double y)
     {
+        using var dpi = new PhysicalPixels();
         Validate(w,true);
         var point=PositionPointer(w,Math.Clamp((int)(x*w.Bounds.Right),0,w.Bounds.Right-1),Math.Clamp((int)(y*w.Bounds.Bottom),0,w.Bounds.Bottom-1));
         void Guard(){Validate(w,true);if(GetAncestor(WindowFromPoint(point),2)!=w.Handle)throw new InvalidDataException("desktop_target_changed");}
@@ -479,7 +568,6 @@ internal static class ClaudeWindowRpc
         }
         return first;
     }
-    private static byte[] Capture(Window w) => ClaudeGraphicsCapture.Capture(w.Handle,w.Process.Id,w.Bounds.Right,w.Bounds.Bottom,()=>Validate(w,false)).GetAwaiter().GetResult();
     private static Input Wheel(int amount, bool horizontal = false) => new() { Data = new InputData { Mouse = new Mouse { Flags = horizontal ? 0x1000u : 0x800u, Data = unchecked((uint)amount) } } };
     private static Input Unicode(char c, bool up) => new() { Type = 1, Data = new InputData { Keyboard = new Keyboard { Scan = c, Flags = 4u | (up ? 2u : 0u) } } };
     private static Input KeyInput(ushort key, bool down) => new() { Type = 1, Data = new InputData { Keyboard = new Keyboard { Key = key, Flags = down ? 0u : 2u } } };

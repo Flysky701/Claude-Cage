@@ -22,6 +22,7 @@ runtime_path = runtime_source.with_name("client_runtime.py")
 if not runtime_path.exists():
     runtime_path = runtime_source.parent.parent / "client_runtime.py"
 _runtime = runpy.run_path(runtime_path, init_globals={"_controller_context": _controller_context})
+PRIVATE_MODE = _runtime.get("PRIVATE_MODE", 0o700)
 
 
 if os.name == "nt":
@@ -79,8 +80,9 @@ def cli_environment(base):
 
 
 def identity(binary, env, cwd, settings=(), timeout=10, pass_fds=()):
+    sink = subprocess.PIPE if _controller_context.get("CAGE_REMOTE_APP_CONTAINER") == "1" else subprocess.DEVNULL
     result = subprocess.run([_runtime["path"](binary), *settings, "auth", "status"], cwd=cwd, env=env, timeout=timeout,
-                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, pass_fds=pass_fds)
+                            stdin=sink, stdout=subprocess.PIPE, stderr=sink, pass_fds=pass_fds)
     # Exit code 1 with JSON is the CLI's documented logged-out response. Any
     # other failure (including missing JSON) must not sign a known user out.
     data = json.loads(result.stdout)
@@ -332,7 +334,7 @@ def query_usage(binary, env, base, expected):
                 return changed_identity()
             summary = after
             if windows:
-                base.mkdir(mode=0o700, parents=True, exist_ok=True)
+                base.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
                 save_usage(base, {"rate_limits": windows}, expected, lambda: expected, started, deadline)
             if windows is not None:
                 status = {0: "unavailable", 1: "partial", 2: "reported"}[len(windows)] if available else "not_applicable"
@@ -395,11 +397,11 @@ def shared_profile_resources(base):
     """Share local customizations; credentials, synced skills and history stay private."""
     config = config_directory(base)
     common = Path.home() / ".claude"
-    common.mkdir(mode=0o700, parents=True, exist_ok=True)
+    common.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
     if config == common:
         return
     lock_dir = shared_root()
-    lock_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    lock_dir.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
     with (lock_dir / "resources.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         conflict = "账号的技能或指令与共用资料同名冲突，请先核对 ~/.claude 中的对应文件；原文件已保留"
@@ -426,12 +428,12 @@ def shared_profile_resources(base):
                             child.unlink()
                     local.rmdir()
                 elif not shared.exists():
-                    shared.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                    shared.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
                     local.rename(shared)
                 elif local.is_file() and shared.is_file() and local.read_bytes() == shared.read_bytes():
                     # Keep a recoverable copy before replacing a local resource.
                     backup = lock_dir / "backups" / base.name / local.relative_to(config)
-                    backup.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                    backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
                     if not backup.exists():
                         shutil.copy2(local, backup)
                     local.unlink()
@@ -442,8 +444,8 @@ def shared_profile_resources(base):
                 if local.name in ("CLAUDE.md", "AGENTS.md"):
                     shared.touch(mode=0o600)
                 else:
-                    shared.mkdir(mode=0o700, parents=True, exist_ok=True)
-            local.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                    shared.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+            local.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
             if os.name == "nt":
                 _platform["resource_link"](local, shared)
             else:
@@ -451,8 +453,8 @@ def shared_profile_resources(base):
         # claude.ai downloads skills into skills/synced. Keep that subtree
         # account-specific; link only locally installed skill entries.
         local, shared = config / "skills", common / "skills"
-        local.mkdir(mode=0o700, parents=True, exist_ok=True)
-        shared.mkdir(mode=0o700, parents=True, exist_ok=True)
+        local.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+        shared.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
         names = {p.name for folder in (local, shared) for p in folder.iterdir()} - {"synced"}
         resources = [(config / name, common / name) for name in
                      ("commands", "agents", "rules", "agent-memory", "CLAUDE.md", "AGENTS.md")]
@@ -466,7 +468,7 @@ def shared_profile_resources(base):
                 backup = lock_dir / "backups" / base.name / source.relative_to(config)
                 if backup.exists():
                     backup = backup.with_name(backup.name + "-" + str(time.time_ns()))
-                backup.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
                 if source.is_dir():
                     shutil.copytree(source, backup, symlinks=True)
                 else:
@@ -477,7 +479,7 @@ def shared_profile_resources(base):
 def shared_launch_arguments(base, args, settings_fd=None):
     """Apply a stable project memory location without sharing auth/settings files."""
     lock_dir = shared_root()
-    lock_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    lock_dir.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
     with (lock_dir / "resources.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         return shared_launch_arguments_locked(base, args, settings_fd)
@@ -499,7 +501,7 @@ def shared_launch_arguments_locked(base, args, settings_fd):
         key = key[:140] + "-" + hashlib.sha256(str(directory).encode()).hexdigest()[:32]
     memory = Path.home() / ".claude/projects" / key / "memory"
     own_memory = config_directory(base) / "projects" / key / "memory"
-    memory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    memory.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
     # Retain pre-existing account notes. Colliding files remain in their
     # original directory and block automatic consolidation until reviewed.
     if own_memory != memory and own_memory.exists() and not (own_memory.is_symlink() or os.name == "nt" and own_memory.is_junction()):
@@ -513,11 +515,11 @@ def shared_launch_arguments_locked(base, args, settings_fd):
                 destination = memory / source.relative_to(own_memory)
                 if destination.exists() and destination.read_bytes() != source.read_bytes():
                     raise SharedResourceConflict("账号的项目记忆与共用记忆冲突，原记忆已保留，请先核对")
-                destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                destination.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
                 if not destination.exists():
                     shutil.copy2(source, destination)
         backup = shared_root() / "backups" / base.name / "projects" / key / "memory"
-        backup.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
         if backup.exists():
             backup = backup.with_name(backup.name + "-" + str(time.time_ns()))
         own_memory.rename(backup)
@@ -571,7 +573,7 @@ def shared_launch_arguments_locked(base, args, settings_fd):
             snapshot.seek(0)
         return ["--settings", "/dev/fd/" + str(settings_fd), *result]
     folder = base / "launch-settings"
-    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    folder.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
     path = folder / (hashlib.sha256(data).hexdigest() + ".json")
     if not path.exists():
         with tempfile.NamedTemporaryFile(dir=folder, delete=False) as stream:
@@ -599,9 +601,9 @@ def main(args, *, mobile_settings_fd=None, verify_mobile=None):
         return 0
     original_umask = os.umask(0o077)
     if account_id != DEFAULT:
-        config_directory(base).mkdir(mode=0o700, parents=True, exist_ok=True)
+        config_directory(base).mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
     elif mode == "statusline":
-        base.mkdir(mode=0o700, parents=True, exist_ok=True)
+        base.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
     env = cli_environment(base)
     if account_id == DEFAULT:
         directory = env.get("CLAUDE_CONFIG_DIR") or str(config_directory(base))

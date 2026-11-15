@@ -19,6 +19,7 @@ import time
 import uuid
 
 _controller_context = {**os.environ, **globals().get("_controller_context", {})}
+PRIVATE_MODE = 0o777 if os.name == "nt" and _controller_context.get("CAGE_REMOTE_APP_CONTAINER") == "1" else 0o700
 _runtime = None
 
 
@@ -618,7 +619,7 @@ def prepare_account_switch(request):
                 pending.discard(block.get("tool_use_id"))
     if pending:
         raise ValueError("历史仍有结果未确认的工具，不能自动接续")
-    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    folder.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
     target = folder / "history.jsonl"
     with tempfile.NamedTemporaryFile(dir=folder, delete=False) as stream:
         stream.write(path.read_bytes())
@@ -700,7 +701,7 @@ def launch(request):
     policy_available = migrate_cage_policy()
     connection = identifier(request["id"])
     folder = ROOT / connection
-    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+    folder.mkdir(parents=True, exist_ok=True, mode=PRIVATE_MODE)
     prefix = request["prefix"]
     if os.name == "nt":
         account_id = request.get("account") or "default"

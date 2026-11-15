@@ -490,6 +490,16 @@ func Cmdline(ctx context.Context, cfg Config) (exe string, args []string, err er
 
 func cmdline(ctx context.Context, cfg Config, workingDir *string) (exe string, args []string, err error) {
 	y := cfg.LimaYAML
+	var macOpts limatype.QEMUOpts
+	if err := limayaml.Convert(y.VMOpts[limatype.QEMU], &macOpts, "vmOpts.qemu"); err != nil {
+		return "", nil, err
+	}
+	if macOpts.MacOS != nil {
+		return macOSCmdline(ctx, cfg, macOpts.MacOS)
+	}
+	if y.OS != nil && *y.OS == limatype.DARWIN {
+		return "", nil, errors.New("QEMU macOS guests require the explicit native macOS device model")
+	}
 	exe, args, err = Exe(*y.Arch)
 	if err != nil {
 		return "", nil, err
@@ -938,6 +948,9 @@ func cmdline(ctx context.Context, cfg Config, workingDir *string) (exe string, a
 		}
 	}
 	// Graphics
+	if *y.Video.Display == "egl-headless" && (runtime.GOOS != "linux" || *y.OS != limatype.LINUX) {
+		return "", nil, errors.New("egl-headless VirGL requires a Linux host and Linux guest")
+	}
 	if *y.Video.Display != "" {
 		display := *y.Video.Display
 		if display == "vnc" {
@@ -950,17 +963,7 @@ func cmdline(ctx context.Context, cfg Config, workingDir *string) (exe string, a
 	}
 
 	if *y.Video.Display != "none" {
-		switch *y.Arch {
-		// FIXME: use virtio-gpu on all the architectures
-		case limatype.X8664, limatype.RISCV64:
-			args = append(args, "-device", "virtio-vga")
-		default:
-			if *y.OS == limatype.WINDOWS {
-				args = append(args, "-device", "ramfb")
-			} else {
-				args = append(args, "-device", "virtio-gpu")
-			}
-		}
+		args = append(args, "-device", graphicsDevice(string(*y.Arch), *y.OS == limatype.WINDOWS, *y.Video.Display == "egl-headless"))
 		args = append(args, "-device", "virtio-keyboard-pci")
 		args = append(args, "-device", "virtio-"+input+"-pci")
 	} else {

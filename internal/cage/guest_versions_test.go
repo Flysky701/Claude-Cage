@@ -270,8 +270,8 @@ prefix)
   printf '/usr\n';;
 config)
   test -f "$HOME/installed" || exit 90
-  test "$2 $3 $4" = 'set --global --location=user' && test "$5" = "prefix=$HOME/.local" || exit 99
-  printf '%s\n' "$5" > "$HOME/npm-prefix";;
+  test "$2 $3" = 'set --location=user' && test "$4" = "prefix=$HOME/.local" || exit 99
+  printf '%s\n' "$4" > "$HOME/npm-prefix";;
 *) exit 95;;
 esac
 `,
@@ -378,6 +378,7 @@ export PATH="$HOME/.local/bin:$PATH"
 package="$HOME/.local/lib/node_modules/@anthropic-ai/claude-code/bin"
 mkdir -p "$HOME/.local/bin" "$package"
 printf 'fund=false\n' > "$HOME/.npmrc"
+printf 'fetch-retries=1\n' > "$HOME/global-npmrc"
 printf '#!/bin/sh\nprintf "9.9.9 (Claude Code)\\n"\n' > "$package/claude.exe"
 chmod +x "$package/claude.exe"
 if [ "$TEST_INSTALL" = npm ]; then
@@ -399,10 +400,13 @@ test "$(npm prefix --global)" = /usr
 cage_install_tool claude
 cage_install_tool claude
 grep -qx 'fund=false' "$HOME/.npmrc"
+test "$(cat "$HOME/global-npmrc")" = 'fetch-retries=1'
 if [ "$TEST_INSTALL" = npm ]; then
+  grep -qx "prefix=$HOME/.local" "$HOME/.npmrc"
   test "$(npm prefix --global)" = "$HOME/.local"
   test "$(cat "$HOME/config-writes")" = config
 else
+  test "$(cat "$HOME/.npmrc")" = 'fund=false'
   test "$(npm prefix --global)" = /usr
   test ! -e "$HOME/config-writes"
 fi

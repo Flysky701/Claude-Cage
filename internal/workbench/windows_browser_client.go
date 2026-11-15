@@ -45,7 +45,11 @@ func newWindowsBrowserClient(parent context.Context, profile string) *windowsBro
 		if binding == nil {
 			return nil, errors.New("此配置尚未绑定 客机")
 		}
-		return exec.CommandContext(ctx, binding.RelayExecutable, "--relay-profile", guestos.WindowsProfilePath(profile), "browser"), nil
+		operation := "browser"
+		if binding.Remote() {
+			operation = "headless-browser"
+		}
+		return guestos.WindowsRelayCommand(ctx, profile, operation)
 	}}
 }
 
@@ -68,7 +72,7 @@ var windowsBrowserRoutes = map[string]bool{
 	"insert-text": true, "copy-context": true, "ime": true, "copy": true, "cut": true, "paste": true, "select-all": true,
 	"key": true, "pointer": true, "click": true, "wheel": true, "input": true, "editor": true, "editor-restart": true,
 	"upload-start": true, "upload-finish": true, "upload-cancel": true, "download-retry": true, "info": true, "cookies": true,
-	"settings": true, "internal-page": true, "extensions": true, "split": true, "audit": true, "audit-recheck": true, "vault": true, "login-open": true, "login-finish": true,
+	"settings": true, "profile": true, "internal-page": true, "extensions": true, "split": true, "audit": true, "audit-recheck": true, "vault": true, "login-open": true, "login-finish": true,
 	"file-open": true, "file-chunk": true, "file-finish": true, "file-read": true, "file-close": true,
 	"image-start": true, "image-chunk": true, "image-finish": true, "image-cancel": true,
 	"paste-start": true, "paste-chunk": true, "paste-finish": true, "paste-cancel": true,

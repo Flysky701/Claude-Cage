@@ -27,7 +27,7 @@ class NativeMaintenance(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix='cage-native-maintenance-')
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
+        self.root = Path(self.directory.name).resolve()
         self.kit = self.root / 'kit'
         self.kit.mkdir()
         for name in ('Applications', 'usr/local/libexec', 'private/var/tmp', 'var/db', 'var/run', 'Users/cage'):
@@ -79,6 +79,8 @@ class NativeMaintenance(unittest.TestCase):
                 ('native-browser/macos-phone-browser.mjs', 'usr/local/libexec/cage-workbench-browser-4.145.0-pw1.65.0/controller/macos-phone-browser.mjs')):
             self.write('kit/' + source, 'current-' + source)
             files.append((source, target))
+        self.write('kit/enable-macos-screensharing.sh', '#!/bin/sh\nexit 73\n')
+        files.append(('enable-macos-screensharing.sh', 'usr/local/libexec/cage-enable-screensharing'))
         for label, source in (('claude-window', 'register-macos-claude-window.sh'), ('clipboard', 'register-macos-clipboard.sh'),
                               ('browser', 'register-macos-browser.sh')):
             # Source deliberately has mode 0644, as the clipboard source does.
@@ -95,6 +97,7 @@ exit "${CAGE_TEST_FAIL_REGISTER:-0}"
         perl = perl.replace('$> == 0', '$> == ' + str(os.getuid()))
         self.write('kit/native-component-manifest.pl', perl)
         self.write('kit/install-macos-cli.sh', self.translate((SOURCE / 'install-macos-cli.sh').read_text()))
+        self.write('kit/macos-guest-arch.sh', (SOURCE / 'macos-guest-arch.sh').read_text())
         script = self.translate((SOURCE / 'maintain-macos-workbench.sh').read_text())
         script = script.replace('/usr/libexec/PlistBuddy', str(self.root / 'plist-buddy'))
         script = script.replace('/bin/launchctl', str(self.root / 'launchctl'))
@@ -110,7 +113,7 @@ fi
 exit 0
 ''', 0o755)
         self.write('environment.sh', '''
-uname() { if [[ $1 == -s ]]; then printf 'Darwin\\n'; else printf 'Darwin arm64\\n'; fi; }
+uname() { case "$1" in -s) printf 'Darwin\\n';; -m) printf 'arm64\\n';; *) printf 'Darwin arm64\\n';; esac; }
 sysctl() { printf 'VirtualMac2,1\\n'; }
 id() { if [[ $1 == -u ]]; then echo 501; else echo staff; fi; }
 dscl() { printf 'NFSHomeDirectory: %s\\n' "$3"; }
@@ -137,6 +140,50 @@ ps() { :; }
         self.write('kit/native-components.json', json.dumps(manifest))
         return manifest
 
+    def test_screen_sharing_helper_authorizes_only_the_ordinary_guest_user(self):
+        script = self.translate((SOURCE / 'enable-macos-screensharing.sh').read_text())
+        plist = '/System/Library/LaunchDaemons/com.apple.screensharing.plist'
+        script = script.replace(plist, str(self.write('screensharing.plist', 'fixture')))
+        helper = self.write('enable.sh', script)
+        self.write('usr/local/libexec/cage-guest-check', '#!/bin/sh\n[ "$VERIFIED_INTEL" = yes ]\n', 0o755)
+        env_file = self.write('screen-environment.sh', """
+uname() { echo Darwin; }
+sysctl() { echo "$MODEL"; }
+id() { if [[ $1 == -u ]]; then echo 501; else echo "$GROUPS_FIXTURE"; fi; }
+stat() { echo 0; }
+dscl() { test -f "$QA_ROOT/group"; }
+dseditgroup() {
+    case "$2" in create) touch "$QA_ROOT/group";; edit) touch "$QA_ROOT/member";;
+        checkmember) test -f "$QA_ROOT/member";; *) return 1;; esac
+}
+launchctl() {
+    test -f "$QA_ROOT/member" || return 1
+    case "$1" in print) test -f "$QA_ROOT/loaded";; bootstrap) echo loaded >> "$QA_ROOT/loaded";;
+        enable) :;; *) return 1;; esac
+}
+nc() { test "$1/$2/$3" = "-z/127.0.0.1/5900" && test -f "$QA_ROOT/loaded"; }
+""")
+        env = dict(os.environ, BASH_ENV=str(env_file), QA_ROOT=str(self.root), MODEL='Macmini8,1',
+                   VERIFIED_INTEL='no', GROUPS_FIXTURE='staff')
+
+        def enable(user):
+            return subprocess.run(['/bin/bash', str(helper), user], cwd=self.root, env=env,
+                                  capture_output=True, text=True, timeout=10)
+
+        self.assertNotEqual(enable('blue').returncode, 0)
+        env['VERIFIED_INTEL'] = 'yes'
+        for user in ('root', 'cagesetup', 'cageprovision'):
+            self.assertNotEqual(enable(user).returncode, 0, user)
+        env['GROUPS_FIXTURE'] = 'staff admin'
+        self.assertNotEqual(enable('blue').returncode, 0)
+        self.assertFalse((self.root / 'group').exists())
+        env['GROUPS_FIXTURE'] = 'staff'
+        for model in ('Macmini8,1', 'VirtualMac2,1'):
+            env['MODEL'] = model
+            result = enable('blue')
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'loaded').read_text(), 'loaded\n')
+
     def run_install(self, fail=False):
         env = {**os.environ, 'BASH_ENV': str(self.root / 'environment.sh'), 'CAGE_TEST_FAIL_REGISTER': '1' if fail else '0'}
         return subprocess.run(['/bin/bash', str(self.kit / 'maintain-macos-workbench.sh'), str(self.kit), 'cage', 'components'],
@@ -151,7 +198,7 @@ ps() { :; }
             contents = '#!/bin/sh\nprintf "2.1.322 (Claude Code)\\n"\n' if name == 'claude' else 'runtime-package-fixture'
             package = self.write('kit/' + name, contents)
             checksum = hashlib.sha256(package.read_bytes()).hexdigest()
-            script = re.sub(r'check [a-f0-9]{64} ' + re.escape(name) + r'\n', f'check {checksum} {name}\n', script)
+            script = re.sub(r'check "\$CAGE_MACOS_[A-Z]+_SHA256" ' + re.escape(name) + r'\n', f'check {checksum} {name}\n', script)
             if name == 'claude':
                 self.write('kit/claude-manifest.json', json.dumps({'version': '2.1.322', 'platforms': {'darwin-arm64': {'binary': 'claude', 'checksum': checksum}}}))
         archive = self.kit / 'gh.zip'
@@ -161,7 +208,7 @@ ps() { :; }
             output.writestr(info, '#!/bin/sh\nprintf "gh version 2.103.3 (fixture)\\n"\n')
             output.writestr('gh_2.103.3_macOS_arm64/LICENSE', 'license-fixture')
         checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
-        script = re.sub(r'check [a-f0-9]{64} gh.zip\n', f'check {checksum} gh.zip\n', script)
+        script = re.sub(r'check "\$CAGE_MACOS_GH_SHA256" gh.zip\n', f'check {checksum} gh.zip\n', script)
         self.write('kit/install-macos-cli.sh', script)
         auth = self.write('Users/cage/.config/gh/hosts.yml', 'login-marker', 0o600)
         env = {**os.environ, 'BASH_ENV': str(self.root / 'environment.sh')}
@@ -241,6 +288,8 @@ hdiutil() {
         self.assertFalse((self.root / 'Applications/Cage Guest Clipboard.app').exists())
         self.assertEqual(os.readlink(self.root / 'usr/local/libexec/cage-cli'), previous)
         self.assertFalse((self.root / 'var/db/cage-components.json').exists())
+        sharing = self.root / 'usr/local/libexec/cage-enable-screensharing'
+        self.assertFalse(sharing.exists())
         for attempt in range(2):
             result = self.run_install()
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
@@ -249,6 +298,7 @@ hdiutil() {
             self.assertEqual((self.root / 'Users/cage/account.json').read_text(), 'account-and-login-marker')
             self.assertEqual((self.root / 'Users/cage/project.txt').read_text(), 'project-marker')
             self.assertTrue(os.access(self.root / 'usr/local/libexec/cage-register-clipboard', os.X_OK))
+            self.assertTrue(os.access(sharing, os.X_OK))
         old_receipt = (self.root / 'var/db/cage-components.json').read_bytes()
         original_source = (self.kit / 'project/cage-sshfs').read_bytes()
         self.write('kit/project/cage-sshfs', 'next-project-helper')

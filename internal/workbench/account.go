@@ -8,7 +8,7 @@ import (
 )
 
 func (s *Server) macAccountHost() bool {
-	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" && s.localVMStorage()
+	return runtime.GOOS == "darwin" && (runtime.GOARCH == "arm64" || runtime.GOARCH == "amd64") && s.localVMStorage()
 }
 
 func (s *Server) accountStatus(w http.ResponseWriter, r *http.Request) {
@@ -26,6 +26,9 @@ func (s *Server) accountView(r *http.Request) accountView {
 	}
 	if s.windowsGuest != nil {
 		v.GuestSystem = "windows-11"
+		if s.windowsGuest.Remote() {
+			v.GuestSystem = "windows-remote"
+		}
 	}
 	if v.MacOSAccountHost && v.Unlocked && !v.MacOSCredentialsReady && v.MacOSGuestUser == "" {
 		if install, err := guestos.LoadInstallation(s.profile); err == nil && install != nil {

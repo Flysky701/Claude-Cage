@@ -40,8 +40,9 @@ try {
   const chooser = page.getByRole("region", { name: "云端文件夹" });
   await chooser.getByRole("button", { name: "research", exact: true }).click();
   await chooser.getByRole("button", { name: "选择此云端文件夹", exact: true }).click();
-  assert.equal(await page.getByLabel("新项目文件夹", { exact: true }).inputValue(), "/srv/projects/research");
-  await page.getByRole("dialog").getByRole("button", { name: "打开项目", exact: true }).click();
+  const createProject = page.getByRole("dialog", { name: "创建项目", exact: true });
+  await createProject.getByText("/srv/projects/research", { exact: true }).waitFor();
+  await createProject.getByRole("button", { name: "创建项目", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   assert.equal(state.settings.workspace, "/srv/projects/research");
   assert.equal(directoryRequests, 2);

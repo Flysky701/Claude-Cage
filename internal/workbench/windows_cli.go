@@ -70,11 +70,17 @@ func (s *Server) windowsCLIRequest(ctx context.Context, request map[string]any, 
 			return err
 		}
 		if path, ok := input["workspace"].(string); ok && path != "" {
-			binding, err := s.windowsProjectForGuest(path)
-			if err != nil {
-				return err
+			if s.windowsGuest.Remote() {
+				if _, err := s.remoteWindowsCLIWorkspace(path); err != nil {
+					return err
+				}
+			} else {
+				binding, err := s.windowsProjectForGuest(path)
+				if err != nil {
+					return err
+				}
+				input["project_id"], input["grant"] = binding.ID, binding.Grant
 			}
-			input["project_id"], input["grant"] = binding.ID, binding.Grant
 		}
 		request["input"] = input
 	}
@@ -84,7 +90,11 @@ func (s *Server) windowsCLIRequest(ctx context.Context, request map[string]any, 
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	cmd, err := guestos.WindowsRelayCommand(ctx, s.profile, "cli")
+	operation := "cli"
+	if s.windowsGuest.Remote() {
+		operation = "headless-cli"
+	}
+	cmd, err := guestos.WindowsRelayCommand(ctx, s.profile, operation)
 	if err != nil {
 		return err
 	}
@@ -202,7 +212,12 @@ func (s *Server) createWindowsCLITerminal(input terminalRequest) (*terminalSessi
 	workspace := s.workspace()
 	var project *windowsProjectBinding
 	var err error
-	if kind != "claude-login" {
+	if s.windowsGuest.Remote() {
+		workspace, err = s.remoteWindowsCLIWorkspace(input.Workspace)
+		if err != nil {
+			return nil, err
+		}
+	} else if kind != "claude-login" {
 		workspace, err = s.connectProject(input.Workspace, false)
 		if err != nil {
 			return nil, err
@@ -291,6 +306,9 @@ func (s *Server) createWindowsCLITerminal(input terminalRequest) (*terminalSessi
 	}
 	if project != nil {
 		request["project_id"], request["grant"] = project.ID, project.Grant
+	}
+	if s.windowsGuest.Remote() {
+		operation = "headless-cli"
 	}
 	cmd, err := guestos.WindowsRelayCommand(s.lifetimeContext(), s.profile, operation)
 	if err != nil {

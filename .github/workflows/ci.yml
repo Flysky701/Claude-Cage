@@ -38,6 +38,11 @@ jobs:
           pwsh -NoProfile -File scripts/test-windows-signing.ps1
       - name: Validate workflow syntax
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -color
+      - name: Guest creation preference contracts
+        run: |
+          node scripts/guest-os/tests/browser-profile.test.mjs
+          node internal/cage/device-observation.test.mjs
+          node internal/cage/browser-audit.test.mjs
   macos:
     needs: workflow-checks
     uses: ./.github/workflows/macos-build.yml
@@ -45,6 +50,12 @@ jobs:
       ref: ${{ github.sha }}
       release: false
       artifact_name: cage-macos-arm64-test
+  macos-intel:
+    needs: workflow-checks
+    uses: ./.github/workflows/macos-intel-build.yml
+    with:
+      ref: ${{ github.sha }}
+      artifact_name: cage-macos-amd64-test
   windows-updates:
     needs: workflow-checks
     strategy:

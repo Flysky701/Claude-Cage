@@ -83,6 +83,7 @@ export function MacOSLogin({ disabled, initialSetup = false, installRecovery = f
   const endpoint = installRecovery ? "/macos/install-recovery" : initialSetup ? "/macos/first-setup" : maintenance ? "/macos/maintenance" : "/macos/login";
   const scope = maintenance ? { maintenance } : {};
   const [opened, setOpened] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [session, setSession] = useState("");
   const [frame, setFrame] = useState("");
   const [message, setMessage] = useState("");
@@ -138,7 +139,7 @@ export function MacOSLogin({ disabled, initialSetup = false, installRecovery = f
     setFrameError("");
     setRecovery("");
     setZoomed(!initialSetup && !maintenance);
-    setOpened(true);
+    setOpening(true);
     try {
       const r = await api(endpoint, { action: "open", ...scope });
       if (lease.current !== next) {
@@ -149,8 +150,11 @@ export function MacOSLogin({ disabled, initialSetup = false, installRecovery = f
       setAdministrator(r.administrator || "");
       next.session = r.session;
       setSession(r.session);
+      setOpened(true);
     } catch (e) {
       if (lease.current === next) end(e.message);
+    } finally {
+      setOpening(false);
     }
   }
 
@@ -300,7 +304,8 @@ export function MacOSLogin({ disabled, initialSetup = false, installRecovery = f
   }
 
   return <>
-    <button type="button" ref={opener} disabled={disabled || opened} onClick={open}>{label || (initialSetup ? installRecovery ? "打开恢复画面" : "打开客机系统设置" : maintenance ? "打开客机授权设置" : "登录客机账户")}</button>
+    <button type="button" ref={opener} disabled={disabled || opened || opening} onClick={open}
+      title={!initialSetup && !maintenance ? "仅用于客机登录或解锁，已登录后请直接使用工作台应用。" : undefined}>{opening ? "正在连接客机画面…" : label || (initialSetup ? installRecovery ? "打开恢复画面" : "打开客机系统设置" : maintenance ? "打开客机授权设置" : "查看客机登录界面")}</button>
     {!opened && message && <span role="status">{message}</span>}
     {!opened && ["environment-update", "environment-restart"].includes(recovery) && onSettings &&
       <button type="button" onClick={onSettings}>{installRecovery ? "查看日志与诊断" : recovery === "environment-update" ? "查看环境组件" : "打开环境设置"}</button>}
@@ -342,6 +347,7 @@ export function MacOSLogin({ disabled, initialSetup = false, installRecovery = f
         </div>
         {maintenance && <div className="mac-setup-hint">
           {maintenance === "projects" && <p>Cage 会直接打开「文件系统扩展」面板。打开 macFUSE 和 macFUSE (local) 两个开关，Cage 会自动检查并重新连接项目。</p>}
+          {maintenance === "sharing" && <p>Cage 会打开「系统设置 → 通用 → 共享」。请打开「屏幕共享」，并允许当前普通客机用户访问。仅在客机外网关闭时可以打开此设置。macOS 26 仅命令行启用后，仍需在此再手动打开一次，否则连接可能提示「屏幕共享在 localhost 上不被允许」。</p>}
           {administrator && <p>系统要求管理员时，用户名填写 {administrator}。选中系统授权窗口的密码框后，点击「填写管理员密码」，再由你确认授权。</p>}
           {administrator && <button type="button" onClick={() => enqueue("fill-password", {})}>填写管理员密码</button>}
         </div>}
