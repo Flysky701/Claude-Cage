@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "date": "2026-11-15",
   "executionState": {
-    "status": "stopped_at_user_request",
-    "userInstruction": "进度上传，停止",
-    "lastInstalledCandidate": "Privacy12",
-    "pendingWork": "Privacy13 query-only diagnostic preparation was interrupted; no Privacy13 installation or device verification is authorized to continue after the stop request.",
+    "status": "paused_by_user",
+    "userInstruction": "Mumu持续崩溃的话，先暂停吧",
+    "lastInstalledCandidate": "Cage-GBox-Privacy-15-ContextFix-05.apk",
+    "pendingWork": "Claude login remains unsuccessful at native translation crash; no more emulator tests or login retries while paused. Latest stopped-gateway checks not performed.",
     "resumeRequiresUserInstruction": true
   },
   "target": "GBox-derived privacy test build on MuMu Android emulator",
@@ -44,7 +44,11 @@
       "baseline": "The paired Probe04 reports expose country/operator information through both native libc and exec children. Their Java SIM queries are empty on both sides, so this pair cannot attribute those empty Java readings to GBox or the new policy. Earlier Probe02 Java-positive readings remain historical evidence, not a substituted same-version control.",
       "observed": "Privacy12 complete fresh Probe06 report: all six positive outer operator/country properties are filtered through parent get/read/read_callback and default exec children, with no recorded guest SIM signals. All four parent native hooks report status0 and actual selected calls. SDK and modem-capacity controls remain unchanged. Same-version Java readings are empty on both sides, so their emptiness alone is not attributed to the module; direct shared-property access and raw syscalls are not covered.",
       "evidence": "mobile/.build/gbox-mod/mumu/privacy12-comparison.json",
-      "semanticsEvidence": "mobile/.build/gbox-mod/native-analysis/telephony-count-semantics.json"
+      "semanticsEvidence": "mobile/.build/gbox-mod/native-analysis/telephony-count-semantics.json",
+      "latestPrivacy15Evidence": "mobile/.build/gbox-mod/mumu/privacy15-comparison.json",
+      "latestPrivacy15Verification": "Offline recomputation using Privacy13 outer controls and Privacy15 guest before/after reports matched the saved result; no new full privacy probe run during takeover.",
+      "latestContextFix05Evidence": "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-comparison.json",
+      "latestContextFix05Verification": "Two fresh guest probe sessions complete; recorded SIM/timezone/VPN/property-control paths pass against saved Privacy13 outer controls. Existing Privacy15 marker preserved. Outer control not concurrently rerun."
     },
     {
       "id": "timezone",
@@ -54,7 +58,11 @@
       "observed": "Privacy12 reports Asia/Tokyo/+540 consistently for Java, ICU, real WebView first script and after-page, parent get/read/read_callback, native localtime before/after tzset, child property/date and TZ environment. Local UTC comparisons pass; absolute remote clock accuracy is not inferred.",
       "evidence": [
         "mobile/.build/gbox-mod/mumu/privacy12-comparison.json"
-      ]
+      ],
+      "latestPrivacy15Evidence": "mobile/.build/gbox-mod/mumu/privacy15-comparison.json",
+      "latestPrivacy15Verification": "Offline recomputation using Privacy13 outer controls and Privacy15 guest before/after reports matched the saved result; no new full privacy probe run during takeover.",
+      "latestContextFix05Evidence": "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-comparison.json",
+      "latestContextFix05Verification": "Two fresh guest probe sessions complete; recorded SIM/timezone/VPN/property-control paths pass against saved Privacy13 outer controls. Existing Privacy15 marker preserved. Outer control not concurrently rerun."
     },
     {
       "id": "vpn_visibility",
@@ -62,7 +70,11 @@
       "status": "pass_for_recorded_probe_paths",
       "criterion": "Target guests do not expose host VPN state through tested network APIs; management and protection checks continue seeing real state.",
       "observed": "Privacy12 hides recorded Java VPN state/callbacks and tunnel names; parent getifaddrs no longer exposes the positive outer tun0 interface. The real task gateway remains connected with always-on and lockdown retained. Direct native syscall/netlink paths are outside this test.",
-      "evidence": "mobile/.build/gbox-mod/mumu/privacy12-comparison.json"
+      "evidence": "mobile/.build/gbox-mod/mumu/privacy12-comparison.json",
+      "latestPrivacy15Evidence": "mobile/.build/gbox-mod/mumu/privacy15-comparison.json",
+      "latestPrivacy15Verification": "Offline recomputation using Privacy13 outer controls and Privacy15 guest before/after reports matched the saved result; no new full privacy probe run during takeover.",
+      "latestContextFix05Evidence": "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-comparison.json",
+      "latestContextFix05Verification": "Two fresh guest probe sessions complete; recorded SIM/timezone/VPN/property-control paths pass against saved Privacy13 outer controls. Existing Privacy15 marker preserved. Outer control not concurrently rerun."
     },
     {
       "id": "network_enforcement",
@@ -76,7 +88,8 @@
         "mobile/.build/gbox-mod/mumu/network-guest-stopped.json",
         "mobile/.build/gbox-mod/mumu/network-guest-gateway-final.json",
         "mobile/.build/gbox-mod/mumu/network-guest-attempt02.json"
-      ]
+      ],
+      "latestPrivacy15Status": "Always-on package and lockdown=1 with tun0 present observed; stopped-gateway checks remain historical Privacy12 evidence and were not repeated on Privacy15."
     },
     {
       "id": "data_separation",
@@ -91,32 +104,43 @@
         "mobile/.build/gbox-mod/mumu/privacy06-result.json",
         "mobile/.build/gbox-mod/mumu/privacy08-result.json",
         "mobile/.build/gbox-mod/mumu/privacy12-result.json"
-      ]
+      ],
+      "latestPrivacy15Evidence": "mobile/.build/gbox-mod/mumu/privacy15-comparison.json",
+      "latestPrivacy15Verification": "Saved comparison recomputed identically: PASS_DISTINCT_AND_PERSISTENT, missingEvidence empty; outer controls are from Privacy13, not a simultaneous new outer measurement.",
+      "latestContextFix05Evidence": "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-comparison.json",
+      "latestContextFix05Verification": "Two fresh guest probe sessions complete; recorded SIM/timezone/VPN/property-control paths pass against saved Privacy13 outer controls. Existing Privacy15 marker preserved. Outer control not concurrently rerun."
     },
     {
       "id": "google_login_with_privacy",
       "required": true,
-      "status": "investigating_account_return",
+      "status": "account_visible_and_google_signin_result_returned",
       "criterion": "Provided test Google account signs in with privacy enabled.",
-      "observed": "The original container Google flow accepted the explicitly labeled Google password and reached its terms page. After accepting terms, the original GBox account page remained empty, including one normal reopen; successful account registration is not yet established. An initial incorrect password-field selection was identified and corrected once, rather than retried unchanged. No credential values are retained. The empty list can also represent a virtual account query exception or package visibility filtering, so it is not by itself proof that the account database is empty.",
+      "observed": "Privacy15 handoff reports the Google account remained visible after two container cold starts. The takeover independently observed the existing account picker and a GoogleSignInAccount return at 14:31:47.483, without entering credentials. This does not establish Claude authentication.",
       "evidence": [
         "mobile/.build/gbox-mod/mumu/claude-privacy12-login-state.json",
         "mobile/.build/gbox-mod/mumu/claude-privacy12-login-field-correction.json",
-        "mobile/.build/gbox-mod/mumu/claude-privacy12-login-account-recheck.json"
+        "mobile/.build/gbox-mod/mumu/claude-privacy12-login-account-recheck.json",
+        "mobile/.build/gbox-mod/mumu/privacy15-account-diag.log",
+        "mobile/.build/gbox-mod/mumu/privacy15-takeover-login-result.json"
       ]
     },
     {
       "id": "claude_login_with_privacy",
       "required": true,
-      "status": "pending_google_account_result",
+      "status": "failed_http400_and_droidguard_timeout",
       "criterion": "Claude completes login with privacy enabled; Google authorization or a token callback alone is insufficient.",
-      "observed": "The first original Continue with Google attempt returned Could not sign in before any account entry, and the container initially had no Google accounts. The original Add Google Account flow is now under diagnosis. No authenticated Claude session is claimed."
+      "observed": "One takeover Google login retry returned the Google account result, then requested integrity. DroidGuard started at 14:31:47.549 and returned null with failure at 14:32:02.550 (15.001 s). HTTP 400 /auth/verify_google_mobile occurred earlier at 14:31:58.048. The container UI displayed the Play verification failure dialog; no authenticated UI was seen. Cold start also showed has=false then bindService=true without a recorded DroidGuard onServiceConnected. No causal link between HTTP 400 and the later timeout is established.",
+      "evidence": [
+        "mobile/.build/gbox-mod/mumu/privacy15-takeover-login-result.json",
+        "mobile/.build/gbox-mod/mumu/privacy15-cold-start-service-observation.json",
+        "mobile/.build/gbox-mod/mumu/privacy15-gms-unstable-main-stack.json"
+      ]
     }
   ],
   "artifacts": {
     "baseline": "dist/Cage-GBox-Native-Trace-06.apk",
     "legacyBaselineWithoutMuMuCompatibility": "dist/Cage-GBox-Baseline-03.apk",
-    "privacy": "dist/Cage-GBox-Privacy-12.apk",
+    "privacy": "mobile/sandbox/gbox-mod/dist/Cage-GBox-Privacy-15.apk",
     "previousCombinedPrivacyWithStartupFailure": "dist/Cage-GBox-Privacy-05.apk",
     "previousPrivacyWithRecordedFailures": "dist/Cage-GBox-Privacy-04.apk",
     "legacyPrivacyWithoutMuMuCompatibility": "dist/Cage-GBox-Privacy-03.apk",
@@ -134,17 +158,18 @@
     "previousNativeDiagnosticPrivacy": "dist/Cage-GBox-Privacy-09.apk",
     "hostNativeLoadDiagnosis": "dist/Cage-Host-Load-Probe-02.apk",
     "previousFailedRuntimeIdentityPrivacy": "dist/Cage-GBox-Privacy-10.apk",
-    "previousBinderFaultPrivacy": "dist/Cage-GBox-Privacy-11.apk"
+    "previousBinderFaultPrivacy": "dist/Cage-GBox-Privacy-11.apk",
+    "previousPrivacyWithVerifiedProbePaths": "dist/Cage-GBox-Privacy-12.apk"
   },
   "runtimeDiagnosis": {
     "coexistOnlyFailure": "Fixed and verified in MuMu: encoded native host-name relocation now allows shared-file creation and mapping.",
     "originalEngineFailure": "The native-entry calibration scan can return zero on a miss; the installer then writes an ARM AudioRecord callback into the first ArtMethod field. Original crash memory confirms metadata corruption before the following native_start lookup.",
     "compatibilityCandidate": "Ordinary JNI original calls through independently retained ArtMethod/Method backups passed Probe03. Probe05 passed Java-origin CriticalNative replacement and raw-original calls. Trace04 integrates those validated paths and passes all 11 required hooks plus two auxiliary readers in real GBox startup. Probe04's nested ARM-JNI CriticalNative invocation returns its marker but crashes during the following JNI health check; that boundary remains unresolved and is not represented as generally compatible.",
-    "candidateStatus": "privacy12_scoped_screening_and_real_claude_startup_passed_google_account_return_under_diagnosis",
+    "candidateStatus": "privacy15_probe_recomparison_passed_google_result_returned_claude_http400_droidguard_timeout",
     "privacy05Startup": "One cold guest launch passed native compatibility checks and reached FrameworkPaths.pm.copy, but produced no complete report within 45 seconds and no recorded crash. The original after.createPackageContext marker follows the newly inserted GuestPrivacy.bind, so the current evidence cannot distinguish Context creation from a privacy-bind stall. The app was stopped without refresh or login; Privacy06 diagnostics are being prepared. No shielding pass is inferred.",
     "childPropertyCandidate": "Independent Child Probe01 established the mechanism; Privacy08 now also demonstrates filtered SIM and timezone properties from default exec children inside actual GBox. Parent environment activation, exact runtime profile and selected guest identity are logged. Explicit or previously cached replacement environments remain outside the tested scope.",
     "ioCompatibility": "Original ARM64 core uses an architecture-filtered seccomp/SIGSYS path. Trace05 confirms that both translated ARM libc and x86 framework reads fail on the virtual path despite installer return zero; equivalent MuMu interception is therefore not effective for these reads. Physical APK reads and mapping queries work. Trace06's guarded guest-process Framework adapter uses existing per-guest physical directories and passes the initial GMS startup. This does not establish arbitrary native-syscall isolation or cross-guest access control.",
-    "frameworkPathDecision": "The confirmed MuMu profile may expose physical per-guest directory paths through Context/ApplicationInfo to restore normal framework access. SIM/timezone/VPN filtering remains the requested privacy scope; hiding the host directory string is not an acceptance requirement. Package identity, UID, signatures, permissions, ABI, existing I/O rules and original preset APKs remain unchanged.",
+    "frameworkPathDecision": "The confirmed MuMu profile may expose physical per-guest directory paths through Context/ApplicationInfo to restore normal framework access. SIM/timezone/VPN filtering remains the requested privacy scope; hiding the host directory string is not an acceptance requirement. Package identity, UID, signatures, permissions, ABI, existing I/O rules and original preset APKs remain unchanged. Privacy15 additionally changes package ABI selection/default methods without a NativeCompat.isActive guard; no general non-MuMu validation is claimed.",
     "evidence": [
       "mobile/.build/gbox-mod/mumu/native-trace03-result.json",
       "mobile/.build/gbox-mod/mumu/native-trace04-result.json",
@@ -222,5 +247,51 @@
     "Keep modules scoped to target guests; preserve host and gateway control behavior.",
     "Keep original installed applications and their data available.",
     "Use only necessary targeted tests; paid actions require the user's explicit approval."
-  ]
+  ],
+  "takeoverPrivacy": {
+    "rawAuthLogsRetained": false,
+    "fixedEventObserver": "diagnostics/observe_login.py",
+    "scan": "mobile/.build/gbox-mod/mumu/privacy15-sensitive-scan.json",
+    "oauthAndJwtPatternMatchesInScannedScope": 0,
+    "fullPiiClearance": false,
+    "earlierConversationTokenExposure": "Reported by previous handoff; not repeated here, not revoked or removed by the file scan."
+  },
+  "testedPlatforms": [
+    "Windows + MuMu Android 12 instance 2"
+  ],
+  "untestedPlatforms": [
+    "macOS",
+    "Linux",
+    "physical Android device"
+  ],
+  "latestContextFix05": {
+    "artifact": "Cage-GBox-Privacy-15-ContextFix-05.apk",
+    "sha256": "4d6a9960582565b565f6ed7ae1aee3c6c73e5af891ca265bef8824f76465dfc5",
+    "installedInInstance": 2,
+    "serviceConnection": "PASS_OBSERVED: stale GMS flags=0x10000400 user=0 ApplicationInfo object and unused LoadedApk retired; Context created; service/onBind/callback non-null; handle initialization entered.",
+    "privacy": "Two fresh guest probe sessions complete; recorded SIM/timezone/VPN/property-control paths pass against saved Privacy13 outer controls. Existing Privacy15 marker preserved. Outer control not concurrently rerun.",
+    "claudeLogin": "FAIL_OBSERVED: GoogleSignInAccount returned; DroidGuard service connected; GMS unstable crashed during embedded handle initialization; DeadObjectException, DroidGuard failed and HTTP 400 followed.",
+    "crash": "15:34:39.014 DEBUG shows SIGSEGV with libhoudini.so frames +0x358158 and +0x30e7cf; Zygote reports signal 11. ARM trace names cached the.apk +0x40634. Do not infer a Google device verdict or a unique root cause from this stack.",
+    "attribution": "Strong evidence of failure at the MuMu ARM translation boundary; not enough to distinguish a MuMu defect from interaction with the container or adapted runtime. No physical ARM control tested.",
+    "presetsPreservedByteForByte": true,
+    "changedNonSignatureEntriesVsServiceDiag02": [
+      "classes4.dex",
+      "classes9.dex"
+    ],
+    "fullLoginOrConversationAccepted": false,
+    "evidence": [
+      "mobile/.build/gbox-mod/mumu/privacy15-cachetrace01-cold-start.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix04-cold-start.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-cold-start.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-guest-before.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-guest-after.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-comparison.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-login-after-account.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-fast-failure.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-process-exit.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-crash-frames.json"
+    ],
+    "scope": "Windows + MuMu Android 12 instance 2 only; macOS, Linux and physical Android not tested.",
+    "sourceAndBuild": "compat/FrameworkPaths.java plus opt-in diagnostics/CacheTrace.java; tested incremental script mobile/.build/gbox-mod/build_context_fix05_takeover.py; final build directory mobile/.build/gbox-mod/p15-cache-trace-4b45e375."
+  }
 }

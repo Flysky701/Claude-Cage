@@ -5,9 +5,14 @@ from pathlib import Path
 import re
 import shutil
 import struct
+import sys
 from zipfile import ZipFile
 
 MODULE = Path(__file__).resolve().parent
+GBOX_MOD = MODULE.parent
+if str(GBOX_MOD) not in sys.path:
+    sys.path.insert(0, str(GBOX_MOD))
+import toolchain
 BRIDGE = 'Lio/github/leexeo/cage/gbox/NativeCompat;'
 PATHS = 'Lio/github/leexeo/cage/gbox/FrameworkPaths;'
 CORE = 'lib/arm64-v8a/libvlitecore64.so'
@@ -85,6 +90,32 @@ def patch_framework_sources(decoded):
                '    invoke-static {v0}, ' + PATHS + '->fromPackageManager(Ljava/lang/Object;)Ljava/lang/Object;\n'
                '    move-result-object v0\n    return-object v0\n.end method\n')
     pm.write_text(source, encoding='utf-8', newline='\n')
+    abi_select = core / 'compat/i.smali'
+    source = abi_select.read_text('utf-8')
+    abi_signature = '([Ljava/lang/String;Ljava/util/Set;)Ljava/lang/String;'
+    abi_declaration = '.method public static e' + abi_signature
+    abi_original = 'cageFrameworkOriginalSelectAbi'
+    if source.count(abi_declaration) != 1 or abi_original in source:
+        raise ValueError('Package ABI selection hook shape changed')
+    source = source.replace(abi_declaration, '.method public static ' + abi_original + abi_signature)
+    source += ('\n.method public static e' + abi_signature + '\n    .locals 1\n'
+               '    invoke-static {p0, p1}, ' + PATHS + '->selectPackageAbi' + abi_signature + '\n'
+               '    move-result-object v0\n    return-object v0\n.end method\n')
+    abi_select.write_text(source, encoding='utf-8', newline='\n')
+    default_abi = core / 'context/k.smali'
+    source = default_abi.read_text('utf-8')
+    default_signature = '()Ljava/lang/String;'
+    default_declaration = '.method public static f' + default_signature
+    default_original = 'cageFrameworkOriginalDefaultAbi'
+    if source.count(default_declaration) != 1 or default_original in source:
+        raise ValueError('Package default ABI hook shape changed')
+    source = source.replace(default_declaration, '.method public static ' + default_original + default_signature)
+    source += ('\n.method public static f' + default_signature + '\n    .locals 1\n'
+               '    invoke-static {}, Lcom/vlite/sdk/context/k;->' + default_original + default_signature + '\n'
+               '    move-result-object v0\n'
+               '    invoke-static {v0}, ' + PATHS + '->defaultPackageAbi(Ljava/lang/String;)Ljava/lang/String;\n'
+               '    move-result-object v0\n    return-object v0\n.end method\n')
+    default_abi.write_text(source, encoding='utf-8', newline='\n')
 
 
 def apply(decoded, work, context):
@@ -94,8 +125,10 @@ def apply(decoded, work, context):
     run, env = context['run'], context['env']
     jdk, tools, android, apktool = (Path(context[key]) for key in ('jdk', 'tools', 'android_jar', 'apktool'))
     root = Path(context['root'])
-    ndk = Path(context.get('ndk', root / 'mobile/.build/client-integration/ndk'))
-    llvm = ndk / 'toolchains/llvm/prebuilt/windows-x86_64'
+    ndk = Path(context.get('ndk') or toolchain.default_ndk(root))
+    llvm = toolchain.llvm_prebuilt(ndk)
+    resource_dir = toolchain.clang_resource_dir(llvm)
+    builtins = toolchain.clang_builtins(llvm, 'aarch64')
     runtime = MODULE.parent / 'privacy/compat/runtime.cpp'
     if not runtime.is_file():
         raise FileNotFoundError('The reviewed compatibility runtime is not ready: ' + str(runtime))
@@ -113,7 +146,7 @@ def apply(decoded, work, context):
     for source in sources:
         obj = output / (source.stem + '.o')
         run(llvm / 'bin/clang++.exe', '-fintegrated-cc1', '--target=aarch64-linux-android28',
-            '--sysroot=' + str(llvm / 'sysroot'), '-resource-dir=' + str(llvm / 'lib/clang/18'),
+            '--sysroot=' + str(llvm / 'sysroot'), '-resource-dir=' + str(resource_dir),
             '-std=c++17', '-O2', '-fPIC', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
             '-mno-outline-atomics', '-Wall', '-Wextra', '-Werror', '-I' + str(MODULE), '-I' + str(output),
             '-c', source, '-o', obj, env=native_env)
@@ -123,7 +156,7 @@ def apply(decoded, work, context):
         '-z', 'max-page-size=4096', '-soname', 'libcage_compat.so',
         '-L' + str(llvm / 'sysroot/usr/lib/aarch64-linux-android/28'),
         '-L' + str(llvm / 'sysroot/usr/lib/aarch64-linux-android'), *objects,
-        llvm / 'lib/clang/18/lib/linux/libclang_rt.builtins-aarch64-android.a',
+        builtins,
         '-lc', '-ldl', '-llog', '-o', native, env=native_env)
     classes = output / 'classes'
     classes.mkdir()
@@ -198,6 +231,15 @@ def apply(decoded, work, context):
             'outsideGuestRootMappings': 'rejected',
             'guestContextMayExposePhysicalPrivatePaths': True,
             'serverPackageRecordsModified': False, 'arbitrarySyscallIsolationClaim': False,
+            'packageAbiSelection': ['com.vlite.sdk.compat.i.e', 'com.vlite.sdk.context.k.f'],
+            'failedGmsPackageCache': {
+                'scope': 'Verified MuMu profile, GMS unstable main-thread initial bind only',
+                'target': 'ActivityThread.mPackages current guest plus identical PM ApplicationInfo object for GMS flags 0x10000400 user 0',
+                'guard': 'Exact mapped APK paths; no application, resources or registered guest application',
+                'operation': 'Retire the exact stale PM entry and failed unused LoadedApk under separate original cache locks; preserve other entries and query behavior',
+                'networkSecurityAndAuthenticationSemanticsChanged': False,
+                'runtimeValidation': 'NOT_RUN',
+            },
         },
         'deviceValidation': 'NOT_RUN', 'privacyAcceptance': 'NOT_RUN', 'loginVerified': False,
         'nativeLibrarySha256': hashlib.sha256(native.read_bytes()).hexdigest(),

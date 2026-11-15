@@ -31,6 +31,29 @@ static bool property_is(const char* key, const char* value) {
     return real_get != NULL && real_get(key, found) >= 0 && strcmp(found, value) == 0;
 }
 
+#if defined(__x86_64__)
+static bool property_nonempty(const char* key) {
+    char found[PROP_VALUE_MAX] = {0};
+    return real_get != NULL && real_get(key, found) > 0;
+}
+
+static bool property_ends_with(const char* key, const char* suffix) {
+    char found[PROP_VALUE_MAX] = {0};
+    if (real_get == NULL) return false;
+    int length = real_get(key, found);
+    size_t suffix_len = strlen(suffix);
+    return length > 0 && (size_t)length >= suffix_len &&
+        strcmp(found + (size_t)length - suffix_len, suffix) == 0;
+}
+#endif
+#if defined(__aarch64__)
+static bool native_bridge_disabled(void) {
+    char bridge[PROP_VALUE_MAX] = {0};
+    int length = real_get != NULL ? real_get("ro.dalvik.vm.native.bridge", bridge) : -1;
+    return length == 0 || (length == 1 && bridge[0] == '0');
+}
+#endif
+
 static const char* replacement(const char* name) {
     if (!ready) return NULL;
     if (sim_enabled) {
@@ -50,21 +73,30 @@ __attribute__((constructor)) static void initialize(void) {
     int fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
     ssize_t count = fd >= 0 ? read(fd, &header, sizeof(header)) : -1;
     if (fd >= 0) close(fd);
-    bool x86 = count == sizeof(header) && memcmp(header.e_ident, ELFMAG, SELFMAG) == 0 &&
-        header.e_ident[EI_CLASS] == ELFCLASS64 && header.e_ident[EI_DATA] == ELFDATA2LSB && header.e_machine == EM_X86_64;
-    if (x86) main_machine = header.e_machine;
+    bool elf64 = count == sizeof(header) && memcmp(header.e_ident, ELFMAG, SELFMAG) == 0 &&
+        header.e_ident[EI_CLASS] == ELFCLASS64 && header.e_ident[EI_DATA] == ELFDATA2LSB;
+    if (elf64) main_machine = header.e_machine;
     const char* scope = getenv("CAGE_CHILD_SCOPE");
     bool selected = scope != NULL && (strcmp(scope, "com.anthropic.claude") == 0 ||
         strcmp(scope, "io.github.leexeo.cage.gboxprobe") == 0 ||
         strcmp(scope, "io.github.leexeo.cage.childprobe") == 0);
-    bool profile = real_get != NULL && real_read != NULL && real_callback != NULL &&
-        property_is("ro.build.fingerprint", "OPPO/pangu/pangu:12/V417IR/2721:user/release-keys") &&
-        property_is("ro.hardware", "OPPO") && property_is("ro.product.board", "PHY110") &&
+    bool symbols = real_get != NULL && real_read != NULL && real_callback != NULL;
+#if defined(__x86_64__)
+    bool profile = symbols && elf64 && header.e_machine == EM_X86_64 &&
+        property_ends_with("ro.build.fingerprint", ":12/V417IR/2721:user/release-keys") &&
+        property_nonempty("ro.hardware") && property_nonempty("ro.product.board") &&
         property_is("ro.dalvik.vm.native.bridge", "libnb.so") &&
         (property_is("ro.build.version.sdk", "31") || property_is("ro.build.version.sdk", "32"));
+#elif defined(__aarch64__)
+    bool profile = symbols && elf64 && header.e_machine == EM_AARCH64 &&
+        env_is("CAGE_CHILD_PROFILE", "android16-arm64") &&
+        property_is("ro.build.version.sdk", "36") && native_bridge_disabled();
+#else
+#error Unsupported child policy architecture
+#endif
     sim_enabled = env_is("CAGE_CHILD_SIM", "1");
     zone_enabled = env_is("CAGE_CHILD_TIMEZONE", "1") && env_is("CAGE_CHILD_ZONE", "Asia/Tokyo");
-    ready = x86 && selected && profile && env_is("CAGE_CHILD_POLICY", "1");
+    ready = selected && profile && env_is("CAGE_CHILD_POLICY", "1");
     // Opt-in diagnostic marker: no paths, property values, arguments or IDs.
     if (env_is("CAGE_CHILD_DIAGNOSTIC", "1")) {
         dprintf(STDERR_FILENO, "CAGE_CHILD loaded=1 mainElf=%u enabled=%u sim=%u timezone=%u\n",

@@ -4,17 +4,23 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import zipfile
+
+GBOX_MOD = Path(__file__).resolve().parents[1]
+if str(GBOX_MOD) not in sys.path:
+    sys.path.insert(0, str(GBOX_MOD))
+import toolchain
 
 
 def main():
     source = Path(__file__).resolve().parent
     repo = source.parents[3]
     parser = argparse.ArgumentParser()
-    parser.add_argument('--jdk', type=Path, default=Path('D:/Code/DevEnv/JAVA/jdk-17'))
-    parser.add_argument('--build-tools', type=Path, default=repo / 'mobile/.build/client-integration/build-tools35/android-15')
-    parser.add_argument('--android-jar', type=Path, default=repo / 'mobile/.build/gbox-test/android.jar')
-    parser.add_argument('--ndk', type=Path, default=repo / 'mobile/.build/client-integration/ndk')
+    parser.add_argument('--jdk', type=Path, default=toolchain.default_jdk())
+    parser.add_argument('--build-tools', type=Path, default=toolchain.default_tools(repo))
+    parser.add_argument('--android-jar', type=Path, default=toolchain.default_android_jar(repo))
+    parser.add_argument('--ndk', type=Path, default=toolchain.default_ndk(repo))
     parser.add_argument('--keystore', type=Path, default=repo / 'mobile/.build/sandbox/development.p12')
     parser.add_argument('--output', type=Path, default=repo / 'dist/Cage-GBox-Privacy-Probe-06.apk')
     parser.add_argument('--package-only', action='store_true', help='Reuse compiled outputs after a packaging-tool failure')
@@ -51,23 +57,26 @@ def main():
             'apk': args.output.name, 'build': 'PASS', 'deviceValidation': 'NOT_RUN',
             'nativeAbi': 'arm64-v8a', 'nativeScope': 'Three property APIs, getifaddrs and localtime; direct syscall/netlink coverage not claimed',
             'webviewReadings': ['first HTML script', 'after page finished'],
-            'networkRequests': 'NONE', 'report': 'private files/latest-report.json; CageGBoxProbe logcat'}
+            'networkRequests': 'None in ordinary diagnostic mode; opt-in Cage preflight uses fixed HTTPS IP/location services',
+            'report': 'private files/latest-report.json; CageGBoxProbe logcat; preflight uses separate private report without logcat'}
     args.output.with_suffix('.json').write_text(json.dumps(info, indent=2), encoding='utf-8')
     print(json.dumps(info))
 
 
 def compile_probe(source, args, work, run, java, llvm, native):
     run(llvm / 'bin/clang++.exe', '-fintegrated-cc1', '--target=aarch64-linux-android28',
-        '--sysroot=' + str(llvm / 'sysroot'), '-resource-dir=' + str(llvm / 'lib/clang/18'),
+        '--sysroot=' + str(llvm / 'sysroot'), '-resource-dir=' + str(toolchain.clang_resource_dir(llvm)),
         '-std=c++17', '-O2', '-fPIC', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
         '-mno-outline-atomics', '-Wall', '-Wextra', '-Werror', '-c', source / 'native_probe.cpp', '-o', work / 'native_probe.o')
     run(llvm / 'bin/ld.lld.exe', '-shared', '-m', 'aarch64linux', '--hash-style=gnu', '--eh-frame-hdr',
         '-z', 'defs', '-z', 'now', '-z', 'relro', '-z', 'noexecstack', '-z', 'max-page-size=4096',
         '-soname', native.name, '-L' + str(llvm / 'sysroot/usr/lib/aarch64-linux-android/28'),
         '-L' + str(llvm / 'sysroot/usr/lib/aarch64-linux-android'), work / 'native_probe.o',
-        llvm / 'lib/clang/18/lib/linux/libclang_rt.builtins-aarch64-android.a', '-lc', '-o', native)
+        toolchain.clang_builtins(llvm, 'aarch64'), '-lc', '-o', native)
     run(args.jdk / 'bin/javac.exe', '--release', '8', '-encoding', 'UTF-8', '-cp', args.android_jar,
-        '-d', work / 'classes', source / 'ProbeActivity.java')
+        '-d', work / 'classes', source / 'ProbeActivity.java',
+        source.parent / 'android-shell/java/io/github/leexeo/cage/preflight/NetworkMetadata.java',
+        source.parent / 'android-shell/java/io/github/leexeo/cage/preflight/NetworkProbe.java')
     jar = work / 'classes.jar'
     with zipfile.ZipFile(jar, 'w') as archive:
         for item in sorted((work / 'classes').rglob('*.class')):

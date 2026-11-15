@@ -2,10 +2,17 @@ package io.github.leexeo.cage.gbox;
 
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.os.Build;
+import android.os.Looper;
 import android.util.Log;
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 /** Scoped Framework path consumption. This does not intercept arbitrary file syscalls. */
 public final class FrameworkPaths {
@@ -21,6 +28,35 @@ public final class FrameworkPaths {
         if (!NativeCompat.isActive()) return;
         ioReturnedZero = result == 0;
         Log.i(TAG, "iobox.returnObserved zero=" + ioReturnedZero);
+    }
+
+    public static String selectPackageAbi(String[] supported, Set<String> apkAbis) {
+        if (supported == null || apkAbis == null) return null;
+        for (String abi : supported) {
+            if (("arm64-v8a".equals(abi) || "armeabi-v7a".equals(abi) || "armeabi".equals(abi))
+                    && apkAbis.contains(abi)) {
+                return abi;
+            }
+        }
+        for (String abi : supported) {
+            if (apkAbis.contains(abi)) return abi;
+        }
+        return null;
+    }
+
+    public static String defaultPackageAbi(String abi) {
+        if ("arm64-v8a".equals(abi) || "armeabi-v7a".equals(abi) || "armeabi".equals(abi)) {
+            return abi;
+        }
+        String[] supported = Build.SUPPORTED_ABIS;
+        if (supported != null) {
+            for (String candidate : supported) {
+                if ("arm64-v8a".equals(candidate) || "armeabi-v7a".equals(candidate) || "armeabi".equals(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        return abi;
     }
 
     public static synchronized void bind(Context host, Object bindData) {
@@ -42,13 +78,165 @@ public final class FrameworkPaths {
             stage = "applicationInfo";
             ApplicationInfo copy = convert(original, roots, "bind");
             field.set(bindData, copy);
+            // Publish physical PM results before retiring the stale entry so a
+            // concurrent lookup cannot recreate it from the old virtual paths.
             ready = roots;
+            stage = "uninitializedPackageCache";
+            discardFailedGmsPackageCache(client, roots, copy);
             Log.i(TAG, "bind.ready guestMatches=true rootsDistinct=true copied=true");
         } catch (Exception failure) {
             ready = null;
             Log.e(TAG, "bind.failed stage=" + stage + " exception=" + failure.getClass().getSimpleName());
             throw new IllegalStateException("Guarded Framework path preparation failed");
         }
+    }
+
+    /**
+     * MuMu's first GMS unstable service bind can ask for a Context before the
+     * verified physical-path adapter is ready. Android caches the LoadedApk
+     * before loading resources, and that failed cache entry keeps its old path.
+     * Only retire that failed, unused code-cache entry in this exact cold path.
+     */
+    private static void discardFailedGmsPackageCache(Object client, Roots roots,
+                                                      ApplicationInfo physical) throws Exception {
+        if (!"com.google.android.gms".equals(roots.guest)) return;
+        String process = (String) client.getClass().getMethod("getVirtualClientProcessName").invoke(client);
+        if (!"com.google.android.gms.unstable".equals(process)) return;
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            throw new IllegalStateException("GMS cache repair requires the main thread");
+        }
+        Object registered = requiredField(client, "q");
+        if (!(registered instanceof Map)) throw new IllegalStateException("Unexpected application registry type");
+        boolean guestRegistered;
+        // This sample registers new Applications on the main thread. Avoid
+        // nesting its registry lock inside the framework resource-manager lock.
+        synchronized (registered) {
+            guestRegistered = ((Map<?, ?>) registered).containsKey(roots.guest);
+        }
+        Class<?> threadClass = Class.forName("android.app.ActivityThread");
+        Object thread = threadClass.getDeclaredMethod("currentActivityThread").invoke(null);
+        Object lock = requiredField(thread, "mResourcesManager");
+        if (lock == null) throw new IllegalStateException("Framework cache lock unavailable");
+        Map<?, ?> packages;
+        Object reference, loaded;
+        ApplicationInfo cached;
+        String appDir, resDir;
+        synchronized (lock) {
+            Object value = requiredField(thread, "mPackages");
+            if (!(value instanceof Map)) throw new IllegalStateException("Unexpected package cache type");
+            packages = (Map<?, ?>) value;
+            reference = packages.get(roots.guest);
+            if (reference == null) return;
+            if (!(reference instanceof WeakReference)) throw new IllegalStateException("Unexpected package cache entry");
+            loaded = ((WeakReference<?>) reference).get();
+            if (loaded == null) return;
+            if (!"android.app.LoadedApk".equals(loaded.getClass().getName())) {
+                throw new IllegalStateException("Unexpected cached package class");
+            }
+            cached = (ApplicationInfo) requiredField(loaded, "mApplicationInfo");
+            if (cached == null || !roots.guest.equals(cached.packageName)
+                    || !roots.guest.equals(requiredField(loaded, "mPackageName"))) {
+                throw new IllegalStateException("Cached package identity mismatch");
+            }
+            appDir = (String) requiredField(loaded, "mAppDir");
+            resDir = (String) requiredField(loaded, "mResDir");
+        }
+        String expectedRes = cached.uid == android.os.Process.myUid() ? physical.sourceDir : physical.publicSourceDir;
+        if (equal(appDir, physical.sourceDir) && equal(resDir, expectedRes)) return;
+        // Path mapping and application methods run outside the framework lock.
+        if (appDir == null || resDir == null || !appDir.startsWith("/data/app/")
+                || !resDir.startsWith("/data/app/")
+                || !equal(mapped(appDir, roots, CODE, false), physical.sourceDir)
+                || !equal(mapped(resDir, roots, CODE, false), expectedRes)) {
+            throw new IllegalStateException("Cached paths do not map to the verified guest APK");
+        }
+        if (guestRegistered || requiredField(client, "o") != null) {
+            throw new IllegalStateException("Guest application already initialized");
+        }
+        Object applications = requiredField(thread, "mAllApplications");
+        if (!(applications instanceof List)) throw new IllegalStateException("Unexpected framework application registry");
+        for (Object item : (List<?>) applications) {
+            if (!(item instanceof android.app.Application)) throw new IllegalStateException("Unexpected application entry");
+            if (roots.guest.equals(((android.app.Application) item).getPackageName())) {
+                throw new IllegalStateException("Guest application already registered");
+            }
+        }
+        synchronized (lock) {
+            if (packages.get(roots.guest) != reference || ((WeakReference<?>) reference).get() != loaded
+                    || requiredField(loaded, "mApplicationInfo") != cached
+                    || requiredField(loaded, "mApplication") != null
+                    || requiredField(loaded, "mResources") != null) {
+                throw new IllegalStateException("Refusing to repair a changed or in-use cached package");
+            }
+        }
+        // The same pre-adapter ApplicationInfo can survive in the PM cache,
+        // keyed by flags. Removing only LoadedApk recreates it with that stale
+        // object. Retire only the observed GMS framework-query entry, preserving
+        // all other keys, values and the wrapper's original query behavior.
+        retireMatchingGmsApplicationInfo(cached);
+        boolean loaderPresent;
+        synchronized (lock) {
+            if (packages.get(roots.guest) != reference || ((WeakReference<?>) reference).get() != loaded
+                    || requiredField(loaded, "mApplicationInfo") != cached
+                    || !roots.guest.equals(cached.packageName)
+                    || !roots.guest.equals(requiredField(loaded, "mPackageName"))
+                    || !equal(requiredField(loaded, "mAppDir"), appDir)
+                    || !equal(requiredField(loaded, "mResDir"), resDir)) {
+                throw new IllegalStateException("Cached package changed during validation");
+            }
+            if (requiredField(client, "o") != null || requiredField(loaded, "mApplication") != null
+                    || requiredField(loaded, "mResources") != null) {
+                throw new IllegalStateException("Refusing to retire an in-use cached package");
+            }
+            loaderPresent = requiredField(loaded, "mClassLoader") != null;
+            packages.remove(roots.guest);
+        }
+        Log.i(TAG, "cache.failedGmsPackage.retired classLoaderPresent=" + loaderPresent);
+    }
+
+    private static void retireMatchingGmsApplicationInfo(ApplicationInfo stale) throws Exception {
+        Field cacheField = android.content.pm.PackageManager.class.getDeclaredField("sApplicationInfoCache");
+        cacheField.setAccessible(true);
+        Object cache = cacheField.get(null);
+        if (cache == null) throw new IllegalStateException("Application info cache unavailable");
+        if ("com.vlite.sdk.client.virtualservice.a".equals(cache.getClass().getName())) {
+            cache = requiredField(cache, "a");
+        }
+        Class<?> cacheClass = Class.forName("android.app.PropertyInvalidatedCache");
+        if (!cacheClass.isInstance(cache)) throw new IllegalStateException("Unexpected application info cache");
+        Field lockField = cacheClass.getDeclaredField("mLock");
+        Field mapField = cacheClass.getDeclaredField("mCache");
+        lockField.setAccessible(true);
+        mapField.setAccessible(true);
+        Object lock = lockField.get(cache);
+        if (lock == null) throw new IllegalStateException("Application info cache lock unavailable");
+        int removed = 0;
+        synchronized (lock) {
+            Object value = mapField.get(cache);
+            if (!(value instanceof Map)) throw new IllegalStateException("Unexpected application info entries");
+            Iterator<? extends Map.Entry<?, ?>> iterator = ((Map<?, ?>) value).entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<?, ?> entry = iterator.next();
+                if (entry.getValue() != stale) continue;
+                Object query = entry.getKey();
+                if (query == null || !"android.content.pm.PackageManager$ApplicationInfoQuery".equals(query.getClass().getName())) {
+                    throw new IllegalStateException("Unexpected application info query");
+                }
+                if (!"com.google.android.gms".equals(requiredField(query, "packageName"))
+                        || ((Number) requiredField(query, "flags")).longValue() != 0x10000400L
+                        || ((Number) requiredField(query, "userId")).intValue() != 0) continue;
+                iterator.remove();
+                ++removed;
+            }
+        }
+        Log.i(TAG, "cache.failedGmsApplicationInfo.retired count=" + removed);
+    }
+
+    private static Object requiredField(Object object, String name) throws Exception {
+        if (object == null) throw new IllegalStateException("Required framework object unavailable");
+        Field field = object.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(object);
     }
 
     public static Object fromPackageManager(Object value) {

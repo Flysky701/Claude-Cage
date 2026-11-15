@@ -2,9 +2,14 @@
 import hashlib
 import json
 from pathlib import Path
+import sys
 from zipfile import ZipFile
 
 MODULE = Path(__file__).resolve().parent
+GBOX_MOD = MODULE.parents[1]
+if str(GBOX_MOD) not in sys.path:
+    sys.path.insert(0, str(GBOX_MOD))
+import toolchain
 
 
 def build(work: Path, context: dict) -> dict:
@@ -12,22 +17,25 @@ def build(work: Path, context: dict) -> dict:
     temporary = output / 'tmp'
     temporary.mkdir(parents=True, exist_ok=True)
     root = Path(context['root'])
-    llvm = Path(context.get('ndk', root / 'mobile/.build/client-integration/ndk')) / 'toolchains/llvm/prebuilt/windows-x86_64'
+    ndk = Path(context.get('ndk') or toolchain.default_ndk(root))
+    llvm = toolchain.llvm_prebuilt(ndk)
+    resource_dir = toolchain.clang_resource_dir(llvm)
+    builtins = toolchain.clang_builtins(llvm, 'x86_64')
     jdk, tools, android = (Path(context[name]) for name in ('jdk', 'tools', 'android_jar'))
     run = context['run']
     env = dict(context['env'], TEMP=str(temporary), TMP=str(temporary))
     native, obj = output / 'libcage_host_load_bridge.so', output / 'host_bridge.o'
     libraries = llvm / 'sysroot/usr/lib/x86_64-linux-android/28'
     if not (libraries / 'liblog.so').is_file():
-        raise FileNotFoundError('The official NDK r27d x86_64 API28 liblog link input is required')
+        raise FileNotFoundError('The official NDK x86_64 API28 liblog link input is required')
     run(llvm / 'bin/clang++.exe', '-fintegrated-cc1', '--target=x86_64-linux-android28',
-        '--sysroot=' + str(llvm / 'sysroot'), '-resource-dir=' + str(llvm / 'lib/clang/18'),
+        '--sysroot=' + str(llvm / 'sysroot'), '-resource-dir=' + str(resource_dir),
         '-std=c++17', '-O2', '-fPIC', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
         '-Wall', '-Wextra', '-Werror', '-c', MODULE / 'host_bridge.cpp', '-o', obj, env=env)
     run(llvm / 'bin/ld.lld.exe', '-shared', '-m', 'elf_x86_64', '--hash-style=gnu', '--eh-frame-hdr',
         '--build-id=sha1', '-z', 'defs', '-z', 'now', '-z', 'relro', '-z', 'noexecstack',
         '-z', 'max-page-size=4096', '-soname', native.name, '-L' + str(libraries), obj,
-        llvm / 'lib/clang/18/lib/linux/libclang_rt.builtins-x86_64-android.a',
+        builtins,
         '-lc', '-ldl', '-llog', '-o', native, env=env)
     raw = native.read_bytes()
     if raw[:6] != b'\x7fELF\x02\x01' or int.from_bytes(raw[18:20], 'little') != 62:

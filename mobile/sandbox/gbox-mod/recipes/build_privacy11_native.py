@@ -3,9 +3,13 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 
 root = Path(__file__).resolve().parents[4]
 source = root / 'mobile/sandbox/gbox-mod/privacy'
+if str(source.parent) not in sys.path:
+    sys.path.insert(0, str(source.parent))
+import toolchain
 work = Path(__file__).resolve().parent / 'privacy11'
 work.mkdir(exist_ok=True)
 def run(*args, env=None):
@@ -18,10 +22,11 @@ def run(*args, env=None):
 spec = importlib.util.spec_from_file_location('parent_native', source / 'native/build.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-build = module.build(work, {'root': root, 'run': run, 'env': dict(os.environ)})
-llvm = root / 'mobile/.build/client-integration/ndk/toolchains/llvm/prebuilt/windows-x86_64'
+ndk = toolchain.default_ndk(root)
+build = module.build(work, {'root': root, 'ndk': ndk, 'run': run, 'env': dict(os.environ)})
+llvm = toolchain.llvm_prebuilt(ndk)
 run(llvm / 'bin/clang++.exe', '-fintegrated-cc1', '--target=aarch64-linux-android28',
-    '--sysroot=' + str(llvm / 'sysroot'), '-resource-dir=' + str(llvm / 'lib/clang/18'),
+    '--sysroot=' + str(llvm / 'sysroot'), '-resource-dir=' + str(toolchain.clang_resource_dir(llvm)),
     '-std=c++17', '-O2', '-fPIC', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
     '-mno-outline-atomics', '-Wall', '-Wextra', '-Werror',
     '-I' + str(source.parent / 'compat'), '-I' + str(work), '-c', source / 'compat/runtime.cpp',

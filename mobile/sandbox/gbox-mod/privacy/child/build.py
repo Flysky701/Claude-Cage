@@ -1,37 +1,51 @@
-"""Offline x86_64 child library and independent probe packaging. Never uses adb."""
+"""Offline child libraries and legacy x86_64 probe packaging. Never uses adb."""
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import zipfile
 
 SOURCE = Path(__file__).resolve().parent
 ROOT = SOURCE.parents[4]
+GBOX_MOD = SOURCE.parents[1]
+if str(GBOX_MOD) not in sys.path:
+    sys.path.insert(0, str(GBOX_MOD))
+import toolchain
+
 WORK = ROOT / "mobile/.build/gbox-mod/child-probe"
-JDK = Path("D:/Code/DevEnv/JAVA/jdk-17")
-TOOLS = ROOT / "mobile/.build/client-integration/build-tools35/android-15"
-LLVM = ROOT / "mobile/.build/client-integration/ndk/toolchains/llvm/prebuilt/windows-x86_64"
-ANDROID = ROOT / "mobile/.build/gbox-test/android.jar"
+JDK = toolchain.default_jdk()
+TOOLS = toolchain.default_tools(ROOT)
+LLVM = toolchain.llvm_prebuilt(toolchain.default_ndk(ROOT))
+ANDROID = toolchain.default_android_jar(ROOT)
 
 
-def build_library(work, run, env):
+def build_library(work, run, env, llvm=LLVM, abi="x86_64"):
     work.mkdir(parents=True, exist_ok=True)
-    sysroot = LLVM / "sysroot"
-    libraries = sysroot / "usr/lib/x86_64-linux-android/28"
+    sysroot = llvm / "sysroot"
+    profiles = {"x86_64": ("x86_64-linux-android", "elf_x86_64", 62),
+                "arm64-v8a": ("aarch64-linux-android", "aarch64linux", 183)}
+    if abi not in profiles:
+        raise ValueError("Unsupported child policy ABI")
+    triple, emulation, machine = profiles[abi]
+    libraries = sysroot / f"usr/lib/{triple}/28"
     if not (libraries / "libc.so").is_file():
-        raise RuntimeError("Run child/fetch_ndk_x86.py for the missing official r27d link inputs")
-    flags = ["-fintegrated-cc1", "--target=x86_64-linux-android28", "--sysroot=" + str(sysroot),
-             "-resource-dir=" + str(LLVM / "lib/clang/18"), "-std=c11", "-D_GNU_SOURCE", "-O2", "-fPIC",
+        raise RuntimeError("Run child/fetch_ndk_x86.py for the missing official NDK link inputs")
+    flags = ["-fintegrated-cc1", "--target=" + triple + "28", "--sysroot=" + str(sysroot),
+             "-resource-dir=" + str(toolchain.clang_resource_dir(llvm)), "-std=c11", "-D_GNU_SOURCE", "-O2", "-fPIC",
              "-fvisibility=hidden", "-Wall", "-Wextra", "-Werror"]
-    link = ["-z", "now", "-z", "relro", "--hash-style=gnu", "--eh-frame-hdr", "-m", "elf_x86_64", "--build-id=sha1",
+    link = ["-z", "now", "-z", "relro", "--hash-style=gnu", "--eh-frame-hdr", "-m", emulation, "--build-id=sha1",
             "--no-undefined", "-L" + str(libraries)]
+    if abi == "arm64-v8a":
+        flags.append("-mno-outline-atomics")
+        link += ["-z", "max-page-size=16384", "-z", "noexecstack"]
     library = work / "libcage_child_properties.so"
-    run(LLVM / "bin/clang.exe", *flags, "-c", SOURCE / "property_preload.c", "-o", work / "policy.o", env=env)
-    run(LLVM / "bin/ld.lld.exe", "-shared", "-soname", library.name, *link, work / "policy.o", "-lc", "-ldl", "-o", library, env=env)
+    run(llvm / "bin/clang.exe", *flags, "-c", SOURCE / "property_preload.c", "-o", work / "policy.o", env=env)
+    run(llvm / "bin/ld.lld.exe", "-shared", "-soname", library.name, *link, work / "policy.o", "-lc", "-ldl", "-o", library, env=env)
     data = library.read_bytes()
-    if data[:6] != b"\x7fELF\x02\x01" or int.from_bytes(data[18:20], "little") != 62:
+    if data[:6] != b"\x7fELF\x02\x01" or int.from_bytes(data[18:20], "little") != machine:
         raise RuntimeError("Child library ABI changed")
     return library, flags, link
 
@@ -41,24 +55,39 @@ def build(work: Path, context: dict) -> dict:
     temporary = output / "tmp"
     temporary.mkdir(parents=True, exist_ok=True)
     env = dict(context["env"], TEMP=str(temporary), TMP=str(temporary))
-    library, _, _ = build_library(output, context["run"], env)
+    root = Path(context["root"])
+    ndk = Path(context.get("ndk") or toolchain.default_ndk(root))
+    libraries = {}
+    for abi in ("x86_64", "arm64-v8a"):
+        library, _, _ = build_library(output / abi, context["run"], env, toolchain.llvm_prebuilt(ndk), abi)
+        libraries[abi] = library
     metadata = {
-        "elfMachine": 62, "abi": "x86_64", "packaging": "assets only; host APK ABIs unchanged",
+        "elfMachines": {"x86_64": 62, "arm64-v8a": 183},
+        "abis": ["x86_64", "arm64-v8a"], "packaging": "assets only; host APK ABIs unchanged",
         "hooks": ["__system_property_get", "__system_property_read", "__system_property_read_callback"],
-        "scope": "Selected guest process children in the exact guarded MuMu profile",
-        "parentGate": "Completed NativeCompat native property/sample verification plus SDK/64bit/current selected identity",
+        "scope": "Selected guest process children in guarded MuMu Android 12 or native arm64 Android 16 profiles",
+        "parentGate": "Selected current guest identity plus the matching architecture-specific gate",
         "javaBuildCacheComparison": "Diagnostic booleans only; original VLite can rewrite these guest cache fields",
-        "childGate": "Unchanged independent exact raw-property and actual executable ELF checks",
+        "childGate": "Actual executable ELF and raw system-property checks for the compiled ABI",
         "preservedProperties": ["persist.radio.multisim.config", "telephony.active_modems.max_count"],
         "originalPreloadAndEnvironmentRestoredOnDeactivate": True,
-        "runtimeEnabled": True, "independentProbeValidation": "PASS",
+        "runtimeEnabled": True, "independentProbeValidation": "HISTORICAL_MUMU_ONLY",
         "independentProbeEvidence": "mobile/.build/gbox-mod/mumu/child-property-probe01-result.json",
         "gboxIntegrationValidation": "NOT_RUN", "callbackSerial": "original opaque token; same as independent probe",
-        "notClaimed": ["non-x86_64 children", "explicit or early-cached ProcessBuilder environment maps",
+        "mumuX86_64": {"elfMachine": 62, "sdk": [31, 32],
+                       "parentGate": "Completed NativeCompat native property/sample verification plus SDK/64bit",
+                       "childGate": "Existing fingerprint suffix, nonempty hardware/board, libnb.so and raw SDK31/32 checks",
+                       "runtimeValidation": "NOT_RERUN_FOR_THIS_BUILD"},
+        "android16Arm64": {"elfMachine": 183, "sdk": 36, "nativeBridge": "absent or disabled",
+                           "parentGate": "Actual parent and system shell/getprop/date ELF machine plus SDK36 and selected guest identity",
+                           "childGate": "Actual executable AArch64 ELF, raw SDK36, disabled bridge and explicit android16-arm64 profile",
+                           "runtimeValidation": "NOT_RUN", "pageAlignment": 16384},
+        "notClaimed": ["32-bit or unsupported-profile children", "explicit or early-cached ProcessBuilder environment maps",
                        "direct mapped property-area reads", "native VPN interfaces in children"],
     }
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-    return {"extra_entries": {"assets/cage-child/x86_64/libcage_child_properties.so": library}, "metadata": metadata}
+    return {"extra_entries": {f"assets/cage-child/{abi}/libcage_child_properties.so": path
+                              for abi, path in libraries.items()}, "metadata": metadata}
 
 
 def main():
@@ -99,7 +128,7 @@ def main():
         "artifact": str(args.output), "package": "io.github.leexeo.cage.childprobe", "activity": ".ChildPropertyProbeActivity",
         "build": "PASS", "deviceValidation": "NOT_RUN", "parentEnvironmentModified": False,
         "accountOrNetworkAccess": False, "nativeElfMachine": 62, "nativePackaging": "assets only; no lib ABI directories",
-        "profile": "exact MuMu Android 12 fingerprint, board, hardware, native bridge; API 31/32",
+        "profile": "MuMu Android 12 fingerprint suffix, nonempty board/hardware, libnb.so; API 31/32",
         "report": "files/latest-child-property-report.json", "logTag": "CageChildProbe",
         "checks": ["three native property APIs", "system getprop", "system date", "actual executable ISA and preload marker",
                    "existing LD_PRELOAD preserved", "unselected and deactivated original behavior", "capacity properties unchanged"],

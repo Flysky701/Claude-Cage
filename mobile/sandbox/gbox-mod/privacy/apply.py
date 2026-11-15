@@ -233,6 +233,9 @@ def apply(decoded: Path, work: Path, context: dict) -> dict:
         "webView": {
             "provider": "com.android.webview 110.0.5481.154.1 (548115537)",
             "mechanism": "Real Chromium time-zone-for-testing startup switch before engine initialization",
+            "android16Provider": "com.google.android.webview 156.0.8078.47 (807804703)",
+            "android16Mechanism": "Version-guarded native monitor notification; isolated renderer initial update is asynchronous",
+            "android16FirstScript": "KNOWN_FAILURE: three Test07 cold starts initially Shanghai before Tokyo; see WEBVIEW-ANDROID16.md",
             "dataDirectorySuffix": "Existing GBox suffix required and preserved",
             "guestChange": "Restore switch and persistently reject reuse of the initialized provider process",
             "pageJavaScriptModified": False, "runtimeFirstScriptValidation": "NOT_RUN"
@@ -240,14 +243,15 @@ def apply(decoded: Path, work: Path, context: dict) -> dict:
         "coveredPaths": ["phone Binder read methods", "VLite process-local native telephony properties",
                          "Java and ICU defaults plus TZ environment", "Connectivity return values",
                          "Messenger network callbacks", "Java NetworkInterface through Libcore.os.getifaddrs",
-                         "Selected ARM guest library property reads and getifaddrs via existing ByteHook",
-                         "x86_64 default child environment property APIs",
-                         "Exact WebView provider renderer startup timezone, pending real first-script validation"],
+                         "Selected ARM guest library property reads and getifaddrs; original MuMu or separate API36 ByteHook",
+                         "Guarded x86_64/API31-32 and native arm64/API36 default child environment property APIs",
+                         "Exact WebView110 startup switch; WebView156 subsequent timezone only, first-script race remains"],
         "requiresRuntimeVerification": ["VLite native-property hook behavior", "WebView timezone",
                                         "native/subprocess timezone", "real nonempty host SIM contrast",
                                         "VPN-active callback and interface contrast", "Google and Claude login"],
         "notClaimed": ["host x86 parent library reads", "directly resolved function pointers or raw syscalls/netlink",
-                       "unvalidated GBox child integration", "network route enforcement",
+                       "child explicit/cached environment enforcement", "child VPN interface enumeration", "network route enforcement",
+                       "Android16 WebView first-script timezone guarantee",
                        "kernel isolation", "Play Integrity or app licensing verdicts"]
     }
     (output / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")

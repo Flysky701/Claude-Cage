@@ -80,6 +80,7 @@ bool arm_header(uintptr_t base) {
 }
 
 #include "ifaddrs_guard.h"
+#include "modern_bytehook.h"
 
 bool root_matches_locked(const char* path) {
     if (!path) return false;
@@ -402,7 +403,8 @@ bool read_strings(JNIEnv* env, jobjectArray values, char* output, size_t stride,
 
 extern "C" JNIEXPORT jint JNICALL
 Java_io_github_leexeo_cage_privacy_NativePrivacy_nativeBind(JNIEnv* env, jclass, jlong table,
-        jobjectArray java_roots, jobjectArray java_interfaces, jint flags, jboolean synchronize_loads) {
+        jobjectArray java_roots, jobjectArray java_interfaces, jint flags, jboolean synchronize_loads,
+        jboolean android16_native) {
     log("nativeBind.enter");
     __atomic_store_n(&enabled, 0u, __ATOMIC_RELEASE);
     if (installation_failed) return -4;
@@ -424,7 +426,9 @@ Java_io_github_leexeo_cage_privacy_NativePrivacy_nativeBind(JNIEnv* env, jclass,
     log("nativeBind.after.configurationUnlock");
     if (!installed) {
         log("nativeBind.before.validateApi");
-        if (!validate_api(static_cast<uintptr_t>(table))) { log("bind.bytehook.api.rejected"); return -3; }
+        if (android16_native ? !bind_modern_api() : !validate_api(static_cast<uintptr_t>(table))) {
+            log("bind.bytehook.api.rejected"); return -3;
+        }
         log("nativeBind.after.validateApi");
         log("nativeBind.before.resolveSymbols");
         real_getifaddrs = reinterpret_cast<GetIfaddrs>(dlsym(RTLD_DEFAULT, "getifaddrs"));
@@ -458,6 +462,7 @@ Java_io_github_leexeo_cage_privacy_NativePrivacy_nativeBind(JNIEnv* env, jclass,
         log("observation.dlopen.callback.requested");
     }
     if (synchronize_loads) {
+        if (modern_api) return -7;
         if (!prepare_load_refresh(env, validated_core)) return -7;
     }
     __atomic_store_n(&enabled, static_cast<unsigned>(flags), __ATOMIC_RELEASE);

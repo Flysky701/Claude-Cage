@@ -15,10 +15,11 @@ SOURCE = Path(__file__).resolve().parent
 ROOT = SOURCE.parents[3]
 sys.path.insert(0, str(SOURCE.parent))
 from build import _length8, _length16, signature_entry
+import toolchain
 
-JDK = Path("D:/Code/DevEnv/JAVA/jdk-17")
-TOOLS = ROOT / "mobile/.build/client-integration/build-tools35/android-15"
-LLVM = ROOT / "mobile/.build/client-integration/ndk/toolchains/llvm/prebuilt/windows-x86_64"
+JDK = toolchain.default_jdk()
+TOOLS = toolchain.default_tools(ROOT)
+LLVM = toolchain.llvm_prebuilt(toolchain.default_ndk(ROOT))
 WORK = ROOT / "mobile/.build/gbox-mod/network-probe02"
 INPUT = ROOT / "mobile/.build/gbox-test/GBox-Isolation-Probe.apk"
 
@@ -127,7 +128,7 @@ def main():
     library = WORK / "libcage_network_probe_abi.so"
     if not args.finalize_only:
         run(LLVM / "bin/clang.exe", "-fintegrated-cc1", "--target=aarch64-linux-android28",
-            "--sysroot=" + str(LLVM / "sysroot"), "-resource-dir=" + str(LLVM / "lib/clang/18"),
+            "--sysroot=" + str(LLVM / "sysroot"), "-resource-dir=" + str(toolchain.clang_resource_dir(LLVM)),
             "-std=c11", "-O2", "-fPIC", "-fvisibility=hidden", "-mno-outline-atomics", "-Wall", "-Wextra", "-Werror",
             "-c", SOURCE / "abi_marker.c", "-o", WORK / "marker.o")
         run(LLVM / "bin/ld.lld.exe", "-shared", "-m", "aarch64linux", "-z", "defs", "-z", "noexecstack",

@@ -2,6 +2,10 @@
 
 此模块由上一级构建脚本的 `--privacy` 参数启用；`--privacy-modules` 可选择 `sim`、`timezone`、`vpn`。默认时区为 `Asia/Tokyo`，不修改 UTC 时钟。
 
+后续 Android16 真机结果见 [真机报告](../../../PHONE-GBOX-VALIDATION-2026-11-15.md)：SIM/VPN 已测路径通过，WebView 首脚本仍存在原时区泄露。扩展覆盖与验收按 [隐私风险与补充验收](../PRIVACY-REVIEW-2026-11-15.md) 跟踪；下文各 Privacy 版本的 MuMu 历史结论不代表真机全部通过。
+
+2026-11-15 后续增量已随新 UI 合并安装：识别到 VPN 隧道时，`LinkPropertiesPrivacy` 返回空展示副本，清理隧道地址、DNS、路由、代理等元数据；不改真实链路或非隧道字段。Android16 活动隧道同步查询和默认回调对照通过；底层蜂窝链路仍有地址与 DNS/路由计数，不能称为全部网络身份隔离。14 项独立 Android 合成对象检查通过，最终实际接入、登录及数据保留证据见上述补充验收文末。网页首脚本与断线保护仍未通过完整验收，手机全局网络设置未改变。
+
 策略仅作用于 `com.anthropic.claude` 和验收探针 `io.github.leexeo.cage.gboxprobe`。绑定到其他应用时停用策略并恢复记录的进程环境；GBox 管理进程及 Google 预置 APK 不改写。
 
 Privacy12 已在 MuMu 单次冷启动取得完整 Probe06 报告，所测 SIM 属性、时区和 VPN 可见状态通过。三个原生属性入口 get/read/read_callback 和 getifaddrs 均有成功安装状态与实际命中，稍后加载的来宾 ARM 库经过同步刷新被纳入。Java/ICU、原生本地时间与属性、默认子进程、WebView 首个脚本及后续读数均为 Tokyo / +540，所测 UTC 对照保持一致。未选中的 SDK 属性和两个原本缺失的容量属性保留原结果；硬件容量数不作为 SIM 存在或隐藏的判据。Java SIM 在外层和来宾都为空，无阳性对照，不能独立归功于屏蔽；运营商信息在原生和子进程路径有阳性对照。

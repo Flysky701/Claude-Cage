@@ -1,0 +1,28 @@
+{
+  "scope": "INDEPENDENT_NO_INTERNET_LAB_NOT_CAGE_INTEGRATION",
+  "artifactSha256": "ce107042714c22c73166682550647e208cb785d6930f0cc6c81761f8150f8a77",
+  "appProcesses": 10,
+  "targetPages": 15,
+  "dateIntlSamples": 60,
+  "rendererTerminations": 5,
+  "prewarmUsed": false,
+  "fixedDelayUsed": false,
+  "cageIntegrationApplied": false,
+  "cageIntegrationApproval": "AUTO_REVIEW_REJECTED_PENDING_USER_DECISION",
+  "sourceSha256": {
+    "AndroidManifest.xml": "2bcc727c37a74d59ae9905969e9247904c0d06e6a4b86287980b636e3bb3c72a",
+    "Probe.java": "d2004c6649e5445076b820689216f11fa4b3588fb6b408f74f1038208a3f81e6",
+    "RendererRedirect.java": "95cfce241e29da28d71bb81805913f90947b39b87e4b431a185ac5110752162b",
+    "RendererService.java": "5922a61746274bcf3eddb5557876531c6bf009d068166f95053ea2859d830fc8",
+    "renderer_timezone.cpp": "76b2c20f56dd250aa0ac6abd36b524d99675e74770f3cb5f27c0e2e098da400b"
+  },
+  "evidenceSha256": {
+    "renderer-service05-results.json": "c7b7a53dd14d816f096716f66596c69155367d9e89838a7b75bf54bec7ec5a1c"
+  },
+  "platforms": {
+    "WindowsBuild": "PASS",
+    "Android16Runtime": "PASS_RECORDED_LAB_PATHS",
+    "macOSBuild": "NOT_RUN",
+    "LinuxBuild": "NOT_RUN"
+  }
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "libc_samples.h"
+#include "libc_android16_sample.h"
 #include <stddef.h>
 
 static_assert(sizeof(ifaddrs) == 56 && offsetof(ifaddrs, ifa_next) == 0
@@ -64,6 +65,15 @@ static bool cage_ifaddrs_release_verified(void* get, void* release) {
     if (getter.dli_fbase != freer.dli_fbase) { log("ownership.reject.differentOwners"); return false; }
     uintptr_t base = reinterpret_cast<uintptr_t>(getter.dli_fbase);
     if (!arm_header(base)) { log("ownership.reject.ownerNotArm"); return false; }
+    // Native ARM64 Android 16: complete getifaddrs + allocation callback +
+    // freeifaddrs bodies from the inspected phone libc. Each node is its own
+    // allocation, and freeifaddrs follows ifa_next then frees that node once.
+    // Keep the translated MuMu path below separate; a different libc fails closed.
+    if (reinterpret_cast<uintptr_t>(get) == base + android16_get_offset
+        && reinterpret_cast<uintptr_t>(release) == base + android16_free_offset
+        && sample_matches(base, android16_get_offset, android16_ifaddrs_code, sizeof(android16_ifaddrs_code))) {
+        log("ownership.android16.exactSample"); return true;
+    }
     if (reinterpret_cast<uintptr_t>(get) != base + arm_get_offset
         || reinterpret_cast<uintptr_t>(release) != base + arm_free_offset) {
         log("ownership.reject.symbolOffsets"); return false;

@@ -1,0 +1,41 @@
+{
+  "scope": "OWNED_OFFLINE_PAGES_ONLY_NOT_CAGE_FIX",
+  "provider": "com.google.android.webview 156.0.8078.47 / 807804703",
+  "sdk": 36,
+  "independentAppProcesses": 20,
+  "ownedPages": 35,
+  "nativeDateIntlSamples": 140,
+  "explicitRendererTerminations": 5,
+  "gateReadingsInitiallyShanghai": 25,
+  "matrix": {
+    "baseline": "PASS_MEASURED",
+    "monitor": "OBSERVED_NO_RACE",
+    "gate": "PASS_MEASURED",
+    "gate-reload": "PASS_MEASURED",
+    "gate-newview": "PASS_MEASURED",
+    "gate-recreate": "PASS_MEASURED",
+    "gate-disabled": "OBSERVED_JS_DISABLED_NO_RESULT",
+    "gate-mismatch": "PASS_BLOCKED"
+  },
+  "productionIntegration": false,
+  "limitations": [
+    "synchronous restoreState must retain its original return and navigation semantics",
+    "JavaScript disabled produces no confirmation result",
+    "early evaluateJavascript changes profile selection eligibility",
+    "multi-profile popup history restoration and real Claude WebView flows not verified"
+  ],
+  "cagePreservation": {
+    "cageArtifactSha256": "1567aaf6c84e7af7dbecbcd90211358f9fc40602273b4541a63f5618b9075b61",
+    "matchesPreviouslyInstalledChecks02": true,
+    "systemTimezone": "Asia/Shanghai",
+    "cageUpdatedThisTurn": false,
+    "globalSettingsWrittenThisTurn": false
+  },
+  "evidenceSha256": {
+    "mobile\\.build\\gbox-mod\\webview-firstscript-lab\\timezone-lab-monitor04.apk": "fe921de3258baf9bbfb77cb948c3b5793fdc0257f0a16890e2404c7afd8b2302",
+    "mobile\\.build\\gbox-mod\\webview-firstscript-lab\\timezone-lab-monitor04.json": "6082f9f6ba3fa290fe27ace8500d093c601b378a42eef1c2b5e3cc462544da6b",
+    "mobile\\.build\\gbox-mod\\webview-firstscript-lab\\monitor04-results01.json": "480d045edfdff2bdd50e7a5edf5a5533256131940f68615bd445159d4bc18ec6",
+    "mobile\\.build\\gbox-mod\\webview-firstscript-lab\\monitor04-repeat01.json": "bf5dc003b94962e4c027a92861f5477c32e254825ee906ac09afdd82a0c9b76c",
+    "mobile\\.build\\gbox-mod\\webview-firstscript-lab\\cage-preserved04.json": "3e9550c2776b373739c41b1f4154fa1fb121e9e73628416aa19151c907ef17f3"
+  }
+}

@@ -17,13 +17,13 @@ import java.util.Map;
 
 /** Reversible environment for children of one selected, guarded guest process. */
 final class ChildPolicy {
-    // mumu/child-property-probe01-result.json: PASS. GBox integration still
-    // needs its own runtime check; this does not expand the ABI/profile guard.
+    // Historical x86 probe: mumu/child-property-probe01-result.json PASS.
+    // This enables the guarded implementation, not a validation claim for the
+    // new Android 16 arm64 path; each build needs its own device verification.
     private static final boolean CHILD_PROBE_VALIDATED = true;
     private static final String TAG = "CageChildPolicy";
-    private static final String ASSET = "cage-child/x86_64/libcage_child_properties.so";
     private static final String[] KEYS = {"LD_PRELOAD", "CAGE_CHILD_SCOPE", "CAGE_CHILD_POLICY",
-        "CAGE_CHILD_SIM", "CAGE_CHILD_TIMEZONE", "CAGE_CHILD_ZONE", "CAGE_CHILD_DIAGNOSTIC"};
+        "CAGE_CHILD_SIM", "CAGE_CHILD_TIMEZONE", "CAGE_CHILD_ZONE", "CAGE_CHILD_DIAGNOSTIC", "CAGE_CHILD_PROFILE"};
     private static final Map<String, String> saved = new LinkedHashMap<>();
     private static boolean active;
 
@@ -40,7 +40,8 @@ final class ChildPolicy {
         if (!hasContext || !hasModules || !supportedZone) return;
         String stage = "guard";
         try {
-            if (!guarded()) return;
+            String abi = guardedAbi();
+            if (abi == null) return;
             String pkg = guest.getPackageName();
             Object client = Class.forName("com.vlite.sdk.client.k").getMethod("getInst").invoke(null);
             String current = (String) client.getClass().getMethod("getVirtualClientPkgName").invoke(client);
@@ -57,7 +58,7 @@ final class ChildPolicy {
             Log.i(TAG, "guard.host matches=" + hostMatches);
             if (!hostMatches)
                 throw new IllegalStateException("Host identity unavailable");
-            File library = extract(host);
+            File library = extract(host, abi);
             stage = "environment";
             for (String key : KEYS) saved.put(key, Os.getenv(key));
             String original = saved.get("LD_PRELOAD");
@@ -67,33 +68,62 @@ final class ChildPolicy {
             Os.setenv("CAGE_CHILD_TIMEZONE", timezone ? "1" : "0", true);
             Os.setenv("CAGE_CHILD_ZONE", zone, true);
             Os.setenv("CAGE_CHILD_DIAGNOSTIC", "0", true);
+            Os.setenv("CAGE_CHILD_PROFILE", "arm64-v8a".equals(abi) ? "android16-arm64" : "mumu-x86_64", true);
             Os.setenv("CAGE_CHILD_POLICY", "1", true);
             Os.setenv("LD_PRELOAD", preload, true);
             active = true;
-            Log.i(TAG, "environment.active x86_64Only=true originalPreloadPreserved=true");
+            Log.i(TAG, "environment.active abi=" + abi + " originalPreloadPreserved=true");
         } catch (Exception | LinkageError failure) {
             deactivate();
             Log.w(TAG, "activation.unavailable stage=" + stage + " exception=" + failure.getClass().getSimpleName());
         }
     }
 
-    private static boolean guarded() throws Exception {
+    private static String guardedAbi() throws Exception {
+        if (Build.VERSION.SDK_INT == 36 && Process.is64Bit()) {
+            // Read real executable headers instead of VLite-rewritten Build ABI
+            // cache fields. Each child independently verifies its own ISA and
+            // raw system SDK/native-bridge values before enabling interception.
+            boolean parentArm64 = elfMachine(new File("/proc/self/exe")) == 183;
+            boolean systemArm64 = elfMachine(new File("/system/bin/sh")) == 183
+                && elfMachine(new File("/system/bin/getprop")) == 183
+                && elfMachine(new File("/system/bin/date")) == 183;
+            Log.i(TAG, "guard.android16 parentArm64=" + parentArm64 + " systemArm64=" + systemArm64);
+            return parentArm64 && systemArm64 ? "arm64-v8a" : null;
+        }
         boolean sdk = Build.VERSION.SDK_INT == 31 || Build.VERSION.SDK_INT == 32;
         boolean is64 = Process.is64Bit();
         // VLite device/a writes these Java cache fields for the guest. They
         // are diagnostic observations, not an independent host profile gate.
-        boolean fingerprint = "OPPO/pangu/pangu:12/V417IR/2721:user/release-keys".equals(Build.FINGERPRINT);
-        boolean hardware = "OPPO".equals(Build.HARDWARE), board = "PHY110".equals(Build.BOARD);
+        boolean fingerprint = Build.FINGERPRINT != null
+            && Build.FINGERPRINT.endsWith(":12/V417IR/2721:user/release-keys");
+        boolean hardware = Build.HARDWARE != null && !Build.HARDWARE.isEmpty();
+        boolean board = Build.BOARD != null && !Build.BOARD.isEmpty();
         Method active = Class.forName("io.github.leexeo.cage.gbox.NativeCompat").getDeclaredMethod("isActive");
         active.setAccessible(true);
         // gate.cpp runtime_matches checks the real fingerprint/hardware/board,
         // libnb, SDK and mapped bridge/host ART. isActive requires its completed
         // native verification. The x86 child library independently repeats the
-        // exact real-property profile when it is loaded in each child.
+        // existing real-property profile when it is loaded in each child.
         boolean verified = Boolean.TRUE.equals(active.invoke(null));
         Log.i(TAG, "guard.runtime sdk=" + sdk + " process64=" + is64 + " nativeProfileVerified=" + verified
             + " javaFingerprintMatch=" + fingerprint + " javaHardwareMatch=" + hardware + " javaBoardMatch=" + board);
-        return sdk && is64 && verified;
+        return sdk && is64 && verified ? "x86_64" : null;
+    }
+
+    private static int elfMachine(File file) throws Exception {
+        byte[] header = new byte[64];
+        int offset = 0;
+        try (InputStream in = new FileInputStream(file)) {
+            while (offset < header.length) {
+                int count = in.read(header, offset, header.length - offset);
+                if (count < 0) return -1;
+                offset += count;
+            }
+        }
+        if (header[0] != 127 || header[1] != 'E' || header[2] != 'L' || header[3] != 'F'
+                || header[4] != 2 || header[5] != 1) return -1;
+        return (header[18] & 255) | ((header[19] & 255) << 8);
     }
 
     static synchronized void deactivate() {
@@ -131,13 +161,15 @@ final class ChildPolicy {
         }
     }
 
-    private static File extract(Context host) throws Exception {
-        byte[] data = bytes(host.getAssets().open(ASSET));
+    private static File extract(Context host, String abi) throws Exception {
+        int machine = "arm64-v8a".equals(abi) ? 183 : "x86_64".equals(abi) ? 62 : -1;
+        if (machine < 0) throw new IllegalStateException("Unsupported child library ABI");
+        byte[] data = bytes(host.getAssets().open("cage-child/" + abi + "/libcage_child_properties.so"));
         if (data.length < 64 || data[0] != 127 || data[1] != 'E' || data[2] != 'L' || data[3] != 'F'
-                || data[4] != 2 || data[5] != 1 || data[18] != 62 || data[19] != 0)
+                || data[4] != 2 || data[5] != 1 || (data[18] & 255) != machine || data[19] != 0)
             throw new IllegalStateException("Unexpected child library ABI");
         File root = host.getCodeCacheDir().getCanonicalFile();
-        File directory = new File(root, "cage-child/x86_64").getCanonicalFile();
+        File directory = new File(root, "cage-child/" + abi).getCanonicalFile();
         if (!directory.getPath().startsWith(root.getPath() + "/")) throw new IllegalStateException("Child library root mismatch");
         if (!directory.isDirectory() && !directory.mkdirs()) throw new java.io.IOException("Child library directory unavailable");
         String expected = digest(data);

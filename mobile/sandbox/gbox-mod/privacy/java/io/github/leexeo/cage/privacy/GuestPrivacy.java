@@ -15,7 +15,6 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.Parcelable;
-import android.os.Parcel;
 import android.system.Os;
 import android.util.Log;
 import java.lang.reflect.Array;
@@ -462,19 +461,12 @@ public final class GuestPrivacy {
         }
         if (value instanceof LinkProperties) {
             LinkProperties original = (LinkProperties) value;
-            Parcel parcel = Parcel.obtain();
-            LinkProperties copy;
-            try {
-                original.writeToParcel(parcel, 0);
-                parcel.setDataPosition(0);
-                copy = LinkProperties.CREATOR.createFromParcel(parcel);
-            } finally { parcel.recycle(); }
-            if (vpnInterface(original.getInterfaceName())) {
+            boolean tunnel = vpnInterface(original.getInterfaceName());
+            if (tunnel) {
                 vpnInterfaces.add(original.getInterfaceName());
                 NativePrivacy.observeInterface(original.getInterfaceName());
-                invokeRequired(copy, "setInterfaceName", new Class<?>[]{String.class}, (Object) null);
             }
-            return copy;
+            return LinkPropertiesPrivacy.copyForGuest(original, tunnel);
         }
         if (value instanceof NetworkInfo) {
             NetworkInfo original = (NetworkInfo) value;
@@ -557,6 +549,7 @@ public final class GuestPrivacy {
         out.putBoolean("sim", active && Profile.SIM);
         out.putBoolean("timezone", active && Profile.TIMEZONE);
         out.putBoolean("vpn", active && Profile.VPN);
+        out.putString("vpnLinkPropertiesScope", "RECOGNIZED_TUNNEL_METADATA_ONLY");
         out.putBoolean("nativePropertiesApplied", nativePropertiesApplied);
         out.putBoolean("nativeReadPolicyRequested", nativeReadPolicyRequested);
         out.putString("nativeReadPolicy", NativePrivacy.diagnostics());

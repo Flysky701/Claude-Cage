@@ -18,6 +18,7 @@ import uuid
 from zipfile import ZipFile
 
 from native_relocation import TARGETS as NATIVE_HOST_TARGETS, relocate as relocate_native_host
+import toolchain
 
 ROOT = Path(__file__).resolve().parents[3]
 MODULE = Path(__file__).resolve().parent
@@ -247,18 +248,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=ROOT / "mobile/.build/gbox-test/GBox-1.8.4.02.apk")
     parser.add_argument("--decoded", type=Path, default=BUILD / "decoded-original")
-    parser.add_argument("--jdk", type=Path, default=Path("D:/Code/DevEnv/JAVA/jdk-17"))
-    parser.add_argument("--tools", type=Path, default=ROOT / "mobile/.build/client-integration/build-tools35/android-15")
-    parser.add_argument("--android-jar", type=Path, default=ROOT / "mobile/.build/gbox-test/android.jar")
-    parser.add_argument("--apktool", type=Path, default=ROOT / "mobile/.build/blackbox-source/apktool.jar")
+    parser.add_argument("--jdk", type=Path, default=toolchain.default_jdk())
+    parser.add_argument("--tools", type=Path, default=toolchain.default_tools(ROOT))
+    parser.add_argument("--android-jar", type=Path, default=toolchain.default_android_jar(ROOT))
+    parser.add_argument("--apktool", type=Path, default=toolchain.default_apktool(ROOT))
     parser.add_argument("--keystore", type=Path, default=ROOT / "mobile/.build/sandbox/development.p12")
     parser.add_argument("--identity", choices=("coexist", "original"), default="coexist")
     parser.add_argument("--privacy", action="store_true")
+    parser.add_argument("--account-diag", action="store_true")
     parser.add_argument("--native-trace", action="store_true",
                         help="Record fixed initialization-stage labels without disabling hooks")
     parser.add_argument("--mumu-compat", action="store_true",
                         help="Add the guarded API31/32 ARM64 MuMu native compatibility candidate")
-    parser.add_argument("--ndk", type=Path, default=ROOT / "mobile/.build/client-integration/ndk")
+    parser.add_argument("--ndk", type=Path, default=toolchain.default_ndk(ROOT))
     parser.add_argument("--privacy-modules", default="sim,timezone,vpn",
                         help="Comma-separated scoped modules for staged validation")
     parser.add_argument("--output", type=Path, required=True)
@@ -297,7 +299,7 @@ def main():
     class_names = {name[1:-1].replace("/", ".") for name in original_classes}
     edits = relocated_sources(args.decoded, class_names) if args.identity == "coexist" else {}
     changed = {path.parts[0] for path in edits}
-    if args.identity == "coexist" or args.privacy or args.native_trace or args.mumu_compat:
+    if args.identity == "coexist" or args.privacy or args.native_trace or args.mumu_compat or args.account_diag:
         changed.add("smali_classes4")
     decoded.mkdir()
     print("Preparing " + str(len(changed)) + " editable DEX source groups", flush=True)
@@ -340,6 +342,11 @@ def main():
         from native_trace import apply as apply_trace
         trace_changed, trace_result = apply_trace(decoded, work, context["host_package"], asset_paths=args.mumu_compat)
         changed |= trace_changed
+    diag_result = {}
+    if args.account_diag:
+        from account_diag import apply as apply_account_diag
+        diag_changed, diag_result = apply_account_diag(decoded, work, context["host_package"])
+        changed |= diag_changed
     dex_outputs = dict(dex_inputs)
     for folder in sorted(changed):
         name = "classes.dex" if folder == "smali" else folder[len("smali_"):] + ".dex"

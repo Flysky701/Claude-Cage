@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "scenario": "gateway-stop",
+  "context": {
+    "artifactSha256": null,
+    "policySha256": null,
+    "probeSha256": null,
+    "guestIdentityVerified": false,
+    "sameArtifactAndPolicy": false,
+    "blockConditionVerified": false,
+    "lockdownVerified": false,
+    "evidence": null
+  },
+  "cases": []
+}

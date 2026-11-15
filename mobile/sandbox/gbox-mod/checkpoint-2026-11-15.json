@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "date": "2026-11-15",
-  "purpose": "Public source checkpoint for continuing development on another computer",
+  "purpose": "Paused checkpoint after targeted GMS cache repair and observed DroidGuard native translation crash",
   "executionStopped": true,
   "acceptanceComplete": false,
   "lastTestedArtifact": {
-    "name": "Cage-GBox-Privacy-12.apk",
-    "sha256": "709d796be9691f679722f8c2637f75262b5b821f17cbe4c0b9366c07985e82d5",
+    "name": "Cage-GBox-Privacy-15-ContextFix-05.apk",
+    "sha256": "4d6a9960582565b565f6ed7ae1aee3c6c73e5af891ca265bef8824f76465dfc5",
     "includedInGit": false
   },
   "screening": {
@@ -19,13 +19,16 @@
     "hostLoadRefreshCompleted": 3,
     "hostLoadRefreshRefused": 0,
     "freshProcessPreservedGuestMarker": true,
-    "arbitrarySyscallIsolationEstablished": false
+    "arbitrarySyscallIsolationEstablished": false,
+    "latestEvidence": "Two fresh guest probe sessions complete; recorded SIM/timezone/VPN/property-control paths pass against saved Privacy13 outer controls. Existing Privacy15 marker preserved. Outer control not concurrently rerun."
   },
   "network": {
     "ipv4HttpsEgressChecksPassed": 2,
     "stoppedGatewayNewHttpsAttemptsWithoutPublicResponse": 3,
     "onlineIpv6Tls": "NOT_COMPLETED",
-    "allProtocolsOrZeroPacketGuarantee": false
+    "allProtocolsOrZeroPacketGuarantee": false,
+    "latestCandidateStoppedGatewayChecks": "NOT_REPEATED_ON_PRIVACY15",
+    "alwaysOnAndLockdownObserved": true
   },
   "realClaude": {
     "versionName": "1.261111.19",
@@ -34,20 +37,78 @@
     "containerUnsignedStartup": "PASS",
     "selectedPrivacyBinding": "PASS",
     "targetNativeReadsObservedDuringStartup": false,
-    "authenticatedContainerUiSeen": false
+    "authenticatedContainerUiSeen": false,
+    "latestLoginResult": "FAIL_OBSERVED: GoogleSignInAccount returned; DroidGuard service connected; GMS unstable crashed during embedded handle initialization; DeadObjectException, DroidGuard failed and HTTP 400 followed."
   },
   "googleLogin": {
     "correctPasswordAccepted": true,
     "termsAccepted": true,
-    "accountManagerEmptyAfterOneNormalReopen": true,
-    "accountPersistenceOrVisibilityEstablished": false,
-    "loginConfirmed": false,
-    "unchangedCredentialRetries": 0
+    "accountManagerEmptyAfterOneNormalReopen": false,
+    "accountPersistenceOrVisibilityEstablished": true,
+    "loginConfirmed": true,
+    "unchangedCredentialRetries": 0,
+    "loginConfirmedScope": "Existing Google account visible and GoogleSignInAccount returned; does not establish Claude login.",
+    "coldRestartPersistence": "Two cold starts reported by Privacy15 handoff; no credential re-entry during takeover."
   },
   "nextCandidate": {
-    "name": "Privacy13",
-    "status": "QUERY_DIAGNOSTIC_PLAN_ONLY_NO_APK_OR_RUNTIME_VALIDATION",
-    "plannedScope": "Fixed booleans and counts for the existing Google/vending account query; preserve results, permissions, and all Privacy12 modules"
+    "status": "PAUSED_BY_USER",
+    "nextInvestigation": "If resumed: distinguish MuMu/Houdini native-call failure from interaction with the container; preserve original integrity logic and APKs.",
+    "runtimeChangesWhilePaused": false
   },
-  "credentialsTokensProxyConfigDeviceIdentifiersAndRawAuthLogsIncluded": false
+  "credentialsTokensProxyConfigDeviceIdentifiersAndRawAuthLogsIncluded": false,
+  "takeoverEvidence": [
+    "mobile/.build/gbox-mod/mumu/privacy15-takeover-login-result.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-cold-start-service-observation.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-gms-unstable-main-stack.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-sensitive-scan.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-cachetrace01-cold-start.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix04-cold-start.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-cold-start.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-guest-before.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-guest-after.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-comparison.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-login-after-account.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-fast-failure.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-process-exit.json",
+    "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-crash-frames.json"
+  ],
+  "testedPlatforms": [
+    "Windows + MuMu Android 12 instance 2"
+  ],
+  "untestedPlatforms": [
+    "macOS",
+    "Linux",
+    "physical Android device"
+  ],
+  "pauseReason": "User requested pause after MuMu crashes; no emulator testing or login retries continue.",
+  "latestContextFix05": {
+    "artifact": "Cage-GBox-Privacy-15-ContextFix-05.apk",
+    "sha256": "4d6a9960582565b565f6ed7ae1aee3c6c73e5af891ca265bef8824f76465dfc5",
+    "installedInInstance": 2,
+    "serviceConnection": "PASS_OBSERVED: stale GMS flags=0x10000400 user=0 ApplicationInfo object and unused LoadedApk retired; Context created; service/onBind/callback non-null; handle initialization entered.",
+    "privacy": "Two fresh guest probe sessions complete; recorded SIM/timezone/VPN/property-control paths pass against saved Privacy13 outer controls. Existing Privacy15 marker preserved. Outer control not concurrently rerun.",
+    "claudeLogin": "FAIL_OBSERVED: GoogleSignInAccount returned; DroidGuard service connected; GMS unstable crashed during embedded handle initialization; DeadObjectException, DroidGuard failed and HTTP 400 followed.",
+    "crash": "15:34:39.014 DEBUG shows SIGSEGV with libhoudini.so frames +0x358158 and +0x30e7cf; Zygote reports signal 11. ARM trace names cached the.apk +0x40634. Do not infer a Google device verdict or a unique root cause from this stack.",
+    "attribution": "Strong evidence of failure at the MuMu ARM translation boundary; not enough to distinguish a MuMu defect from interaction with the container or adapted runtime. No physical ARM control tested.",
+    "presetsPreservedByteForByte": true,
+    "changedNonSignatureEntriesVsServiceDiag02": [
+      "classes4.dex",
+      "classes9.dex"
+    ],
+    "fullLoginOrConversationAccepted": false,
+    "evidence": [
+      "mobile/.build/gbox-mod/mumu/privacy15-cachetrace01-cold-start.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix04-cold-start.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-cold-start.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-guest-before.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-guest-after.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-comparison.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-login-after-account.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-fast-failure.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-process-exit.json",
+      "mobile/.build/gbox-mod/mumu/privacy15-contextfix05-crash-frames.json"
+    ],
+    "scope": "Windows + MuMu Android 12 instance 2 only; macOS, Linux and physical Android not tested.",
+    "sourceAndBuild": "compat/FrameworkPaths.java plus opt-in diagnostics/CacheTrace.java; tested incremental script mobile/.build/gbox-mod/build_context_fix05_takeover.py; final build directory mobile/.build/gbox-mod/p15-cache-trace-4b45e375."
+  }
 }

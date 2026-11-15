@@ -20,6 +20,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import io.github.leexeo.cage.preflight.NetworkMetadata;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -38,6 +39,8 @@ import java.util.concurrent.TimeUnit;
 
 /** Measurements only: absence in an emulator is never reported as isolation success. */
 public final class ProbeActivity extends Activity {
+    private String preflightRequest;
+    private boolean preflightFinished;
     private static final String TAG = "CageGBoxProbe";
     private static final String PROCESS_SESSION = UUID.randomUUID().toString();
     private static JSONObject firstNativeTime;
@@ -55,6 +58,8 @@ public final class ProbeActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        String requested = getIntent().getStringExtra("cage.preflight.request");
+        if (requested != null && requested.matches("[a-f0-9-]{36}")) preflightRequest = requested;
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         int pad = (int) (16 * getResources().getDisplayMetrics().density);
@@ -63,7 +68,9 @@ public final class ProbeActivity extends Activity {
         scroll.addView(body);
         setContentView(scroll);
         TextView title = new TextView(this);
-        title.setText("Cage GBox 隔离验收\n这里只记录读数。需要外层与来宾对照；无 SIM／无 VPN 不代表屏蔽通过。");
+        title.setText(preflightRequest == null
+            ? "Cage GBox 隔离验收\n这里只记录读数。需要外层与来宾对照；无 SIM／无 VPN 不代表屏蔽通过。"
+            : "正在检查空间\n\n核对 SIM、时区、VPN 与网络出口。\n请稍候，完成后会返回 Cage。");
         title.setTextSize(18);
         body.addView(title);
         Button read = new Button(this);
@@ -77,6 +84,7 @@ public final class ProbeActivity extends Activity {
             capture();
         });
         body.addView(marker);
+        if (preflightRequest != null) { read.setVisibility(android.view.View.GONE); marker.setVisibility(android.view.View.GONE); }
         result = new TextView(this);
         result.setTextSize(12);
         result.setTextIsSelectable(true);
@@ -91,18 +99,24 @@ public final class ProbeActivity extends Activity {
         if (web != null) { web.destroy(); web = null; }
         run = UUID.randomUUID().toString();
         final String current = run;
-        pending = 4;
+        pending = preflightRequest == null ? 4 : 5;
         completedSections.clear();
         nativeQueued = false;
         report = new JSONObject();
         put(report, "schemaVersion", 1);
         put(report, "probeVersion", 6);
+        put(report, "networkMetadataVersion", 1);
         put(report, "installedVersion", read(() -> getPackageManager().getPackageInfo(getPackageName(), 0).versionCode));
         put(report, "run", current);
         put(report, "processSessionId", PROCESS_SESSION);
         put(report, "processStartElapsedRealtimeMillis", android.os.Process.getStartElapsedRealtime());
         put(report, "package", getPackageName());
         put(report, "epochMillis", System.currentTimeMillis());
+        if (preflightRequest != null) {
+            put(report, "preflightRequest", preflightRequest);
+            put(report, "startedElapsedRealtimeMillis", android.os.SystemClock.elapsedRealtime());
+            put(report, "egress", status("PENDING"));
+        }
         put(report, "sdk", Build.VERSION.SDK_INT);
         put(report, "timezoneProbePreviouslyRefreshed", nativeTzsetRequested);
         put(report, "assessment", "MEASUREMENTS_ONLY_COMPARE_OUTER_AND_GUEST");
@@ -122,6 +136,10 @@ public final class ProbeActivity extends Activity {
         worker.execute(() -> {
             JSONObject nativeData = nativeSnapshot();
             runOnUiThread(() -> complete(current, "nativeSubprocess", nativeData));
+        });
+        if (preflightRequest != null) worker.execute(() -> {
+            JSONObject egress = io.github.leexeo.cage.preflight.NetworkProbe.measure();
+            runOnUiThread(() -> complete(current, "egress", egress));
         });
         readWebView(current);
         readCallback(current);
@@ -206,7 +224,8 @@ public final class ProbeActivity extends Activity {
                 put(item, "up", it.isUp());
                 put(item, "loopback", it.isLoopback());
                 put(item, "virtual", it.isVirtual());
-                // Do not collect network addresses, MAC addresses or hardware identifiers.
+                // Only address category counts leave the collector; no raw IP or MAC.
+                put(item, "addressCounts", NetworkMetadata.addresses(it));
                 list.put(item);
             }
             return list;
@@ -218,10 +237,14 @@ public final class ProbeActivity extends Activity {
         if (network == null) return status("NO_NETWORK");
         JSONObject data = new JSONObject();
         put(data, "capabilities", read(() -> capabilities(networks.getNetworkCapabilities(network))));
-        put(data, "interface", read(() -> {
+        try {
             LinkProperties link = networks.getLinkProperties(network);
-            return link == null ? null : link.getInterfaceName();
-        }));
+            put(data, "interface", read(() -> link == null ? null : link.getInterfaceName()));
+            put(data, "metadata", NetworkMetadata.link(link));
+        } catch (Exception | LinkageError failure) {
+            put(data, "interface", error(failure));
+            put(data, "metadata", error(failure));
+        }
         return data;
     }
 
@@ -251,6 +274,7 @@ public final class ProbeActivity extends Activity {
                     if (!current.equals(run)) return;
                     JSONObject link = new JSONObject();
                     put(link, "interface", read(() -> properties == null ? null : properties.getInterfaceName()));
+                    put(link, "metadata", NetworkMetadata.link(properties));
                     links.put(link);
                 });
             }
@@ -400,17 +424,38 @@ public final class ProbeActivity extends Activity {
         put(report, "complete", done);
         try {
             String json = report.toString(2);
-            result.setText((done ? "读取完成；尚未判定隔离结果。\n" : "正在读取…\n") + json);
-            try (FileOutputStream out = new FileOutputStream(new File(getFilesDir(), "latest-report.json"))) {
+            result.setText(preflightRequest == null
+                ? (done ? "读取完成；尚未判定隔离结果。\n" : "正在读取…\n") + json
+                : done ? "检查完成，正在返回…" : "正在读取空间内的实际状态…");
+            String filename = preflightRequest == null ? "latest-report.json" : "cage-preflight-result.json";
+            File target = new File(getFilesDir(), filename);
+            File pendingFile = new File(getFilesDir(), filename + ".pending");
+            try (FileOutputStream out = new FileOutputStream(pendingFile)) {
                 out.write(json.getBytes(StandardCharsets.UTF_8));
+                out.getFD().sync();
             }
-            if (done) {
-                java.util.Iterator<String> keys = report.keys();
-                while (keys.hasNext()) {
-                    String key = keys.next();
-                    Log.i(TAG, "REPORT|" + run + "|" + key + "|" + report.get(key).toString());
+            if (!pendingFile.renameTo(target)) throw new java.io.IOException("Report publication failed");
+            if (done && preflightRequest == null) {
+                // Expanded network observations exceed logcat's per-entry limit.
+                // Fixed-size ASCII chunks plus a digest prevent partial logs from
+                // being accepted as a complete report. Preflight still emits none.
+                byte[] bytes = report.toString().getBytes(StandardCharsets.UTF_8);
+                if (bytes.length > 262144) throw new java.io.IOException("Report too large");
+                int count = (bytes.length + 1799) / 1800;
+                for (int index = 0; index < count; index++) {
+                    int start = index * 1800;
+                    String encoded = android.util.Base64.encodeToString(bytes, start,
+                        Math.min(1800, bytes.length - start), android.util.Base64.NO_WRAP);
+                    Log.i(TAG, "REPORT2|" + run + "|" + index + "|" + count + "|" + encoded);
                 }
-                Log.i(TAG, "END|" + run);
+                byte[] digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes);
+                StringBuilder hex = new StringBuilder();
+                for (byte part : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", part & 255));
+                Log.i(TAG, "END2|" + run + "|" + count + "|" + hex);
+            }
+            if (done && preflightRequest != null && !preflightFinished) {
+                preflightFinished = true;
+                result.postDelayed(this::finish, 180);
             }
         } catch (Exception failure) { result.append("\n保存报告失败：" + failure.getClass().getSimpleName()); }
     }

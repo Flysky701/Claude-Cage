@@ -1,37 +1,53 @@
 """Build only the selected-guest ARM64 native reading policy; no device operations."""
 from pathlib import Path
 import json
+import sys
+import importlib.util
 
 MODULE = Path(__file__).resolve().parent
+GBOX_MOD = MODULE.parents[1]
+if str(GBOX_MOD) not in sys.path:
+    sys.path.insert(0, str(GBOX_MOD))
+import toolchain
 
 
 def build(work: Path, context: dict) -> dict:
     output = Path(work) / "privacy-native"
     output.mkdir(parents=True, exist_ok=True)
     root = Path(context["root"])
-    llvm = Path(context.get("ndk", root / "mobile/.build/client-integration/ndk")) / "toolchains/llvm/prebuilt/windows-x86_64"
+    ndk = Path(context.get("ndk") or toolchain.default_ndk(root))
+    llvm = toolchain.llvm_prebuilt(ndk)
+    resource_dir = toolchain.clang_resource_dir(llvm)
+    builtins = toolchain.clang_builtins(llvm, "aarch64")
     run, env = context["run"], context["env"]
     temporary = output / "tmp"
     temporary.mkdir(exist_ok=True)
     env = dict(env, TEMP=str(temporary), TMP=str(temporary))
     obj, library = output / "privacy.o", output / "libcage_privacy.so"
     run(llvm / "bin/clang++.exe", "-fintegrated-cc1", "--target=aarch64-linux-android28",
-        "--sysroot=" + str(llvm / "sysroot"), "-resource-dir=" + str(llvm / "lib/clang/18"),
+        "--sysroot=" + str(llvm / "sysroot"), "-resource-dir=" + str(resource_dir),
         "-std=c++17", "-O2", "-fPIC", "-fno-exceptions", "-fno-rtti", "-fvisibility=hidden",
         "-mno-outline-atomics", "-Wall", "-Wextra", "-Werror", "-Wno-deprecated-declarations",
         "-I" + str(MODULE), "-c", MODULE / "privacy.cpp", "-o", obj, env=env)
     run(llvm / "bin/ld.lld.exe", "-shared", "-m", "aarch64linux", "--hash-style=gnu", "--eh-frame-hdr",
         "--build-id=sha1", "-z", "defs", "-z", "now", "-z", "relro", "-z", "noexecstack",
-        "-z", "max-page-size=4096", "-soname", library.name,
+        "-z", "max-page-size=16384", "-soname", library.name,
         "-L" + str(llvm / "sysroot/usr/lib/aarch64-linux-android/28"),
         "-L" + str(llvm / "sysroot/usr/lib/aarch64-linux-android"), obj,
-        llvm / "lib/clang/18/lib/linux/libclang_rt.builtins-aarch64-android.a",
+        builtins,
         "-lc", "-ldl", "-llog", "-o", library, env=env)
     metadata = {
         "abi": "arm64-v8a", "hooks": ["__system_property_get", "__system_property_read",
                                          "__system_property_read_callback", "getifaddrs"],
-        "mechanism": "Existing ByteHook 1.0.8 AUTOMATIC / verified ARM caller PLT",
+        "mechanism": "MuMu: existing ByteHook 1.0.8; native API36: separate pinned ByteHook 1.1.2 / ShadowHook 2.0.1; selected ARM caller PLT",
         "scope": "Selected guest code/native/data roots; per-call selected policy gate",
+        "android16NativeArm64": {
+            "sdk": 36, "nativeBridgeUsed": False,
+            "loadNotification": "Dedicated ByteHook 1.1.2 / ShadowHook 2.0.1 native load observer; no MuMu host wrapper",
+            "ifaddrsOwnership": "Exact full getifaddrs/allocation callback/freeifaddrs code sample from inspected phone libc",
+            "libcSha256": "5d5e553e27e8a94d78685f18985433810caa5427c95a246478a697c3c538d5f6",
+            "pageAlignment": 16384, "runtimeValidation": "NOT_RUN",
+        },
         "nativeLoadNotification": {
             "gate": "Existing verified MuMu compatibility and active current selected guest",
             "method": "Runtime.nativeLoad(String, ClassLoader, Class): String; ordinary JNI",
@@ -51,5 +67,11 @@ def build(work: Path, context: dict) -> dict:
             "same-thread refresh-reentrant inner return before its pending event is drained"],
         "requiresRuntimeValidation": True,
     }
+    spec = importlib.util.spec_from_file_location("privacy_android16_dependencies", MODULE / "dependencies.py")
+    dependencies = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dependencies)
+    extra, records = dependencies.prepare(output / "dependencies")
+    metadata["android16NativeArm64"]["dependencies"] = records
+    extra["lib/arm64-v8a/libcage_privacy.so"] = library
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-    return {"extra_entries": {"lib/arm64-v8a/libcage_privacy.so": library}, "metadata": metadata}
+    return {"extra_entries": extra, "metadata": metadata}

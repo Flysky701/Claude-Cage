@@ -81,15 +81,28 @@ static bool property_is(const char* name, const char* expected) {
     return __system_property_get(name, value) > 0 && !strcmp(value, expected);
 }
 
+static bool property_nonempty(const char* name) {
+    char value[PROP_VALUE_MAX] = {};
+    return __system_property_get(name, value) > 0;
+}
+
+static bool property_ends_with(const char* name, const char* suffix) {
+    char value[PROP_VALUE_MAX] = {};
+    int length = __system_property_get(name, value);
+    size_t suffix_len = strlen(suffix);
+    return length > 0 && static_cast<size_t>(length) >= suffix_len
+            && !strcmp(value + static_cast<size_t>(length) - suffix_len, suffix);
+}
+
 static bool runtime_matches(jint sdk) {
     if (sdk != 31 && sdk != 32) { stage("guard.api.mismatch"); return false; }
     char version[PROP_VALUE_MAX] = {};
     if (__system_property_get("ro.build.version.sdk", version) <= 0 || atoi(version) != sdk) {
         stage("guard.api.mismatch"); return false;
     }
-    if (!property_is("ro.build.fingerprint", "OPPO/pangu/pangu:12/V417IR/2721:user/release-keys")
-            || !property_is("ro.hardware", "OPPO")
-            || !property_is("ro.product.board", "PHY110")
+    if (!property_ends_with("ro.build.fingerprint", ":12/V417IR/2721:user/release-keys")
+            || !property_nonempty("ro.hardware")
+            || !property_nonempty("ro.product.board")
             || !property_is("ro.dalvik.vm.native.bridge", "libnb.so")) {
         stage("guard.properties.mismatch"); return false;
     }

@@ -1,7 +1,10 @@
 """Read saved probe JSON/logcat and compare observations. Never controls devices."""
 import argparse
+import base64
+import hashlib
 import json
 from pathlib import Path
+import re
 
 
 def load_report(path):
@@ -9,18 +12,67 @@ def load_report(path):
     try:
         report = json.loads(text)
         if isinstance(report, dict) and report.get('schemaVersion') == 1:
-            if not report.get('complete'):
-                raise ValueError(f'Probe did not complete: {path}')
-            return report
+            return validate_report(report)
     except json.JSONDecodeError:
         pass
+    return parse_log_report(text)
+
+
+def validate_report(report):
+    if not isinstance(report, dict) or report.get('schemaVersion') != 1 or report.get('complete') is not True:
+        raise ValueError('Probe report did not complete')
+    # Old line-based logs may contain a truncated object as a string. Reject it
+    # at ingestion, before any missing-reading fallback can interpret it.
+    for key in ('network', 'networkCallback', 'sim', 'timezone', 'webview', 'nativeSubprocess', 'nativeInProcess'):
+        if not isinstance(report.get(key), dict):
+            raise ValueError('Missing or truncated report section: ' + key)
+    return report
+
+
+def parse_log_report(text):
     runs, last = {}, None
+    chunks, invalid = {}, set()
     for line in text.splitlines():
-        if 'REPORT|' in line:
+        if 'REPORT2|' in line:
+            fields = line[line.index('REPORT2|'):].split('|', 4)
+            if len(fields) != 5:
+                last = None
+                continue
+            _, run, part, count, encoded = fields
+            last = None  # Never silently fall back to an older run if this one is damaged.
+            try:
+                if not re.fullmatch(r'[a-f0-9-]{36}', run): raise ValueError()
+                part, count = int(part), int(count)
+                if not 0 <= part < count <= 146 or len(encoded) > 2400: raise ValueError()
+                data = base64.b64decode(encoded, validate=True)
+                if not 0 < len(data) <= 1800 or (part < count - 1 and len(data) != 1800): raise ValueError()
+                record = chunks.setdefault(run, {'count': count, 'parts': {}})
+                if record['count'] != count or part in record['parts']: raise ValueError()
+                record['parts'][part] = data
+            except (ValueError, TypeError):
+                invalid.add(run)
+        elif 'END2|' in line:
+            fields = line[line.index('END2|'):].split('|', 3)
+            last = None
+            if len(fields) != 4: continue
+            _, run, count, digest = fields
+            try:
+                record = chunks[run]
+                count = int(count)
+                if run in invalid or count != record['count'] or len(record['parts']) != count: raise ValueError()
+                data = b''.join(record['parts'][i] for i in range(count))
+                if len(data) > 262144 or hashlib.sha256(data).hexdigest() != digest: raise ValueError()
+                candidate = validate_report(json.loads(data.decode('utf-8')))
+                if candidate.get('run') != run: raise ValueError()
+                last = candidate
+            except (ValueError, TypeError, KeyError, UnicodeError):
+                invalid.add(run)
+        elif 'REPORT|' in line:
             fields = line[line.index('REPORT|'):].split('|', 3)
             if len(fields) != 4:
                 continue
             _, run, section, encoded = fields
+            last = None
             try:
                 value = json.loads(encoded)
             except json.JSONDecodeError:
@@ -28,10 +80,15 @@ def load_report(path):
             runs.setdefault(run, {})[section] = value
         elif 'END|' in line:
             run = line[line.index('END|') + 4:].strip()
-            if runs.get(run, {}).get('complete') is True:
-                last = runs[run]
+            last = None
+            try:
+                candidate = validate_report(runs.get(run))
+                if candidate.get('run') != run: raise ValueError()
+                last = candidate
+            except ValueError:
+                pass
     if last is None:
-        raise ValueError(f'No completed probe report found: {path}')
+        raise ValueError('No intact, completed probe report found')
     return last
 
 
