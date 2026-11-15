@@ -1,0 +1,28 @@
+Cage Open 0.0.2 集成测试版
+
+microG Services 0.3.18.252432 / com.google.android.gms
+microG Companion 0.3.18.40226 / com.android.vending
+Copyright microG Project Team and contributors.
+License: Apache License 2.0. Full license: bundle/APACHE-2.0.txt.
+Source and corresponding original release APKs:
+https://github.com/microg/GmsCore/releases/tag/v0.3.18.252432
+https://github.com/microg/GmsCore/tree/v0.3.18.252432
+The two original upstream APKs are embedded without alteration. Their existing
+copyright, license and third-party notices remain inside the original archives.
+Companion is a compatibility component, not the Google Play app store.
+
+Cage test probe and host integration: MIT, Claude-Cage contributors.
+https://github.com/Flysky701/Claude-Cage/tree/codex/android-open-source-rebuild-20261115/mobile/open-cage
+
+BlackBoxReborn: fd0640919c7903a167abf0215ee68ebeaea53485.
+https://github.com/fdavids77/BlackBoxReborn
+Its LICENSE contains Apache-2.0 while its README states GPL-3.0. This upstream
+declaration conflict remains unresolved; this is a private test build, not a
+license-cleared public release. No upstream work is relicensed as MIT.
+Dobby: Apache-2.0, https://github.com/jmpews/Dobby
+Dependency source versions and modifications are recorded in sources.lock.json
+and build.py in the project linked above. The APK was built with AndroidX,
+Material Components, FreeReflection, BlackReflection and toml4j dependencies.
+
+本版自动准备仅发生在 Cage 自己的来宾空间。已有来宾组件不会自动覆盖。
+尚未完成真机、Google/Claude 登录或隐私隔离验收。

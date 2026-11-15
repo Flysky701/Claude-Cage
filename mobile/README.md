@@ -11,8 +11,9 @@ Android arm64 APK 可从[官网下载入口](https://claude-cage.com/#download)�
 新增 [Cage Open 独立构建入口](open-cage/README.md)，依据其他分支的 GBox 架构分析与既有
 Android 实验，重建容器和单 APK 导入／启动界面。构建不输入 GBox 或旧 BlackBox APK，
 ARM64 原生库和宿主 APK 已从源码编译通过。独立包名 `io.github.flysky701.cage.open`。
-当前尚未集成 microG 分发、原版分包安装，也没有完成真机及 Google／Claude 登录验收；
-不能继承下文其他实验包的验证结论。见[本轮验证记录](open-cage/VALIDATION-2026-11-15.md)。
+`0.0.2` 已内置 microG Services、Companion 与独立测试应用，首次打开自动准备，并提供
+设置与 Google 登录入口。尚未完成原版分包安装、真机及 Google／Claude 登录验收；
+不能继承下文其他实验包的验证结论。见[集成测试说明](open-cage/BUNDLED-TESTING.md)。
 
 #### 轻量 DEMO 与系统网关（2026-11-14）
 

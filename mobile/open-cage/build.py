@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare and build Cage Open from pinned public sources; never consumes a base APK."""
+"""Build Cage Open from pinned sources and bundle verified microG releases; no prebuilt host APK."""
 import argparse
 import hashlib
 import io
@@ -9,11 +9,13 @@ from pathlib import Path
 import shutil
 import subprocess
 import tarfile
+import urllib.request
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile, ZIP_DEFLATED
 
 HERE = Path(__file__).resolve().parent
 LOCK = json.loads((HERE / "sources.lock.json").read_text())
+BUNDLE = json.loads((HERE / "bundle.lock.json").read_text())
 
 
 def run(*args, cwd=None):
@@ -111,6 +113,7 @@ def prepare(args, project):
     guest = project / "Bcore/src/main/java/io/github/leexeo/cage/space"
     guest.mkdir(parents=True, exist_ok=True)
     shutil.copy2(HERE.parent / "sandbox/blackbox-light/GuestAuthenticatorTypes.java", guest)
+    prepare_microg_runtime(java)
     # Keep component declarations but narrow host permissions for this import/start milestone.
     manifest = project / "Bcore/src/main/AndroidManifest.xml"
     android = "{http://schemas.android.com/apk/res/android}"
@@ -139,6 +142,84 @@ def prepare(args, project):
     return dobby
 
 
+def prepare_microg_runtime(java):
+    hooks = java / "fake/hook/HookManager.java"
+    for name in ("GmsProxy", "GoogleAccountManagerProxy", "AuthenticationProxy"):
+        replace(hooks, f"            addInjector(new {name}());", "")
+    # Preserve the actual private APK signature instead of borrowing the phone's GMS identity.
+    compat = java / "core/system/pm/PackageManagerCompat.java"
+    text = compat.read_text()
+    start = text.index("        PackageInfo base = null;")
+    end = text.index("        return pi;", start)
+    compat.write_text(text[:start] + '''        if ((flags & (PackageManager.GET_SIGNATURES | PackageManager.GET_SIGNING_CERTIFICATES)) != 0) {
+            PackageInfo original = BlackBoxCore.getPackageManager().getPackageArchiveInfo(p.baseCodePath, flags);
+            if (original == null) return null;
+            pi.signatures = original.signatures;
+            pi.signingInfo = original.signingInfo;
+        }
+''' + text[end:])
+    # These newer account sessions have no guest implementation; never forward to personal accounts.
+    accounts = java / "fake/service/IAccountManagerProxy.java"
+    marker = '    public static final String TAG = "IAccountManagerProxy";'
+    replace(accounts, marker, marker + '''
+    @top.niunaijun.blackbox.fake.hook.ProxyMethods({"startAddAccountSession", "startUpdateCredentialsSession", "finishSessionAsUser"})
+    public static class UnsupportedGuestSession extends MethodHook {
+        @Override protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            IAccountManagerResponse response = (IAccountManagerResponse) args[0];
+            if (response == null) throw new IllegalArgumentException("response is null");
+            response.onError(android.accounts.AccountManager.ERROR_CODE_UNSUPPORTED_OPERATION,
+                    "Account sessions are not supported in this guest space");
+            return null;
+        }
+    }
+''')
+    policy = java / "fake/service/IDevicePolicyManagerProxy.java"
+    marker = "public class IDevicePolicyManagerProxy extends BinderInvocationStub {"
+    replace(policy, marker, marker + '''
+    @Override public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        if ("getAccountTypesWithManagementDisabledAsUser".equals(method.getName())
+                && args != null && args.length == 3 && args[1] instanceof String)
+            args[1] = top.niunaijun.blackbox.BlackBoxCore.getHostPkg();
+        return super.invoke(proxy, method, args);
+    }
+''')
+
+
+def build_bundle(args, project):
+    assets = project / "app/src/main/assets/bundle"
+    assets.mkdir(parents=True, exist_ok=True)
+    cache = args.bundle_inputs or args.work / "bundle-downloads"
+    cache.mkdir(parents=True, exist_ok=True)
+    run("bash", project / "gradlew", "--no-daemon", ":probe:assembleDebug", cwd=project)
+    probe = project / "probe/build/outputs/apk/debug/probe-debug.apk"
+    shutil.copy2(probe, assets / "cage-probe.apk")
+    entries = [{"label": "Cage 内置测试", "package": "io.github.flysky701.cage.probe",
+                "versionCode": 1, "file": "cage-probe.apk", "sha256": hashlib.sha256(probe.read_bytes()).hexdigest()}]
+    for spec in sorted(BUNDLE["apps"], key=lambda item: item["package"] != "com.google.android.gms"):
+        apk = cache / spec["name"]
+        if not apk.exists():
+            temporary = apk.with_suffix(".download")
+            with urllib.request.urlopen(spec["url"], timeout=90) as incoming, temporary.open("wb") as outgoing:
+                shutil.copyfileobj(incoming, outgoing, 1024 * 1024)
+            temporary.rename(apk)
+        with apk.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        if apk.stat().st_size != spec["size"] or digest != spec["sha256"]:
+            raise ValueError("Bundled upstream APK checksum mismatch: " + spec["name"])
+        signature = subprocess.check_output([str(args.sdk / "build-tools/36.1.0/apksigner"),
+                                            "verify", "--print-certs", str(apk)], text=True)
+        if "Signer #1 certificate SHA-256 digest: " + BUNDLE["signerSha256"] not in signature:
+            raise ValueError("Unexpected microG signing certificate")
+        shutil.copy2(apk, assets / spec["name"])
+        entries.append({"label": spec["label"], "package": spec["package"], "versionCode": spec["versionCode"],
+                        "file": spec["name"], "sha256": spec["sha256"]})
+        print("Bundled verified upstream APK:", spec["name"], flush=True)
+    (assets / "manifest.json").write_text(json.dumps({"apps": entries}, ensure_ascii=False, indent=2) + "\n")
+    shutil.copy2(HERE / "THIRD-PARTY-NOTICES.txt", assets / "NOTICE.txt")
+    shutil.copy2(HERE / "APACHE-2.0.txt", assets / "APACHE-2.0.txt")
+    return entries
+
+
 def build_assets(args, project):
     work = args.work / "empty-dex"; work.mkdir(exist_ok=True)
     java = work / "Empty.java"; java.write_text("package io.github.flysky701.cage.empty; public final class Empty {}\n")
@@ -165,13 +246,14 @@ def main():
     parser.add_argument("--jdk", required=True, type=Path)
     parser.add_argument("--blackbox-source", type=Path)
     parser.add_argument("--dobby-source", type=Path)
+    parser.add_argument("--bundle-inputs", type=Path, help="cache of the unchanged microG release APKs")
     parser.add_argument("--cmake", default="cmake")
     parser.add_argument("--ninja", default="ninja")
     parser.add_argument("--work", type=Path, default=HERE.parent / ".build/open-cage")
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--resume", action="store_true", help="reuse this run's prepared project")
     args = parser.parse_args()
-    for name in ("sdk", "jdk", "work", "blackbox_source", "dobby_source"):
+    for name in ("sdk", "jdk", "work", "blackbox_source", "dobby_source", "bundle_inputs"):
         value = getattr(args, name)
         if value is not None: setattr(args, name, value.resolve())
     args.work.mkdir(parents=True, exist_ok=True)
@@ -196,12 +278,13 @@ def main():
     run(args.cmake, "--build", native, "--target", "dobby_static", "--parallel", "2")
     shutil.copy2(native / "libdobby.a", project / "Bcore/src/main/cpp/Dobby/arm64-v8a/libdobby.a")
     build_assets(args, project)
+    bundled = build_bundle(args, project)
     run("bash", project / "gradlew", "--no-daemon", ":app:assembleDebug", cwd=project)
     apk = project / "app/build/outputs/apk/debug/app-debug.apk"
     run(args.sdk / "build-tools/36.1.0/apksigner", "verify", "--verbose", apk)
-    output = args.work / "Cage-Open-Source-Preview.apk"; shutil.copy2(apk, output)
+    output = args.work / "Cage-Open-Bundled-Preview-0.0.2.apk"; shutil.copy2(apk, output)
     report = {"artifact": output.name, "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
-              "sources": LOCK, "deviceTested": False, "claudeLoginTested": False}
+              "sources": LOCK, "bundledApps": bundled, "deviceTested": False, "claudeLoginTested": False}
     (args.work / "build-result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
 

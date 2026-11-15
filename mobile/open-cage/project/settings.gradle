@@ -6,4 +6,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral(); maven { url 'https://jitpack.io' } }
 }
 rootProject.name = 'CageOpenAndroid'
-include ':app', ':Bcore', ':black-reflection', ':compiler'
+include ':app', ':probe', ':Bcore', ':black-reflection', ':compiler'
