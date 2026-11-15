@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-14",
+  "scope": "Separate recovered space on the connected Android 16 arm64 phone",
+  "artifact": "dist/Cage-Recovered-Space-Installer-04.apk",
+  "artifactSha256": "527d63d9d5265c581e6b8774ad4d683292a28feb7e8fb107334d0dec347704a4",
+  "spacePackage": "top.niunaijun.microrec",
+  "components": {
+    "microG": "0.3.18.252432",
+    "playStore": "38.4.22-21",
+    "claude": "1.261111.19"
+  },
+  "googleLogin": {
+    "emailInputVisibleAndEnabled": true,
+    "deviceRegistrationCompleted": true,
+    "testAccountSavedInRecoverySpace": true,
+    "accountsVisibleToPrivatePlayStore": 1,
+    "credentialsIncludedInReport": false
+  },
+  "installerApi": {
+    "writeFsyncReadResume": "PASS",
+    "pathTraversalRejected": "PASS",
+    "otherSessionOwnerRejected": "PASS",
+    "abandon": "PASS",
+    "invalidApkFailureCallbackAndIntentSender": "PASS",
+    "realStoreOwnedSessionCreated": true,
+    "existingOriginalApkParts": 3,
+    "hostOwnedOriginalSplitInstallStatus": 0,
+    "hostOwnedOriginalSplitInstall": "PASS",
+    "claudeLaunch": "PASS",
+    "successfulInstallSource": "space import; not Play download"
+  },
+  "playDownload": {
+    "completed": false,
+    "fixed": "schedule, enqueue and cancel now locate the JobInfo/job ID parameter after Android's namespace parameter",
+    "observedBeforeFix": "JobServiceStub: Schedule: args[0] is null, returning RESULT_FAILURE",
+    "observedAfterFix": "Proxy JobInfo created and jobs reached Android's queue",
+    "remainingErrors": [
+      "AppJobServiceDispatcher.getJobService: JobRecord.mServiceInfo accessed on null record",
+      "PhenotypeUpdateService cannot be cast to android.app.job.JobService",
+      "getApplicationLocales/setApplicationLocales permission errors"
+    ],
+    "finalAction": "Cancelled the pending download and installed the already available original split APKs"
+  },
+  "claudeLogin": {
+    "google": "FAIL: app could not be verified through Google Play",
+    "email": "FAIL: login email not sent because app could not be verified through Google Play",
+    "conversationTest": "NOT_REACHED",
+    "exactBackendVerdict": "UNKNOWN",
+    "integrityTokenOrLicenceFabricated": false
+  },
+  "preservation": {
+    "originalSpaceLastUpdateTime": "2026-11-14 19:16:33",
+    "originalGatewayLastUpdateTime": "2026-11-14 16:17:56",
+    "originalSpaceOrAccountsClearedUpdatedOrMigrated": false,
+    "selectedGateway": "io.github.leexeo.cage.microdemo",
+    "alwaysOnVpnLockdown": true,
+    "recoveryInternalProtectionCheck": "PASS",
+    "guestVisibleVpnMaskRetained": true,
+    "gatewayStopLeakTest": "NOT_REPEATED"
+  }
+}

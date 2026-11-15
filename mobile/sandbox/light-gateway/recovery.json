@@ -1,0 +1,10 @@
+{
+  "package": "io.github.leexeo.cage.microdemo",
+  "input": "mobile/.build/report-resume/io.github.leexeo.cage.microdemo.apk",
+  "sha256": "dc61db581a3b9da26726eb63e233ce493e9ea165ba8460efa28e449766c16ad3",
+  "signerSha256": "0e5eff3a71f39a5df1602fbc3691a35622d0b9d429b4f66ed6f4de6590a6fafb",
+  "origin": "DEX disassembly of the installed APK matching the 2026-11-14 report",
+  "originalJavaSourceRecovered": false,
+  "originalSigningKeyRecovered": false,
+  "recoveredFiles": 20
+}

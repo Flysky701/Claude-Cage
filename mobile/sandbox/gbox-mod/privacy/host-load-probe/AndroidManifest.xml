@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.leexeo.cage.hostloadprobe"
+    android:versionCode="2" android:versionName="2.0">
+    <uses-sdk android:minSdkVersion="31" android:targetSdkVersion="32" />
+    <application android:label="Cage Host Loader Probe" android:debuggable="true"
+        android:allowBackup="false" android:extractNativeLibs="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name=".HostLoadProbeActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
