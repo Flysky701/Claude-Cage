@@ -60,7 +60,7 @@ func (s *Server) environmentVersions(w http.ResponseWriter, r *http.Request) {
 	var detail string
 	if running {
 		data, err := s.guest(ctx, `python3 - <<'CAGE_VERSIONS'
-import json,subprocess,os
+import json,subprocess,os,re
 from pathlib import Path
 p=Path('/etc/claude-cage/components.json')
 try: manifest=json.loads(p.read_text())
@@ -72,7 +72,10 @@ if not os.path.isfile(browser): browser='/usr/bin/chromium'
 for name,args in {'chromium':[browser,'--version'],'code_server':['code-server','--version'],'claude':['claude','--version'],'gh':['gh','--version'],'git':['git','--version'],'mise':[str(Path.home()/'.local/bin/mise'),'--version']}.items():
  try:
   result=subprocess.run(args,env=env,capture_output=True,text=True,timeout=4)
-  versions[name]=result.stdout.strip().splitlines()[0][:200] if result.returncode==0 and result.stdout.strip() else ''
+  lines=result.stdout.strip().splitlines() if result.returncode==0 else []
+  # The first code-server invocation may print config initialization logs.
+  if name=='code_server': lines=[line.strip() for line in lines if re.match(r'^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?(?:\s|$)',line.strip())]
+  versions[name]=lines[0][:200] if lines else ''
  except (OSError,subprocess.TimeoutExpired): versions[name]=''
 print(json.dumps({'manifest':manifest,'tools':versions}))
 CAGE_VERSIONS`)

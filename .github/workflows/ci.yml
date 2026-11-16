@@ -42,6 +42,7 @@ jobs:
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -color
       - name: Guest creation preference contracts
         run: |
+          python3 scripts/test-environment-versions.py
           node scripts/guest-os/tests/browser-profile.test.mjs
           node internal/cage/device-observation.test.mjs
           node internal/cage/browser-audit.test.mjs
