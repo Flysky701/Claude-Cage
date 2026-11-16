@@ -44,6 +44,8 @@ jobs:
           # Rehearse the release-only source collection on every change, so
           # it cannot first fail while a release is waiting.
           corresponding-sources: ${{ matrix.os == 'windows-2025' }}
+      - name: Verify installer argument parsing without installing
+        run: ./scripts/test-windows-installer-arguments.ps1
       - name: Build, test and install the unsigned development package
         env:
           CAGE_BUILD_REF: ${{ inputs.ref }}

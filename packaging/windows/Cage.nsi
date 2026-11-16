@@ -264,13 +264,36 @@ Function ShortcutOptionsLeave
 FunctionEnd
 
 Function SetDefaultInstallDirectory
-  ; NSIS removes /D= from $CMDLINE, so inspect the original command line.
+  ; NSIS consumes the entire /D= tail, sanitizes it as a path, then removes
+  ; it from $CMDLINE. Validate the original tail before any installation.
   System::Call 'kernel32::GetCommandLineW() w .r0'
-  ClearErrors
-  ${GetOptions} $0 "/D=" $1
-  ${IfNot} ${Errors}
-    Return
-  ${EndIf}
+  StrCpy $2 0
+  StrCpy $3 ""
+  StrCpy $4 " "
+  ${Do}
+    StrCpy $5 $0 1 $2
+    ${If} $5 == ""
+      ${ExitDo}
+    ${EndIf}
+    ${If} $3 == ""
+      ${If} $4 == " "
+      ${OrIf} $4 == "$\t"
+        StrCpy $6 $0 4 $2
+        StrCmpS $6 '"/D=' invalid_directory_argument
+        StrCpy $6 $0 3 $2
+        StrCmpS $6 "/D=" directory_argument_found
+      ${EndIf}
+    ${EndIf}
+    ${If} $5 == '"'
+      ${If} $3 == ""
+        StrCpy $3 '"'
+      ${Else}
+        StrCpy $3 ""
+      ${EndIf}
+    ${EndIf}
+    StrCpy $4 $5
+    IntOp $2 $2 + 1
+  ${Loop}
   ; Keep upgrades in the registered location, including installations on C:.
   ReadRegStr $0 HKCU "${UNINSTALL_KEY}" "InstallLocation"
   ${If} $0 != ""
@@ -281,6 +304,42 @@ Function SetDefaultInstallDirectory
   ${If} $0 == 3
     StrCpy $INSTDIR "D:\Cage"
   ${EndIf}
+  Return
+
+  directory_argument_found:
+  IntOp $2 $2 + 3
+  StrCpy $1 $0 "" $2
+  StrCpy $2 0
+  ${Do}
+    StrCpy $5 $1 1 $2
+    ${If} $5 == ""
+      ${ExitDo}
+    ${EndIf}
+    ; A slash is not a Windows filename character. In the /D= tail it can
+    ; introduce a swallowed option; quotes are forbidden by NSIS as well.
+    ${If} $5 == "/"
+    ${OrIf} $5 == '"'
+      Goto invalid_directory_argument
+    ${EndIf}
+    IntOp $2 $2 + 1
+  ${Loop}
+  ${GetRoot} "$1" $0
+  ${If} $0 == ""
+    Goto invalid_directory_argument
+  ${EndIf}
+  StrLen $2 $0
+  ${If} $2 == 2
+    StrCpy $5 $1 1 2
+    ${If} $5 != "\"
+      Goto invalid_directory_argument
+    ${EndIf}
+  ${EndIf}
+  ClearErrors
+  Return
+
+  invalid_directory_argument:
+  SetErrorLevel 2
+  Abort "/D= must be the last argument and use an unquoted absolute Windows path with backslashes. Put all other options before /D=."
 FunctionEnd
 
 !macro CheckStopped FILE
