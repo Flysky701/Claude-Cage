@@ -1,18 +1,18 @@
 # Flysky701 开发进度
 
-更新日期：2026-11-16（北京时间）。本页汇总本 Fork 的 Windows 修复、共享功能修复及 Android 实验进展。
+更新日期：2026-11-17（北京时间）。本页汇总本 Fork 的 Windows 修复、共享功能修复及 Android 实验进展。
 Android 的逐项状态与下一步统一维护在 [mobile/STATUS.md](../mobile/STATUS.md)，后续在长期分支 `codex/android` 接续。
 
 ## 当前阶段
 
 - Windows 及共享功能：五项独立修复已推送并提交上游 Contribution Issue，均为待审核状态，尚未创建对应 PR。
 - Android：Cage Open 已完成 Google 测试账号登录、冷启动保留，以及原版商店下载并安装 Claude；Claude 登录仍未通过。
-- 最新 Cross 对照已完成并恢复基线。现有结果没有定位服务端拒绝的具体原因；隐私与断线保护仍有未通过或未验证项。
+- Android 已补齐 GBox 实际 KeyStore 注册链、零命中原因及后续失败对照；Cross 保留 integration2，尚未定位登录拒绝的具体原因。隐私与断线保护的验收范围没有扩大。
 
 ## Windows 与共享功能
 
 下表验证结果沿用各贡献 Issue 的已有记录；本次整理没有重新运行开发测试。
-截至本次核对，五个 Issue 均为 open，尚无 `accepted` 标签。
+2026-11-17 再次核对，五个 Issue 均为 open，尚无 `accepted` 标签；未发现这五项修复的对应 PR。
 
 | 修复 | 已记录的验证 | 待完成与提交入口 |
 | --- | --- | --- |
@@ -40,22 +40,25 @@ Windows Lite 的既有定向结果与使用限制见 [README](../tools/windows-l
 | --- | --- | --- |
 | Android 远程客户端 | 已同步上游 v0.1.8，保留本地客户端更新实现 | 本次未新增客户端运行验证 |
 | Cage Open `0.0.6-login-preview`，Android 16 arm64 真机 | Google 测试账号登录及冷启动保留通过；商店下载、安装 Claude 原签名分包通过；Google 登录结果回传已修复 | Claude `26111319` 仍为 Play 验证失败、HTTP 400；尚未登录或发送消息 |
-| 独立 Cross 组件对照 | 同款 MG/MGC、原版 Claude、本地 DroidGuard 及 Google 凭据回传链路已完成；多项单变量候选已结束 | 最新仍为 1446 字符令牌、HTTP 400；组件替换与已测候选均未修通登录 |
+| 独立 Cross 组件对照 | 同款 MG/MGC、原版 Claude、本地 DroidGuard 及 Google 凭据回传链路已完成；maps 与平台 KeyStore 预探测等候选已结束 | 11-17 00:13 仍为 1446 字符令牌、HTTP 400；请求鉴权与 GSF ID 的运行时状态未知 |
 | 隐私补丁 | 0.0.5 的 SIM、VPN 可见性、隧道元数据和东京时区在所测路径通过；0.0.6 保留策略代码，并观察到 Claude 进程内启用 | 0.0.6 未重跑整套探针；WebView 首脚本跨进程保证、断线保护等仍未验证 |
-| GBox 真机对照 | Checks02 保留已有登录与测试标记；所测 SIM/VPN 和隧道元数据通过；独立对照以同版 Claude 新登录成功 | Checks02 的 WebView 首脚本时区未通过；非隧道信息隔离部分完成，真机断线保护未验证；独立登录对照不替代这些验收 |
+| GBox 真机对照 | 所测 SIM/VPN 和隧道元数据通过；11-16 22:21 同版 Claude 无调试登录成功；后续原数据已归位并恢复已登录主页 | Checks02 的 WebView 首脚本时区未通过；非隧道信息隔离部分完成，真机断线保护未验证；独立登录对照不替代这些验收 |
 | MuMu / 官方 Android 模拟器 | 已保存失败对照和诊断记录 | MuMu GBox 路线暂停；已测组合未达到 Claude 登录目标 |
 
 ### 最新实验与阻塞
 
-- 21:12 的 Cross 基线仍为 HTTP 400，返回 `missing_client_attestation`。凭据绑定证明开关的准备工作在执行前停止，没有新增登录请求或应用数据修改，详见 [记录](../mobile/open-cage/validation-credential-attestation-2026-11-16.json)。
-- 22:02 的宿主 APK maps 路径对照确实生效：3 次读取、72 行处理、0 次回退；实际 Claude 登录仍失败，令牌各段尺寸与基线一致。候选已结束并恢复 integration2，详见 [记录](../mobile/open-cage/validation-maps-2026-11-16.json)。
+- 11-16 21:12 的 Cross 基线仍为 HTTP 400，返回 `missing_client_attestation`。凭据绑定证明开关的准备工作在执行前停止，没有新增登录请求或应用数据修改，详见 [记录](../mobile/open-cage/validation-credential-attestation-2026-11-16.json)。
+- 11-16 22:02 的宿主 APK maps 路径对照确实生效：3 次读取、72 行处理、0 次回退；实际 Claude 登录仍失败，令牌各段尺寸与基线一致。候选已结束并恢复 integration2，详见 [记录](../mobile/open-cage/validation-maps-2026-11-16.json)。
+- **KeyStore 零命中原因已确认。** 11-16 22:21 无调试登录成功后，只读快照确认 GBox 注册链为 microG blocker → GBox `o7` → 系统 `AndroidKeyStoreSpi`，GMS 掩码为 1、未设 bit 2。另一次诊断请求在 EC 生成器查找处抛出 `NoSuchAlgorithmException`，尚未进入密钥生成或证书读取。该结论解释了本次零命中，不能推出 Cross 登录失败的根因，详见 [记录](../mobile/open-cage/validation-gbox-keystore-live-2026-11-16.json)。
+- **平台 KeyStore 预探测未修通，已撤回。** 11-16 23:47 的候选完成平台 EC 探测及临时密钥清理，仍为 1446 / HTTP 400；它未完整复现 GBox 更早的初始化时序。本轮不追加时序变体，已恢复 integration2。GBox 原数据已归位，普通无调试登录已恢复主页；没有合入新的运行时补丁，详见 [同一记录](../mobile/open-cage/validation-gbox-keystore-live-2026-11-16.json)。
+- **Classic 请求输入仍未知。** 11-17 00:10、00:13 两次观察均未捕获目标 POST，不能判断 Play OAuth 鉴权或 GSF 设备 ID 是否缺失；两次实际登录仍为 1446 / HTTP 400。观察已结束并完成清理，没有据此改动账号或设备登记，详见 [记录](../mobile/open-cage/validation-classic-request-inputs-2026-11-17.json)。
 - 自有探针对照的两边判定相同，不能替代真实 Claude 的成功与失败对照；采样覆盖与 seccomp 语义仍有限制，详见 [记录](../mobile/open-cage/validation-native-queries-2026-11-16.json)。
-- 尚未取得成功 GBox 请求当时的完整 KeyStore/Provider 调用差异，也未解码 Claude 令牌的服务端判定。令牌总长度、VM 输出长度和 Google 账号登录均不能单独证明 Claude 登录或完整性验收通过。
+- Claude 令牌的服务端判定仍未解码；现有证据尚未支持新的具体修复点。令牌总长度、VM 输出长度和 Google 账号登录均不能单独证明 Claude 登录或完整性验收通过。
 
 ## 接续安排
 
 1. Windows：等待五项贡献方案审核；按维护者意见补充对应验证，再进入 PR 流程。
-2. Android：保留已恢复的基线及原数据；围绕成功 GBox 与失败 Cross 的实际 KeyStore/Provider 调用差异继续定位。只有新的具体差异才进入下一次修改，不重复已结束的候选。
+2. Android：保留 integration2、GBox 已恢复的会话及原数据。KeyStore 零命中问题已解释，平台预探测与请求头观察已结束；只有新的实际请求证据支持具体差异时才进入下一次修改。主线验收仍为原版 Claude 实际登录成功，当前未达到。
 3. 隐私补丁继续按 [验收范围](../mobile/sandbox/gbox-mod/PRIVACY-REVIEW-2026-11-15.md#补丁验收范围)逐项记录产物、环境、路径和结论；Google/Claude 登录与隐私验收分别判定。
 
 本次同步范围为进度文档与脱敏结构化记录，不包含 APK、签名密钥、账号凭据、代理配置或设备原始日志。
