@@ -45,7 +45,8 @@ func (s *Server) proxyStatus(w http.ResponseWriter, r *http.Request) {
 	for _, src := range p.Sources {
 		nodes := []any{}
 		for _, n := range src.Nodes {
-			nodes = append(nodes, map[string]any{"id": n.ID, "name": n.Name, "type": n.Type})
+			dialer, _ := n.Config["dialer-proxy"].(string)
+			nodes = append(nodes, map[string]any{"id": n.ID, "name": n.Name, "type": n.Type, "dialer_proxy": dialer})
 		}
 		host := ""
 		if u, e := url.Parse(src.URL); e == nil {
@@ -96,7 +97,7 @@ func (s *Server) proxyStatus(w http.ResponseWriter, r *http.Request) {
 	if routeErr != nil && selected {
 		routeError = routeErr.Error()
 	}
-	jsonReply(w, map[string]any{"route": route, "route_error": routeError, "sources": sources, "selected": p.Selected, "port": p.Port, "running": running, "active": active, "state": state, "state_label": label, "network_open": state == "ready", "core_available": coreErr == nil, "version": version.Version, "revision": p.Revision, "bootstrap_dns": strings.Join(managedproxy.BootstrapDNSURLs(), "、"), "udp_blocked": true, "ipv6_blocked": true})
+	jsonReply(w, map[string]any{"route": route, "explicit_route": len(p.Chain) > 0, "route_error": routeError, "sources": sources, "selected": p.Selected, "port": p.Port, "running": running, "active": active, "state": state, "state_label": label, "network_open": state == "ready", "core_available": coreErr == nil, "version": version.Version, "revision": p.Revision, "bootstrap_dns": strings.Join(managedproxy.BootstrapDNSURLs(), "、"), "udp_blocked": true, "ipv6_blocked": true})
 }
 func (s *Server) proxyMutation(w http.ResponseWriter, r *http.Request) {
 	var input proxyInput

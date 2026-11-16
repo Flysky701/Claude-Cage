@@ -11,7 +11,78 @@ import (
 	"time"
 
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
+	"go.yaml.in/yaml/v3"
 )
+
+func TestProxySelectPreservesImportedDialers(t *testing.T) {
+	s := testServer(t)
+	p, _ := managedproxy.Load(s.profile)
+	if err := p.Import("chain", "", []byte(`proxies:
+  - {name: T, type: socks5, server: 127.0.0.1, port: 1080}
+  - {name: A, type: socks5, server: 127.0.0.1, port: 1081, dialer-proxy: T}
+  - {name: B, type: socks5, server: 127.0.0.1, port: 1082, dialer-proxy: T}
+`), "chain", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	nodes := p.Sources[1].Nodes
+	transit, a, b := nodes[0].ID, nodes[1].ID, nodes[2].ID
+	p.Selected, p.Chain = a, []string{a} // Previously saved by the single-node UI.
+	if err := p.Save(s.profile); err != nil {
+		t.Fatal(err)
+	}
+	oldValidate, oldStart := validateProxyCore, startProxyCore
+	t.Cleanup(func() { validateProxyCore, startProxyCore = oldValidate, oldStart })
+	validateProxyCore = func(_ context.Context, profile string, p managedproxy.Store) error {
+		_, err := p.Runtime(profile)
+		return err
+	}
+	startProxyCore = func(context.Context, string, managedproxy.Store) error { return nil }
+	for _, selected := range []string{a, b, a} {
+		if err := s.changeProxy("select", proxyInput{NodeID: selected}, nil); err != nil {
+			t.Fatal(err)
+		}
+		got, err := managedproxy.Load(s.profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		route, err := got.Route()
+		if err != nil || len(got.Chain) != 0 || !reflect.DeepEqual(route, []string{transit, selected}) {
+			t.Fatal("select lost the imported chain", route, err)
+		}
+		data, err := got.Runtime(s.profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var runtime struct {
+			Proxies []map[string]any `yaml:"proxies"`
+		}
+		if err := yaml.Unmarshal(data, &runtime); err != nil {
+			t.Fatal(err)
+		}
+		for _, node := range runtime.Proxies {
+			if (node["name"] == a || node["name"] == b) && node["dialer-proxy"] != transit {
+				t.Fatal("selected or unselected exit lost its imported transit", node["name"])
+			}
+		}
+	}
+	w := request(s, "GET", "/api/proxy", s.origin, "", true)
+	var view struct {
+		ExplicitRoute bool     `json:"explicit_route"`
+		Route         []string `json:"route"`
+		Sources       []struct {
+			Nodes []struct {
+				ID     string `json:"id"`
+				Dialer string `json:"dialer_proxy"`
+			} `json:"nodes"`
+		} `json:"sources"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &view); err != nil {
+		t.Fatal(err)
+	}
+	if view.ExplicitRoute || !reflect.DeepEqual(view.Route, []string{transit, a}) || view.Sources[1].Nodes[1].Dialer != transit {
+		t.Fatal("UI cannot distinguish imported transit from an explicit chain", w.Body.String())
+	}
+}
 
 func TestProxyRouteAPIIsAtomicAndSurvivesRefresh(t *testing.T) {
 	s := testServer(t)

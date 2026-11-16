@@ -209,7 +209,10 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       }))
     )
       return;
-    mutate("route", { node_ids: nodeIDs, port: Number(port) });
+    if (nodeIDs.length === 1)
+      mutate("select", { node_id: nodeIDs[0], port: Number(port) });
+    else
+      mutate("route", { node_ids: nodeIDs, port: Number(port) });
   };
   const measure = async (ids) => {
     if (measuring.current) return;
@@ -280,8 +283,11 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
     : proxy?.selected
       ? [proxy.selected]
       : [""];
-  const route = routeDraft ?? savedRoute;
-  const routeChanged = JSON.stringify(route) !== JSON.stringify(savedRoute);
+  const savedSelection = proxy?.explicit_route === false
+    ? [proxy.selected || ""]
+    : savedRoute;
+  const route = routeDraft ?? savedSelection;
+  const routeChanged = JSON.stringify(route) !== JSON.stringify(savedSelection);
   const manualSSH = manual.type === "ssh";
   const manualValid = Boolean(
     manual.name.trim() && manual.server.trim() &&
@@ -303,6 +309,16 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
     route.every((id) => allNodes.some((n) => n.id === id)) &&
     new Set(route).size === route.length;
   const routeName = (id) => allNodes.find((n) => n.id === id)?.name || "待选择";
+  const previewRoute = [...route];
+  if (route.length === 1) {
+    const seen = new Set(route);
+    let node = allNodes.find((n) => n.id === route[0]);
+    while (node?.dialer_proxy && !seen.has(node.dialer_proxy)) {
+      previewRoute.unshift(node.dialer_proxy);
+      seen.add(node.dialer_proxy);
+      node = allNodes.find((n) => n.id === node.dialer_proxy);
+    }
+  }
   const updateHop = (index, id) =>
     setRouteDraft(route.map((current, i) => (i === index ? id : current)));
   const nodes = allNodes.filter(
@@ -456,7 +472,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               <div className="proxy-route-heading">
                 <div>
                   <h4 id="proxy-route-title">配置连接方式</h4>
-                  <p>直接使用一个出口，或经中转连接住宅代理。</p>
+                  <p>单节点保留订阅自带中转；链式代理按所选顺序覆盖中转。</p>
                 </div>
                 <div
                   className="proxy-route-mode"
@@ -567,7 +583,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               <div className="proxy-route-preview" aria-label="待应用链路">
                 <Route size={16} aria-hidden="true" />
                 <span>Cage</span>
-                {route.map((id, index) => (
+                {previewRoute.map((id, index) => (
                   <React.Fragment key={index}>
                     <ArrowRight size={13} aria-hidden="true" />
                     <strong>{routeName(id)}</strong>
@@ -600,7 +616,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     disabled={busy || !proxy.core_available || !routeValid}
                     onClick={() => applyRoute(route)}
                   >
-                    {pending === "route" ? (
+                    {pending === "route" || pending === "select" ? (
                       <LoaderCircle size={14} className="spin" />
                     ) : !routeChanged && proxy.active ? (
                       <RefreshCw size={14} />
