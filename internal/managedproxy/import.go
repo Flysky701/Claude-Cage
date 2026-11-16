@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -35,16 +34,9 @@ func parseNodes(data []byte, sourceID string) ([]Node, []NodeIssue, error) {
 	if len(data) == 0 || len(data) > MaxImport {
 		return nil, nil, errors.New("配置为空或超过 8 MiB")
 	}
-	var input struct {
-		Proxies []map[string]any `yaml:"proxies"`
-		Payload []map[string]any `yaml:"payload"`
-	}
-	if yaml.Unmarshal(data, &input) != nil {
-		return nil, nil, errors.New("无法读取 YAML，请导入 Clash/Mihomo 节点订阅或配置；暂不支持 Base64 列表或分享链接")
-	}
-	proxies := input.Proxies
-	if len(proxies) == 0 {
-		proxies = input.Payload
+	proxies, keyErrors, err := importProxies(data)
+	if err != nil {
+		return nil, nil, err
 	}
 	if len(proxies) == 0 || len(proxies) > 3000 {
 		return nil, nil, errors.New("配置需要包含 1–3000 个 proxies 节点；仅含远程 provider 的配置请改为导入节点订阅链接")
@@ -54,11 +46,12 @@ func parseNodes(data []byte, sourceID string) ([]Node, []NodeIssue, error) {
 		types[k] = true
 	}
 	counts := map[string]int{}
-	keyErrors := make([]error, len(proxies))
 	for i, p := range proxies {
 		// Canonicalize only fields Cage reads or rewrites. Protocol parameters
 		// and opaque maps such as HTTP headers belong to the bundled core.
-		keyErrors[i] = normalizeImportKeys(p, "name", "type", "server", "udp", "dialer-proxy")
+		if keyErrors[i] == nil {
+			keyErrors[i] = normalizeImportKeys(p, "name", "type", "server", "udp", "dialer-proxy")
+		}
 		name, _ := p["name"].(string)
 		counts[name]++
 	}

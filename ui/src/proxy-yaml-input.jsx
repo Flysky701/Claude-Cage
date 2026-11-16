@@ -56,8 +56,8 @@ export function ProxyYAMLInput({
       return;
     }
     const value = files[0];
-    if (!/\.(ya?ml|json)$/i.test(value.name)) {
-      setError("请选择 .yaml、.yml 或 .json 配置文件。");
+    if (!/\.(ya?ml|json|txt)$/i.test(value.name)) {
+      setError("请选择 .yaml、.yml、.json 或 .txt 配置文件。");
       return;
     }
     if (value.size > 8 * 1024 * 1024) {
@@ -127,7 +127,7 @@ export function ProxyYAMLInput({
         type="file"
         ref={input}
         disabled={disabled}
-        accept=".yaml,.yml,.json,text/yaml,application/yaml,application/json"
+        accept=".yaml,.yml,.json,.txt,text/yaml,application/yaml,application/json,text/plain"
         onChange={(event) => {
           const files = Array.from(event.target.files || []);
           event.target.value = "";
@@ -138,7 +138,7 @@ export function ProxyYAMLInput({
         type="button"
         className="proxy-yaml-dropzone"
         disabled={disabled}
-        aria-label={selected ? "重新选择 YAML 文件" : "选择 YAML 文件"}
+        aria-label={selected ? "重新选择配置文件" : "选择配置文件"}
         aria-describedby={`${helpID}${error ? ` ${errorID}` : ""}`}
         aria-busy={reading}
         onClick={() => input.current?.click()}
@@ -171,7 +171,7 @@ export function ProxyYAMLInput({
         </span>
       </button>
       <p id={helpID} className="proxy-yaml-help">
-        支持 YAML / YML / JSON，单个文件不超过 8 MiB
+        支持 YAML / YML / JSON / TXT，单个文件不超过 8 MiB
       </p>
       <p className="proxy-yaml-status" role="status">
         {reading
@@ -189,7 +189,7 @@ export function ProxyYAMLInput({
       <label>
         {selected ? "配置内容" : "或直接粘贴配置"}
         <textarea
-          aria-label="节点 YAML"
+          aria-label="节点配置或 Trojan 分享链接"
           rows={7}
           value={content}
           disabled={disabled || reading}
@@ -199,7 +199,7 @@ export function ProxyYAMLInput({
             onContentChange(event.target.value);
           }}
           spellCheck={false}
-          placeholder="proxies: …"
+          placeholder="proxies: … 或 trojan://…（支持 Base64 列表）"
         />
       </label>
       <p className="field-help">

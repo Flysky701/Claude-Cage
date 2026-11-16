@@ -55,9 +55,9 @@ try {
   };
   const importYAML = async (name, content) => {
     await page.getByRole("button", { name: "添加来源", exact: true }).click();
-    await page.getByRole("button", { name: "本地 YAML", exact: true }).click();
+    await page.getByRole("button", { name: "本地配置", exact: true }).click();
     await page.getByLabel("来源名称", { exact: true }).fill(name);
-    await page.getByLabel("节点 YAML", { exact: true }).fill(content);
+    await page.getByLabel("节点配置或 Trojan 分享链接", { exact: true }).fill(content);
     await page.getByRole("button", { name: "导入并验证", exact: true }).click();
     await page.locator(".proxy-progress").waitFor({ state: "hidden" });
   };

@@ -17,7 +17,7 @@ keywords: Clash Mihomo YAML VLESS REALITY ML-KEM SOCKS5 SSH 私钥 住宅 IP DNS
 | 来源 | 怎么填 |
 | --- | --- |
 | 订阅链接 | 输入名称和 HTTPS 节点订阅地址。首次没有可用节点时，可明确勾选“通过主机网络下载这份订阅”。 |
-| 本地 YAML | 拖入或点击选择导出的 YAML、YML、JSON 文件（单个不超过 8 MiB），也可直接粘贴 Clash/Mihomo YAML 内容。读取后可编辑，点击“导入并验证”完成导入。 |
+| 本地配置 | 拖入或点击选择导出的 YAML、YML、JSON、TXT 文件（单个不超过 8 MiB），也可直接粘贴 Clash/Mihomo YAML 或 Trojan 分享链接列表（支持 Base64）。读取后可编辑，点击“导入并验证”完成导入。 |
 | 手动节点 | 选择 HTTP、SOCKS5 或 SSH，填写服务器、端口和认证信息。SSH 默认端口为 22，用户名必填；可选择密码或私钥认证。私钥认证须粘贴完整私钥内容，加密私钥还需填写私钥口令。 |
 
 点击“导入并验证”，进入“节点”，选最终出口，再点“应用代理”。“保存设置”用于其他设置，不能替代应用代理。未应用的选择只是草稿。
@@ -27,7 +27,7 @@ keywords: Clash Mihomo YAML VLESS REALITY ML-KEM SOCKS5 SSH 私钥 住宅 IP DNS
 1. 应用节点后，在“设置 → 网络与代理”点击“验证出口”。该检查通过所选代理发起真实 HTTPS 请求，确认能取得出口 IP 和位置，并与预期出口核对；主机上其他代理客户端能够访问外网，不能代替这一步。
 2. 启动工作环境，查看底部网络状态及检查结果。宿主、客机终端和浏览器的出口采样及其他关键检查通过后，才会显示“已联网”。失败项的处理见[为什么应用了节点仍然离线](#为什么应用了节点仍然离线)。
 
-订阅或本地配置必须包含 `proxies` 或 `payload` 节点。Base64 列表、单个 `vless://` 等分享链接、Xray/v2rayN 原生 JSON、只引用远程 provider 的配置暂不支持。只有分享链接时，先从原客户端导出 Clash/Mihomo YAML；更改文件后缀不能完成转换。导入只采用支持的节点与代理链，不采用订阅中的主机系统代理、TUN、监听端口或直连规则。
+支持包含 `proxies` 或 `payload` 节点的 Clash/Mihomo YAML，以及每行一个 `trojan://` 的分享链接列表（也可为单条链接）。列表可以使用标准或 URL-safe Base64 编码，支持省略填充和换行。Trojan 分享链接支持 TCP、WebSocket、gRPC，以及 `peer`/`sni`、`allowInsecure`、`alpn`、`fp` 和对应传输参数；默认保留 TLS 证书校验，仅在链接明确设置 `allowInsecure=1` 或 `true` 时关闭。不支持的分享协议、参数或冲突参数会显示跳过原因，可改用原客户端导出的 Clash/Mihomo YAML。Xray/v2rayN 原生 JSON 和只引用远程 provider 的配置暂不支持。导入只采用支持的节点与代理链，不采用订阅中的主机系统代理、TUN、监听端口或直连规则。
 
 普通节点参数保留并交给 Cage 随附的 Mihomo 核心校验。例如，从 FlClash 复制的 VLESS 节点可以保留 `xudp: true`，无需手动改成其他字段。内核可能忽略未知字段；配置校验通过后，仍需应用节点并检查实际出口。客机公网 UDP 的阻断规则不受这些协议选项影响。
 
@@ -54,7 +54,7 @@ proxies:
       - "ssh-ed25519 AAAA..."
 ```
 
-同一个订阅地址可能按请求的客户端身份返回不同格式。Cage 下载时使用 Clash 客户端身份，服务商返回 YAML 时可以导入；若返回 Base64 或分享链接列表，仍需向服务商获取 Clash/Mihomo YAML。
+同一个订阅地址可能按请求的客户端身份返回不同格式。Cage 下载时使用 Clash 客户端身份，服务商返回 YAML 或 Trojan 分享链接列表（含 Base64）时均可导入；其他分享协议仍需向服务商获取 Clash/Mihomo YAML。
 
 <figure class="guide-shot">
   <a href="../../www/public/docs/screenshots/proxy-manual.jpg" target="_blank" rel="noopener" aria-label="查看原图：手动填写 HTTP / SOCKS5 节点"><img src="../../www/public/docs/screenshots/proxy-manual.jpg" alt="手动填写 HTTP / SOCKS5 节点" width="2560" height="1764" loading="lazy" decoding="async" /></a>

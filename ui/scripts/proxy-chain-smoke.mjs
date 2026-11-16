@@ -70,9 +70,9 @@ try{
  for(const [name,node,upstreamPort] of [['中转来源','本地中转',entry.port],['住宅来源','住宅出口',exit.port]]){
   await page.getByRole('tab',{name:'订阅',exact:true}).click();
   await page.getByRole('button',{name:'添加来源',exact:true}).click();
-  await page.getByRole('button',{name:'本地 YAML',exact:true}).click();
+  await page.getByRole('button',{name:'本地配置',exact:true}).click();
   await page.getByLabel('来源名称',{exact:true}).fill(name);
-  await page.getByLabel('节点 YAML',{exact:true}).fill(`proxies:\n - {name: ${node}, type: http, server: 127.0.0.1, port: ${upstreamPort}}\n`);
+  await page.getByLabel('节点配置或 Trojan 分享链接',{exact:true}).fill(`proxies:\n - {name: ${node}, type: http, server: 127.0.0.1, port: ${upstreamPort}}\n`);
   await page.getByRole('button',{name:'导入并验证',exact:true}).click();await idle();
   await page.getByText(name,{exact:true}).waitFor();
  }

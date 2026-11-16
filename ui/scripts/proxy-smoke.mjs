@@ -66,7 +66,7 @@ try {
   await page.getByRole("heading", { name: "内置代理", exact: true }).waitFor();
   await page.screenshot({ path: path.join(output, "empty.png") });
   await page.getByRole("button", { name: "添加来源", exact: true }).click();
-  await page.getByRole("button", { name: "本地 YAML", exact: true }).click();
+  await page.getByRole("button", { name: "本地配置", exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles(file);
   await page.getByRole("button", { name: "导入并验证", exact: true }).click();
   await page.getByText("nodes", { exact: true }).waitFor(); console.log("QA: file imported");
@@ -126,7 +126,7 @@ try {
   if (process.env.CAGE_QA_REAL_CONFIG) {
     await page.getByRole("tab", { name: "订阅", exact: true }).click();
     await page.getByRole("button", { name: "添加来源", exact: true }).click();
-    await page.getByRole("button", { name: "本地 YAML", exact: true }).click();
+    await page.getByRole("button", { name: "本地配置", exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles(process.env.CAGE_QA_REAL_CONFIG);
     await page.getByLabel("来源名称", { exact: true }).fill("Real egress QA");
     await page.getByRole("button", { name: "导入并验证", exact: true }).click();
