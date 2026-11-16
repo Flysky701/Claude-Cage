@@ -83,6 +83,14 @@ Windows 开发包将创建脚本放在安装目录的 `resources\guest-os\new-wi
 
 静默安装可传入 `/DESKTOPSHORTCUT=0|1` 和 `/STARTMENUSHORTCUT=0|1`，参数放在最后的 `/D=` 安装目录之前。未提供参数的静默更新沿用已保存的快捷方式选择。
 
+`/D=` 必须是最后一个参数，目录使用绝对 Windows 路径和反斜杠；即使路径含空格也不要给 `/D=` 或目录加引号。例如：
+
+```text
+Cage-<版本>-windows-amd64-setup.exe /S /DESKTOPSHORTCUT=0 /STARTMENUSHORTCUT=0 /D=D:\Cage App
+```
+
+若在 `/D=` 后继续附加参数，安装器会拒绝继续并返回退出码 2，避免把参数拼进安装目录。
+
 ## 源码构建的云部署依赖缓存
 
 Windows 构建中的 SSH 云部署包还需要 Linux 版 Mihomo。`scripts/fetch-windows-dependencies.ps1` 会提前下载并校验它；也可在仓库根目录单独运行 `node scripts/fetch-cloud-core.mjs`。下载来源、文件名和 SHA-256 以 `packaging/linux/dependencies.json` 为准，校验通过后保存到 `_output/linux-deps/`，后续打包直接复用。
