@@ -1,0 +1,103 @@
+{
+  "date": "2026-11-17",
+  "objective": "Check the actual Cross Classic request for missing Google Play OAuth authorization or a default GSF device identifier.",
+  "status": "OBSERVATION_INCONCLUSIVE_CLOSED",
+  "host": "io.github.flysky701.cage.cross",
+  "artifact": "integration2",
+  "phoneOperator": "same designated GPT-6.1 Terra agent",
+  "staticRequestPath": [
+    "IntegrityServiceImpl$requestIntegrityToken$1.invokeSuspend",
+    "IntegrityExtensionsKt.requestIntegritySyncData",
+    "HttpClient.post: POST https://play-fe.googleapis.com/fdfe/integrity"
+  ],
+  "inputs": {
+    "authorization": {
+      "source": "AccountManager com.google accounts, OAuth scope oauth2:https://www.googleapis.com/auth/googleplay",
+      "missingBehavior": "Empty token produces a warning but the Classic request proceeds; buildRequestHeaders$default omits Authorization when the token is empty.",
+      "existingEvidenceGap": "Claude receiving a Google sign-in credential does not establish the separate Play OAuth header."
+    },
+    "deviceId": {
+      "source": "content://com.google.android.gsf.gservices android_id",
+      "missingBehavior": "An empty query result or null value falls back to 1; the hexadecimal representation enters X-DFE-Device-Id and the value also enters X-PS-RH.",
+      "existingEvidenceGap": "Stored account/checkin state does not establish the value read in this MGC request."
+    }
+  },
+  "conclusion": "Neither observation captured the target POST. Authorization and device-ID status remain unknown. No missing-input fix is supported, and this observer will not be extended or retried in this round.",
+  "preservation": {
+    "observerJavaProcessesRemaining": 0,
+    "diagnosticForwardRemoved": true,
+    "mgcProcessStoppedAfterIdentityVerification": true,
+    "reasonForProcessCleanup": "The second observer reported attached rather than confirmed disposal; its verified Cross MGC process was ended to remove possible residual debugger state.",
+    "applicationDataCleared": false,
+    "installedArtifact": "integration2",
+    "installedPackagesChanged": false,
+    "gboxSessionChanged": false,
+    "networkSettingsChangedByOperator": false
+  },
+  "existingLogCheck": {
+    "windowsLocal": [
+      "2026-11-16T23:42",
+      "2026-11-16T23:47"
+    ],
+    "nullPlayOAuthWarningCounts": [
+      0,
+      0
+    ],
+    "authorizationHeaderPresent": "unknown",
+    "deviceIdUsesDefaultOne": "unknown",
+    "limitation": "No matching warning is not proof that the outgoing authorization was valid; the existing log did not expose either request-header classification.",
+    "newRequestMade": false,
+    "rawLogsRetained": false
+  },
+  "runtimeObservation": {
+    "firstAttempt": {
+      "requestTimeLocal": "2026-11-17T00:10:03+08:00",
+      "method": "Bounded read-only JDWP observation of the exact Classic HttpClient.post overload",
+      "headersCaptured": false,
+      "observerResult": "timeout",
+      "debuggerDetachState": "disposed",
+      "authorizationHeaderPresent": "unknown",
+      "deviceIdUsesDefaultOne": "unknown",
+      "droidGuardRawBytes": 34812,
+      "tokenChars": 1446,
+      "httpStatus": 400,
+      "ui": "Google Play verification failed",
+      "forwardRemoved": true,
+      "evidence": [
+        "mobile/.build/open-cage-cross-control/classic-input-audit/cross-headers.txt",
+        "mobile/.build/open-cage-cross-control/classic-input-audit/cross-route.jsonl"
+      ]
+    },
+    "readyBeforeClickAttempt": {
+      "requestTimeLocal": "2026-11-17T00:13:35+08:00",
+      "sameMgcProcessVerified": true,
+      "observerReadyBeforeLoginClick": true,
+      "headersCaptured": false,
+      "observerResult": "timeout",
+      "debuggerDetachState": "attached",
+      "authorizationHeaderPresent": "unknown",
+      "deviceIdUsesDefaultOne": "unknown",
+      "droidGuardRawBytes": 34699,
+      "tokenChars": 1446,
+      "httpStatus": 400,
+      "ui": "Google Play verification failed",
+      "evidence": [
+        "mobile/.build/open-cage-cross-control/classic-input-audit/cross-headers-ready-first.txt",
+        "mobile/.build/open-cage-cross-control/classic-input-audit/cross-route-ready-first.jsonl"
+      ]
+    }
+  },
+  "sourcePointers": [
+    "mgc-decoded/smali/com/google/android/finsky/integrityservice/IntegrityServiceImpl$requestIntegrityToken$1.smali:1293,1376",
+    "mgc-decoded/smali/com/google/android/finsky/IntegrityExtensionsKt.smali:3241,4573",
+    "mgc-decoded/smali/org/microg/vending/billing/GServices.smali:29",
+    "mgc-decoded/smali/io/ktor/http/UrlKt.smali:1721,1828",
+    "mgc-decoded/smali/org/microg/vending/billing/core/HttpClient.smali:706"
+  ],
+  "limits": [
+    "The static missing-input paths are candidates for verification, not established causes of the rejected Claude login.",
+    "A nonempty Bearer header alone does not establish that Google accepted its token.",
+    "A nondefault hexadecimal device ID alone does not establish successful device registration.",
+    "No raw tokens, accounts, device identifiers or decrypted Claude verdicts are included."
+  ]
+}
