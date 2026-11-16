@@ -167,10 +167,10 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 			if _, ok := p.Find(in.NodeID); !ok {
 				return errors.New("所选节点已不存在，请刷新列表")
 			}
+			// select 表示单节点出口：替换（而非改写）现有链，避免把所选节点
+			// 追加到已含该节点的链里造成重复；需要多跳请使用 route。
 			p.Selected = in.NodeID
-			if len(p.Chain) > 0 {
-				p.Chain[len(p.Chain)-1] = in.NodeID
-			}
+			p.Chain = nil
 		}
 		if in.Port != 0 {
 			if in.Port < 1024 || in.Port > 65535 {

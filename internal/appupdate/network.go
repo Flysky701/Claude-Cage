@@ -22,7 +22,9 @@ func updateClient(configPath string) *http.Client {
 }
 
 func updateHTTPClient(transport http.RoundTripper) *http.Client {
-	return &http.Client{Transport: transport, Timeout: 20 * time.Minute, CheckRedirect: func(r *http.Request, via []*http.Request) error {
+	// No overall deadline: metadata requests carry a context deadline and the
+	// archive transfer is bounded by its stall watchdog instead.
+	return &http.Client{Transport: transport, CheckRedirect: func(r *http.Request, via []*http.Request) error {
 		if len(via) >= 5 || !allowedURL(r.URL, true) {
 			return errors.New("更新下载重定向被拒绝")
 		}

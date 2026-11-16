@@ -152,6 +152,24 @@ export function createNativeBrowserService(options = {}) {
   const destination = options.downloadDirectory ?? path.join(homedir(), "Downloads", "Cage");
   let context, owner, browserCDP, initialized, closing, proxy, networkMode = "proxy", configured = false;
   let active = "", home = options.homepage ?? "https://www.bing.com/", displayScale = options.displayScale ?? 2;
+  // The density the controller starts with. A viewer that names its own
+  // screen's density replaces displayScale; one that names none restores this.
+  let configuredScale = displayScale;
+  // Playwright applies a context's pixel density with every viewport it sets
+  // and keeps it in the context it runs in this process. Changing it there is
+  // the one way a page sees a single density change, not Playwright's value
+  // and then ours. Without that object the display keeps its starting density.
+  const contextOptions = target => {
+    try {
+      const value = target?._connection?.toImpl?.(target)?._options;
+      return value && typeof value === "object" ? value : undefined;
+    } catch { return undefined; }
+  };
+  const followDensity = target => {
+    const value = contextOptions(target);
+    if (value && value.deviceScaleFactor !== undefined) value.deviceScaleFactor = displayScale;
+    return !!value;
+  };
   const homepageRedirects = new WeakMap();
   const isNativeNewTab = url => /^chrome:\/\/(newtab|new-tab-page|new-tab-page-third-party)\/?(?:[?#].*)?$/.test(url);
   function restoreHomepage(page) {
@@ -388,7 +406,9 @@ export function createNativeBrowserService(options = {}) {
     // Windows native menus do not follow the compositor's emulated scale.
     // Keep HiDPI on full-density screenshots, even with continuousFrames opted
     // in, so page pixels and native overlays share one physical-pixel mapping.
-    const streaming = continuousFrames && !tab.captureFallback && displayScale === 1;
+    // A viewer's own density keeps full-density screenshots as well: only a
+    // display configured for one pixel per CSS pixel streams its compositor.
+    const streaming = continuousFrames && !tab.captureFallback && displayScale === 1 && configuredScale === 1;
     const key = `${tab.document}:${tab.geometry}:${size.width}:${size.height}:${displayScale}`;
     let capture = captures.get(tab.page);
     if (capture && capture.key !== key) { await stopCapture(tab.page); capture = undefined; }
@@ -637,6 +657,8 @@ export function createNativeBrowserService(options = {}) {
     tab.ready = (async () => {
     // A persistent context keeps its launch viewport for newly opened pages.
     // Each tab must join the workbench's current viewport before capture starts.
+    // Its context may have been created for another viewer's density.
+    followDensity(page.context());
     await page.setViewportSize(viewport);
     const connection = await page.context().newCDPSession(page), sid = token();
     if (page.isClosed()) { await connection.detach().catch(() => {}); return; }
@@ -814,7 +836,7 @@ export function createNativeBrowserService(options = {}) {
     else { proxy = checkedLoopbackProxy(input.proxy); networkMode = "proxy"; }
     if (input.displayScale !== undefined) {
       if (![1, 1.5, 2].includes(input.displayScale)) throw failure("invalid_input", "像素密度无效");
-      displayScale = input.displayScale;
+      displayScale = configuredScale = input.displayScale;
     }
     if (input.timezone !== undefined) {
       try { timezone = new Intl.DateTimeFormat("en", { timeZone: input.timezone }).resolvedOptions().timeZone; }
@@ -882,23 +904,37 @@ export function createNativeBrowserService(options = {}) {
   }
   async function nativeDocumentFocused(tab) {
     const tree = await cdp("Page.getFrameTree", {}, tab.session);
-    const isolated = await cdp("Page.createIsolatedWorld", { frameId: tree.frameTree.frame.id, worldName: "cage-native-window-proof" }, tab.session);
-    const focus = await cdp("Runtime.evaluate", { expression: "Document.prototype.hasFocus.call(document)", contextId: isolated.executionContextId, returnByValue: true }, tab.session);
+    const frame = tree.frameTree.frame, key = `${frame.id}:${frame.loaderId}`;
+    const expression = "Document.prototype.hasFocus.call(document)";
+    // Every frame asks each tab for focus. The isolated world lives as long as
+    // its document, so it is created once per document, not once per question.
+    if (tab.focusWorld?.key === key) {
+      const focus = await cdp("Runtime.evaluate", { expression, contextId: tab.focusWorld.context, returnByValue: true }, tab.session).catch(() => undefined);
+      if (focus && !focus.exceptionDetails) return focus.result?.value === true;
+    }
+    tab.focusWorld = undefined;
+    const isolated = await cdp("Page.createIsolatedWorld", { frameId: frame.id, worldName: "cage-native-window-proof" }, tab.session);
+    const focus = await cdp("Runtime.evaluate", { expression, contextId: isolated.executionContextId, returnByValue: true }, tab.session);
+    if (!focus.exceptionDetails) tab.focusWorld = { key, context: isolated.executionContextId };
     return focus.result?.value === true;
   }
-  async function syncNativeFrontTab() {
+  // focused is the one tab whose document was just seen holding focus.
+  async function frontTabFocus() {
     const old = tabs.get(active);
-    if (old && !old.page.isClosed() && await nativeDocumentFocused(old).catch(() => false)) return false;
+    if (old && !old.page.isClosed() && await nativeDocumentFocused(old).catch(() => false)) return { ambiguous: false, focused: old };
     const focused = [];
     for (const tab of tabs.values()) if (tab !== old && !tab.page.isClosed() && await nativeDocumentFocused(tab).catch(() => false)) focused.push(tab);
     if (focused.length === 1) { active = focused[0].id; changed(); }
-    return focused.length > 1;
+    return { ambiguous: focused.length > 1, focused: focused.length === 1 ? focused[0] : undefined };
+  }
+  async function syncNativeFrontTab() {
+    return (await frontTabFocus()).ambiguous;
   }
   async function nativeFrameProof() {
-    const focusAmbiguous = await syncNativeFrontTab();
+    const front = await frontTabFocus(), focusAmbiguous = front.ambiguous;
     const tab = target({ id: active });
     const native = await browserCDP.send("Browser.getWindowForTarget", { targetId: tab.nativeTarget });
-    const documentFocused = await nativeDocumentFocused(tab);
+    const documentFocused = front.focused === tab || await nativeDocumentFocused(tab);
     const size = tab.page.viewportSize();
     return { target: split?.generation ?? tab.geometry, document: tab.document, id: tab.id, window: native, documentFocused, focusAmbiguous, blankDocument: tab.page.url() === "about:blank",
       x: split?.right === tab.id ? Math.round(tabs.get(split.left).page.viewportSize().width * displayScale) : 0, y: 0,
@@ -1399,9 +1435,22 @@ export function createNativeBrowserService(options = {}) {
     }
     if (action === "resize") {
       if (![input.width, input.height].every(Number.isInteger) || input.width < 320 || input.height < 240 || input.width > 8192 || input.height > 8192 || input.width * input.height > 16000000) throw failure("invalid_input", "Invalid display size");
+      // The viewer sized this display for the density of its own screen, in
+      // Chromium's steps of 1/64. One that names no density sized it for the
+      // configured one.
+      let followed;
+      if (input.scale !== undefined) {
+        if (typeof input.scale !== "number" || !(input.scale >= 0.75 && input.scale <= 4)) throw failure("invalid_input", "像素密度无效");
+        if (!mac && contextOptions(context)) followed = Math.round(input.scale * 64) / 64;
+      }
+      const scale = followed ?? configuredScale;
+      if (scale !== displayScale) {
+        displayScale = scale;
+        for (const target of new Set([context, ...[...tabs.values()].map(tab => tab.page.context())])) followDensity(target);
+      }
       viewport = { width: Math.ceil(input.width / displayScale), height: Math.ceil(input.height / displayScale) };
       await applyViewport();
-      return { ok: true };
+      return { ok: true, ...(followed !== undefined ? { scale: followed } : {}) };
     }
     if (action === "editor" || action === "editor-restart") {
       if (!/^[a-f0-9]{16}(?:[a-f0-9]{8})?$/.test(input.workspace || "") || (!editorConnections.has(input.workspace) && typeof options.editor !== "function")) throw failure("editor_unavailable", "Windows 客机编辑器或项目授权尚未接通");

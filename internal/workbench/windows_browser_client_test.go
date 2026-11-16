@@ -332,3 +332,21 @@ func TestNativeBrowserViewerOwnershipUsesServiceCapability(t *testing.T) {
 		})
 	}
 }
+
+func TestNativeBrowserEventPollSlowsOnlyWhenNothingUsesOrChangesTheBrowser(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	long := now.Add(-time.Minute)
+	for name, test := range map[string]struct {
+		used, changed time.Time
+		want          time.Duration
+	}{
+		"a viewer is operating the browser": {now.Add(-time.Second), long, nativeBrowserEventPoll},
+		"a page changed without a viewer":   {long, now.Add(-2 * time.Second), nativeBrowserEventPoll},
+		"never used since start":            {time.Unix(0, 0), now.Add(-nativeBrowserEventActive), nativeBrowserEventIdlePoll},
+		"idle and unwatched":                {long, long, nativeBrowserEventIdlePoll},
+	} {
+		if got := nativeBrowserEventDelay(now, test.used, test.changed); got != test.want {
+			t.Errorf("%s: polls every %v, want %v", name, got, test.want)
+		}
+	}
+}

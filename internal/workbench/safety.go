@@ -53,12 +53,12 @@ type macIPv6Probe struct {
 	RouteVerified bool   `json:"routeVerified"`
 }
 type guestObservation struct {
-	Remote             *windowsRemoteEvidence `json:"remote,omitempty"`
-	IPv6UnscopedAbsent bool                   `json:"ipv6_unscoped_absent,omitempty"`
-	IPv6Unbound        macIPv6Probe           `json:"ipv6_unbound,omitempty"`
-	IPv6Scoped         []macIPv6Probe         `json:"ipv6_scoped,omitempty"`
-	IPv6LinkSent       bool                   `json:"ipv6_link_sent,omitempty"`
-	IPv6LinkInterface  string                 `json:"ipv6_link_interface,omitempty"`
+	Remote                 *windowsRemoteEvidence `json:"remote,omitempty"`
+	IPv6UnscopedAbsent     bool                   `json:"ipv6_unscoped_absent,omitempty"`
+	IPv6Unbound            macIPv6Probe           `json:"ipv6_unbound,omitempty"`
+	IPv6Scoped             []macIPv6Probe         `json:"ipv6_scoped,omitempty"`
+	IPv6LinkSent           bool                   `json:"ipv6_link_sent,omitempty"`
+	IPv6LinkInterfaceValid bool                   `json:"ipv6_link_interface_valid,omitempty"`
 
 	ProcessLocale       string             `json:"process_locale,omitempty"`
 	SystemLocale        string             `json:"system_locale,omitempty"`
@@ -934,7 +934,7 @@ func (s *Server) runSafetyCheck() (returned error) {
 			}
 			ipv6Verified := s.ipv6PolicyVerified(boundary, state, after, networkLayout)
 			if ipv6Verified && s.macosGuest != nil && macOSIPv6LinkVerified(boundary, state, after) {
-				set("ipv6_policy", cage.CheckPassed, fmt.Sprintf("常规 IPv6 查路由明确不可达；%d 条接口限定的默认路由逐个绑定检查，均未连通或发现外部源地址。唯一客机网卡 %s 对本轮随机 IPv6 UDP 探针在以太帧入口实施丢弃。", boundary.IPv6DefaultRoutes, boundary.IPv6LinkInterface), "")
+				set("ipv6_policy", cage.CheckPassed, fmt.Sprintf("常规 IPv6 查路由明确不可达；%d 条接口限定的默认路由逐个绑定检查，均未连通或发现外部源地址。唯一客机以太网卡对本轮随机 IPv6 UDP 探针在以太帧入口实施丢弃。", boundary.IPv6DefaultRoutes), "")
 			} else if ipv6Verified {
 				evidence := "客机公网 IPv6 策略为拒绝；连接采样未建立，路由或拒绝记录与策略一致。当前版本验证 IPv4 出口"
 				if linuxProbe {

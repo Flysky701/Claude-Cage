@@ -51,7 +51,7 @@ func TestIntelMacOSLayoutRequiresBoundOffscreenHardwareAndConfinedDevices(t *tes
 }
 
 func TestMacIPv6ScopedRoutesRequireCompleteLiveEvidence(t *testing.T) {
-	base := guestObservation{IPv6DefaultRoutes: 1, IPv6UnscopedAbsent: true, IPv6LinkSent: true, IPv6LinkInterface: "en0",
+	base := guestObservation{IPv6DefaultRoutes: 1, IPv6UnscopedAbsent: true, IPv6LinkSent: true, IPv6LinkInterfaceValid: true,
 		IPv6Unbound: macIPv6Probe{Result: "no-route"}, IPv6Scoped: []macIPv6Probe{{Name: "utun0", RouteVerified: true, BoundIndex: 7, Result: "timeout"}}}
 	before := cage.GateStatus{Mode: cage.GateChecking, RunID: "selected-vm", CheckID: "current-check"}
 	after := before
@@ -66,6 +66,7 @@ func TestMacIPv6ScopedRoutesRequireCompleteLiveEvidence(t *testing.T) {
 		func(b *guestObservation, _ *cage.GateStatus) { b.IPv6Scoped[0].GlobalSources = 1 },
 		func(b *guestObservation, _ *cage.GateStatus) { b.IPv6Scoped[0].Result = "connected" },
 		func(b *guestObservation, _ *cage.GateStatus) { b.IPv6Scoped[0].BoundIndex = 0 },
+		func(b *guestObservation, _ *cage.GateStatus) { b.IPv6LinkInterfaceValid = false },
 		func(b *guestObservation, _ *cage.GateStatus) { b.IPv6UnscopedAbsent = false },
 		func(b *guestObservation, _ *cage.GateStatus) { b.IPv6DefaultRoutes++ },
 	} {

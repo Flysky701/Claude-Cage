@@ -75,8 +75,21 @@ export function useDownloadNotifications(
   }, [downloads, uploading]);
 }
 
-export function useDesktopFiles(ready, onStatus, desktopVisible) {
+// With the Cage window hidden nobody can answer a file request, and every poll
+// makes the guest inspect its application windows. Downloads still arrive.
+function desktopFilesPollDelay(failures, windowVisible) {
+  return Math.min((windowVisible ? 1500 : 4500) * 2 ** Math.min(failures, 4), 15000);
+}
+
+export function useDesktopFiles(ready, onStatus, desktopVisible, windowVisible = true) {
   const connection = getClientContext().connection_id;
+  const windowShown = useRef(windowVisible);
+  windowShown.current = windowVisible;
+  const wake = useRef(null);
+  useEffect(() => {
+    // A request raised while hidden should not wait out the slow interval.
+    if (windowVisible) wake.current?.();
+  }, [windowVisible]);
   const [files, setFiles] = useState({ uploads: [], downloads: [] });
   const viewVisible = useRef(desktopVisible);
   viewVisible.current = desktopVisible;
@@ -91,7 +104,9 @@ export function useDesktopFiles(ready, onStatus, desktopVisible) {
       timer,
       failures = 0;
     const handled = new Set();
+    let polling = false;
     const poll = async () => {
+      polling = true;
       try {
         const value = await api("/input/files/desktop/requests");
         failures = 0;
@@ -151,11 +166,18 @@ export function useDesktopFiles(ready, onStatus, desktopVisible) {
           failures++;
         }
       }
-      if (!disposed) timer = setTimeout(poll, Math.min(1500 * 2 ** Math.min(failures, 4), 15000));
+      polling = false;
+      if (!disposed) timer = setTimeout(poll, desktopFilesPollDelay(failures, windowShown.current));
+    };
+    wake.current = () => {
+      if (disposed || polling) return;
+      clearTimeout(timer);
+      void poll();
     };
     void poll();
     return () => {
       disposed = true;
+      wake.current = null;
       clearTimeout(timer);
     };
   }, [ready, connection]);

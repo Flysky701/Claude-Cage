@@ -43,6 +43,8 @@ macOS Chrome 和 Windows 浏览器保存本客机用户的公开浏览器创建�
 
 虚拟 GPU 的 `Apple Paravirtual device` 名称来自实际图形驱动。ANGLE 的 Metal 后端改变浏览器的图形 API 路径，不能移除 Apple Virtualization 的虚拟设备，也不代表物理 GPU 直通。Windows 的 D3D11 和 Linux 的 OpenGL/Vulkan 同样依赖客机实际可用的驱动。SwiftShader 明确作为软件模式提供，检测会区分软件回退和虚拟 GPU。
 
+选择 Metal、D3D11、Vulkan 或 OpenGL 时，浏览器请求使用所选后端，并通过 `--enable-zero-copy` 请求零拷贝上传。Chromium 根据驱动能力和兼容性屏蔽列表决定是否使用 GPU 栅格化，Canvas 2D 加速还取决于页面的绘制方式。自动模式和 SwiftShader 沿用各自的默认上传方式。
+
 | 客机 | 可选浏览器后端 |
 | --- | --- |
 | macOS | 自动、Metal、OpenGL、SwiftShader |

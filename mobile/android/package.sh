@@ -9,7 +9,7 @@ sdk="${ANDROID_HOME:?Set ANDROID_HOME to the Android SDK directory}"
 tools="$sdk/build-tools/${CAGE_BUILD_TOOLS:-35.0.0}"
 platform="$sdk/platforms/android-${CAGE_ANDROID_PLATFORM:-35}/android.jar"
 if [[ -n "${JAVA_HOME:-}" ]]; then export PATH="$JAVA_HOME/bin:$PATH"; fi
-version_args=()
+manifest_args=(--manifest "$android/AndroidManifest.xml")
 signing_args=()
 case "${1:-}" in
   '') out="$build/cage-mobile-debug.apk" ;;
@@ -23,7 +23,7 @@ case "${1:-}" in
     [[ -f "$CAGE_ANDROID_KEYSTORE" && -s "$CAGE_ANDROID_PASSWORD_FILE" ]] || { echo 'Android signing material is unavailable.' >&2; exit 1; }
     version="$(tr -d '\r\n' < "$mobile_dir/../VERSION")"
     [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo 'Invalid application VERSION.' >&2; exit 2; }
-    version_args=(--replace-version --version-name "$version" --version-code "$CAGE_ANDROID_VERSION_CODE")
+    manifest_args+=(--replace-version --version-name "$version" --version-code "$CAGE_ANDROID_VERSION_CODE")
     signing_args=(--ks "$CAGE_ANDROID_KEYSTORE" --ks-key-alias "$CAGE_ANDROID_KEY_ALIAS" --ks-pass "file:$CAGE_ANDROID_PASSWORD_FILE")
     out="$build/Cage-$version-android-arm64.apk"
     ;;
@@ -49,11 +49,13 @@ if [[ "${1:-}" == --preview ]]; then
   sed -e 's/package="io\.github\.leexeo\.cage\.mobile"/package="io.github.leexeo.cage.mobile.preview"/' \
       -e 's/android:name="\.MainActivity"/android:name="io.github.leexeo.cage.mobile.MainActivity"/' \
       -e 's/android:name="\.ScanActivity"/android:name="io.github.leexeo.cage.mobile.ScanActivity"/' \
+      -e 's/android:authorities="io\.github\.leexeo\.cage\.mobile\.updates"/android:authorities="io.github.leexeo.cage.mobile.preview.updates"/' \
       -e 's/android:label="Cage"/android:label="Cage 实验版"/' \
       "$manifest" > "$work/AndroidManifest.xml"
   manifest="$work/AndroidManifest.xml"
+  manifest_args=(--manifest "$manifest")
 fi
-"$tools/aapt2" link -o "$work/base.apk" -I "$platform" -A "$mobile_dir/.build/resources" --manifest "$manifest" "${version_args[@]}" "$work/res.zip" "$work/brand.zip"
+"$tools/aapt2" link -o "$work/base.apk" -I "$platform" -A "$mobile_dir/.build/resources" "${manifest_args[@]}" "$work/res.zip" "$work/brand.zip"
 zxing="$build/zxing-core-3.5.3.jar"
 if [[ ! -f "$zxing" ]]; then
   curl --fail --location --silent --show-error https://repo.maven.apache.org/maven2/com/google/zxing/core/3.5.3/core-3.5.3.jar -o "$work/zxing.jar"

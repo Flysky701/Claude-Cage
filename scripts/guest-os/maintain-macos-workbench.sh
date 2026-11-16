@@ -188,5 +188,8 @@ done
 # path. Migration failures retain the old application and can be retried.
 trap - EXIT
 rm -rf "$backup"
+# Guests set up before file indexing was turned off stop indexing here. Nobody
+# searches this hidden desktop; `mdutil -a -i on` turns it back on.
+mdutil -a -i off >/dev/null 2>&1 || true
 bash "$kit/claude-desktop-macos.sh" migrate "$user"
 printf '%s\n' '原生客机组件已更新并通过文件核验。'

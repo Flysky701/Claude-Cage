@@ -6,9 +6,11 @@
 
 <img src="assets/claude-cage-character.png" alt="Claude Cage" width="320" />
 
-[![Release](https://img.shields.io/github/v/release/Lee-xeo/Claude-Cage?include_prereleases)](https://github.com/Lee-xeo/Claude-Cage/releases) [![CI](https://github.com/Lee-xeo/Claude-Cage/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Lee-xeo/Claude-Cage/actions/workflows/ci.yml) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Lee-xeo/Claude-Cage?include_prereleases)](https://github.com/Lee-xeo/Claude-Cage/releases) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 <a href="https://trendshift.io/repositories/339051#achievements"><img src="https://trendshift.io/api/badge/trendshift/repositories/339051/daily?language=Go" alt="Trendshift — Go Repository of the Day" width="250" height="55" /></a> <a href="https://trendshift.io/repositories/339051#achievements"><img src="https://trendshift.io/api/badge/trendshift/repositories/339051/weekly?language=Go" alt="Trendshift — Go Repository of the Week" width="250" height="55" /></a>
+
+<a href="https://trendshift.io/repositories/339051#achievements"><img src="https://trendshift.io/api/badge/trendshift/repositories/339051/daily" alt="Trendshift — Repository of the Day" width="250" height="55" /></a> <a href="https://trendshift.io/repositories/339051#achievements"><img src="https://trendshift.io/api/badge/trendshift/repositories/339051/weekly" alt="Trendshift — Repository of the Week" width="250" height="55" /></a>
 
 **[项目主页](https://claude-cage.com/) · [下载应用](https://claude-cage.com/#download) · [使用文档](https://claude-cage.com/docs/) · [常见问题](https://claude-cage.com/docs/troubleshooting/)**
 
@@ -58,7 +60,7 @@ Claude Cage 让你在熟悉的系统里与 Claude 一起工作：Mac 上用 macO
 把这句话发给你的 agent（codex，dsh，workbuddy，反正不会是 claude code😁）
 
 ```markdown
-帮我拉取 https://github.com/Lee-xeo/Claude-Cage 的最新源码，打包安装，并 Cage 的代理配置通过我本机 clash 的 xx 节点走我的 xx ip 出口，全过程你盯着，有问题直接修复，且有必要的话顺手给项目提交 issue 帮助他们优化兼容性。
+帮我拉取 https://github.com/Lee-xeo/Claude-Cage 的最新源码，打包安装，并把 Cage 的代理配置通过我本机 clash 的 xx 节点走我的 xx ip 出口，全过程你盯着，有问题直接修复，且有必要的话顺手给项目提交 issue 帮助他们优化兼容性。
 ```
 
 你唯一需要的，是一个靠谱的代理节点，本项目不做任何代理推广，可以自行搜索黑色错误网站解决。
@@ -128,8 +130,13 @@ macOS 和已签名 Windows 版本支持通过所选代理更新；Windows 未签
 本项目仍在快速迭代中，欢迎加入交流群提意见，欢迎社区大佬一起维护
 
 <p align="center">
-  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ 群 · 782087179" width="240" /></a>
-  <br />QQ 群 · 782087179
+  <a href="assets/community-qq.png"><img src="assets/community-qq.png" alt="QQ 群 · 710792821" width="240" /></a>
+  <br />QQ 群 · 710792821
+</p>
+
+<p align="center">
+  <a href="assets/community-wechat.png"><img src="assets/community-wechat.png" alt="微信" width="240" /></a>
+  <br />微信
 </p>
 
 ## 来源与许可

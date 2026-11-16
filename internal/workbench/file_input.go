@@ -115,7 +115,11 @@ func (s *Server) guestFiles(ctx context.Context, target, method, path string, bo
 			}
 		}
 		var result map[string]any
-		err = s.windowsDesktopRequest(ctx, action, input, &result)
+		request := s.windowsDesktopRequest
+		if action == "files-poll" {
+			request = s.windowsDesktopQuick
+		}
+		err = request(ctx, action, input, &result)
 		return result, windowsDesktopFileFailure(err)
 	}
 	asWorkUser, err := s.linuxTemplate("sudo -H -u cage ")

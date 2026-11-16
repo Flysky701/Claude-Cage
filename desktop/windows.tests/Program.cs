@@ -74,6 +74,13 @@ Check(!UpdatePolicy.IsNewer("0.1.0-alpha.1", "0.1.0-alpha.1"), "same version acc
 Check(!UpdatePolicy.IsNewer("0.1.0-alpha.1", "0.1.0"), "downgrade accepted");
 Check(!UpdatePolicy.IsNewer("v0.2.0", "0.1.0"), "noncanonical version accepted");
 Check(!UpdatePolicy.IsNewer("0.2.0+metadata", "0.1.0"), "unmatched backend version accepted");
+string Organization(string subject) => UpdatePolicy.PublisherOrganization(new System.Security.Cryptography.X509Certificates.X500DistinguishedName(subject));
+Check(Organization("C=CN, L=Shanghai, O=Example Publisher, CN=Example Publisher") == Organization("CN=Renewed name, O=Example Publisher, L=Beijing, C=CN"),
+    "renewed certificate of the same organization rejected");
+Check(Organization("C=CN, O=Example Publisher") != Organization("C=US, O=Example Publisher"), "organization of another country accepted");
+Check(Organization("C=CN, O=Example Publisher") != Organization("C=CN, O=Example Publisher Ltd"), "different organization accepted");
+foreach (var subject in new[] { "CN=Example Publisher", "C=CN, CN=Example Publisher", "O=Example Publisher", "C=CN, O=First, O=Second" })
+    Check(Organization(subject).Length == 0, "incomplete or ambiguous publisher accepted: " + subject);
 var root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "cage-update-policy-tests"));
 var good = Path.Combine(root, "download-abc", "Cage-setup.exe");
 Check(UpdatePolicy.DownloadPath(good, root) == good, "private download rejected");

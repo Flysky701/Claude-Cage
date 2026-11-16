@@ -74,4 +74,7 @@ sudo -Hu "$user" /bin/bash -ec '
 # Cage owns guest lifetime; the hidden desktop should not sleep while the
 # workbench is running. These settings affect only this virtual Mac.
 pmset -a sleep 0 displaysleep 0
+# Nobody searches this hidden desktop. Spotlight otherwise indexes every file
+# that tools and package managers write. `mdutil -a -i on` turns it back on.
+mdutil -a -i off >/dev/null 2>&1 || true
 echo '客机自动登录与首次设置已准备。'

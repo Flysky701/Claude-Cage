@@ -166,6 +166,9 @@ final class MacChromeWindow {
         guard ["auto", "metal", "opengl", "software"].contains(backend), value.webgl != "disabled" || backend == "auto" else { throw Failure(8, "invalid_profile") }
         if backend != "auto" {
             flags += ["--use-gl=angle", "--use-angle=" + (backend == "opengl" ? "gl" : backend == "software" ? "swiftshader" : "metal")]
+            if backend != "software" {
+                flags.append("--enable-zero-copy")
+            }
         }
         if value.webgl == "disabled" { flags += ["--disable-3d-apis", "--disable-webgl"] }
         if value.canvas == "blocked" { flags.append("--disable-reading-from-canvas") }

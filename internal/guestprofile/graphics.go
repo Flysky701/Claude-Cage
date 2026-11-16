@@ -93,9 +93,9 @@ func (p *Profile) GraphicsFlags() []string {
 	}
 	switch p.GraphicsBackend {
 	case "metal", "d3d11", "vulkan":
-		return []string{"--use-gl=angle", "--use-angle=" + p.GraphicsBackend}
+		return []string{"--use-gl=angle", "--use-angle=" + p.GraphicsBackend, "--enable-zero-copy"}
 	case "opengl":
-		return []string{"--use-gl=angle", "--use-angle=gl"}
+		return []string{"--use-gl=angle", "--use-angle=gl", "--enable-zero-copy"}
 	case "software":
 		return []string{"--use-gl=angle", "--use-angle=swiftshader"}
 	}

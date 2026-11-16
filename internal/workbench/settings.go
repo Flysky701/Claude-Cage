@@ -29,6 +29,7 @@ type Preferences struct {
 	BrowserHomeURL        string `json:"browser_home_url"`
 	ClaudeTerminalCommand string `json:"claude_terminal_command"`
 	Keyboard              string `json:"keyboard"`
+	Clock12Hour           bool   `json:"clock_12_hour"`
 	AutoTimezone          bool   `json:"auto_timezone"`
 	AutoLanguage          bool   `json:"auto_language"`
 }

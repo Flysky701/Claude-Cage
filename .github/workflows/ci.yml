@@ -2,8 +2,10 @@ name: Three-platform checks and test packages
 on:
   # The website and user guides have their own workflow (www.yml) and are in
   # no package, so changes limited to them skip the three-platform builds.
+  # Branches are checked once, through their pull request (pr-checks.yml calls
+  # this workflow). A branch without a pull request can be run by hand.
   push:
-    branches: ['**', '!codex/release/**']
+    branches: [main]
     paths-ignore: ['README*.md', 'www/**', 'docs/guide/**', 'docs/releases/**']
   workflow_call:
   workflow_dispatch:
@@ -73,7 +75,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.403
+          global-json-file: global.json
       - name: Install the verified NSIS compiler
         run: ./scripts/install-nsis.ps1
       - name: Install the verified WebView2 prerequisite

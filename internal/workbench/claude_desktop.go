@@ -54,7 +54,7 @@ func (s *Server) claudeDesktopStatus(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		if s.windowsGuest != nil {
 			var result claudeDesktopState
-			if err := s.windowsDesktopRequest(ctx, "status", nil, &result); err != nil {
+			if err := s.windowsDesktopQuick(ctx, "status", nil, &result); err != nil {
 				return nil, err
 			}
 			return json.Marshal(result)

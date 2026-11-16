@@ -369,7 +369,7 @@ func TestMacOSGuestIPv6LinkDrop(t *testing.T) {
 	}()
 	// Both IDs come from the selected instance's gate controller. No general
 	// diagnostic request can publish observed-frame evidence.
-	command := `iface=$(/sbin/route -n get -inet 198.18.0.254 | /usr/bin/awk '/interface:/{print $2}'); [[ "$iface" =~ ^en[0-9]+$ ]] || exit 1; /usr/local/libexec/cage-macos-ipv6-check link "$iface" ` + shellescape.Quote(state.RunID) + " " + shellescape.Quote(state.CheckID)
+	command := `iface=$(/sbin/route -n get -inet 198.18.0.254 | /usr/bin/awk '/interface:/{print $2}'); [[ "$iface" =~ ^(en|vmen|vmenet|vmnet|bridge|tap|lima)[0-9]+$ ]] || exit 1; /usr/local/libexec/cage-macos-ipv6-check link "$iface" ` + shellescape.Quote(state.RunID) + " " + shellescape.Quote(state.CheckID)
 	out, err := s.guest(ctx, command)
 	if err != nil || strings.TrimSpace(string(out)) != "sent" {
 		t.Fatalf("guest failed to submit the one-hop datagram: %v", err)

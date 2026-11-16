@@ -18,10 +18,12 @@ export function browserProfileFlags(input, platform = process.platform) {
   const backend=value.graphics_backend||"auto";
   if (backend==="metal"&&platform!=="darwin" || backend==="d3d11"&&platform!=="win32" || backend==="vulkan"&&platform!=="linux")
     throw Object.assign(new Error("图形后端与客机平台不匹配"),{code:"invalid_configuration",safe:true});
+  const hardware = ["metal","d3d11","vulkan","opengl"].includes(backend);
   return [`--window-size=${value.browser_width},${value.browser_height}`,
     ...(["metal","d3d11","vulkan"].includes(backend) ? ["--use-gl=angle",`--use-angle=${backend}`] : []),
     ...(backend==="opengl" ? ["--use-gl=angle","--use-angle=gl"]:[]),
     ...(backend==="software" ? ["--use-gl=angle","--use-angle=swiftshader"]:[]),
+    ...(hardware ? ["--enable-zero-copy"] : []),
     ...(value.webgl === "disabled" ? ["--disable-3d-apis", "--disable-webgl"] : []),
     ...(value.canvas === "blocked" ? ["--disable-reading-from-canvas"] : [])];
 }

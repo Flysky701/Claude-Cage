@@ -259,7 +259,7 @@ func macOSIPv6LinkVerified(v guestObservation, before, after cage.GateStatus) bo
 	if !after.PolicyVerified || before.Mode != cage.GateChecking || after.Mode != cage.GateChecking || before.RunID == "" || after.RunID != before.RunID || before.CheckID == "" || after.CheckID != before.CheckID || after.IPv6LinkProbeCheck != before.CheckID {
 		return false
 	}
-	if v.IPv6Connected || !v.IPv6UnscopedAbsent || !v.IPv6LinkSent || v.IPv6LinkInterface == "" || v.IPv6Unbound.Result != "no-route" || v.IPv6Unbound.GlobalSources != 0 || v.IPv6DefaultRoutes != len(v.IPv6Scoped) {
+	if v.IPv6Connected || !v.IPv6UnscopedAbsent || !v.IPv6LinkSent || !v.IPv6LinkInterfaceValid || v.IPv6Unbound.Result != "no-route" || v.IPv6Unbound.GlobalSources != 0 || v.IPv6DefaultRoutes != len(v.IPv6Scoped) {
 		return false
 	}
 	seen := map[string]bool{}

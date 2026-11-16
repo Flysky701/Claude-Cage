@@ -491,6 +491,20 @@ export function SettingsPanel({
                   <p>管理工作台的按键习惯与日常操作。</p>
                 </div>
                 <label>
+                  时间显示格式
+                  <InlineSelect inline
+                    aria-label="时间显示格式"
+                    value={draft.clock_12_hour ? "12" : "24"}
+                    onValueChange={(next) => update("clock_12_hour", next === "12")}
+                  >
+                    <option value="24">24 小时制</option>
+                    <option value="12">12 小时制（AM/PM）</option>
+                  </InlineSelect>
+                </label>
+                <p className="field-help">
+                  默认使用 24 小时制。保存后更新工作台底部时钟，无需重启环境；12 小时制使用 AM/PM 区分上午和下午。
+                </p>
+                <label>
                   Claude 终端启动命令
                   <input
                     value={draft.claude_terminal_command ?? "claude"}

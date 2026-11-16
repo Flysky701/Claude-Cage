@@ -136,4 +136,14 @@ try {
     }
     if ($runtime -and (Test-Path -LiteralPath $runtime)) { Move-Item -LiteralPath $runtime -Destination (Join-Path $Stage 'runtime-staging') }
 }
+# Guests set up before file indexing and program preloading were turned off
+# stop them here. Nobody searches or starts programs from this guest's own
+# shell; either service can be re-enabled from services.msc.
+foreach ($name in @('WSearch','SysMain')) {
+    try {
+        if (!(Get-Service -Name $name -ErrorAction SilentlyContinue)) { continue }
+        Set-Service -Name $name -StartupType Disabled
+        Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
+    } catch { }
+}
 Write-Output '客机组件已同步，原配对密钥和用户目录已保留。'

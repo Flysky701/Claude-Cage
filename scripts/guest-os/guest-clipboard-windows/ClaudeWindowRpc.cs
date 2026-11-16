@@ -25,11 +25,11 @@ internal static class ClaudeWindowRpc
 
     private sealed record Registration(string Executable, string Version);
     private sealed record Window(Process Process, IntPtr Handle, Rect Bounds, string Executable);
-    private sealed record CapturedFrame(string Target, string Sequence, string PNG, int Width, int Height, double Density)
+    private sealed record CapturedFrame(string Target, string Sequence, string JPEG, int Width, int Height, double Density)
     {
         internal JsonObject Reply(string? after) => after == Sequence
             ? new JsonObject { ["unchanged"] = true, ["sequence"] = Sequence }
-            : new JsonObject { ["png"] = PNG, ["sequence"] = Sequence, ["width"] = Width, ["height"] = Height, ["target"] = Target, ["density"] = Density };
+            : new JsonObject { ["jpeg"] = JPEG, ["sequence"] = Sequence, ["width"] = Width, ["height"] = Height, ["target"] = Target, ["density"] = Density };
     }
     // A thread-local Windows setting must end before any await or GUI dispatch.
     private readonly ref struct PhysicalPixels
@@ -83,9 +83,27 @@ internal static class ClaudeWindowRpc
     [DllImport("ole32.dll")] private static extern int OleInitialize(IntPtr reserved);
     [DllImport("ole32.dll")] private static extern void OleUninitialize();
 
+    // Every frame, pointer move and caret poll asks for the registration, and
+    // reading it enumerates the user's packages and parses a manifest. A valid
+    // answer is reused briefly; the running process and its window are still
+    // validated on every request, and a failed lookup is never remembered.
+    private static readonly object RegistrationLock = new();
+    private static Registration? knownRegistration;
+    private static long knownRegistrationAt;
     private static Registration? RegisteredExecutable()
     {
-        var packages = new PackageManager().FindPackagesForUser("").Where(p => p.Id.FamilyName == Family).ToArray();
+        lock (RegistrationLock)
+            if (knownRegistration is not null && Environment.TickCount64 - knownRegistrationAt < 2000) return knownRegistration;
+        Registration? found;
+        try { found = ReadRegistration(); }
+        catch { lock (RegistrationLock) knownRegistration = null; throw; }
+        lock (RegistrationLock) { knownRegistration = found; knownRegistrationAt = Environment.TickCount64; }
+        return found;
+    }
+
+    private static Registration? ReadRegistration()
+    {
+        var packages = new PackageManager().FindPackagesForUser("", Family).ToArray();
         if (packages.Length == 0) return null;
         if (packages.Length != 1) throw new InvalidDataException("desktop_registration_invalid");
         var p = packages[0];
@@ -100,21 +118,45 @@ internal static class ClaudeWindowRpc
         return new Registration(Path.Combine(p.InstalledPath, "app", "Claude.exe"), $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}");
     }
 
+    // Every request needs the Claude window. The process found last is tried
+    // first with the same checks, so a frame or pointer move does not list all
+    // processes and open each Claude helper process to read its module path.
+    private static int knownProcess;
+    private static Window? Candidate(Process p, int session, string executable)
+    {
+        if (p.SessionId != session || !string.Equals(p.MainModule?.FileName, executable, StringComparison.OrdinalIgnoreCase)) return null;
+        var handle = p.MainWindowHandle;
+        var w = new Window(p, handle, default, executable);
+        Validate(w, false);
+        if (!GetClientRect(handle, out var bounds) || bounds.Right < 1 || bounds.Bottom < 1 || (long)bounds.Right * bounds.Bottom > 40_000_000)
+            throw new InvalidDataException("desktop_size_invalid");
+        return w with { Bounds = bounds };
+    }
+
     private static Window Find(string executable)
     {
         using var dpi = new PhysicalPixels();
-        var session = Process.GetCurrentProcess().SessionId;
+        int session;
+        using (var self = Process.GetCurrentProcess()) session = self.SessionId;
+        var known = Volatile.Read(ref knownProcess);
+        if (known != 0)
+        {
+            Process? p = null;
+            try
+            {
+                p = Process.GetProcessById(known);
+                if (string.Equals(p.ProcessName, "Claude", StringComparison.OrdinalIgnoreCase) && Candidate(p, session, executable) is { } w) return w;
+            }
+            catch { }
+            p?.Dispose();
+            Volatile.Write(ref knownProcess, 0);
+        }
         foreach (var p in Process.GetProcessesByName("Claude"))
         {
             try
             {
-                if (p.SessionId != session || !string.Equals(p.MainModule?.FileName, executable, StringComparison.OrdinalIgnoreCase)) { p.Dispose(); continue; }
-                var handle = p.MainWindowHandle;
-                var w = new Window(p, handle, default, executable);
-                Validate(w, false);
-                if (!GetClientRect(handle, out var bounds) || bounds.Right < 1 || bounds.Bottom < 1 || (long)bounds.Right * bounds.Bottom > 40_000_000)
-                    throw new InvalidDataException("desktop_size_invalid");
-                return w with { Bounds = bounds };
+                if (Candidate(p, session, executable) is { } w) { Volatile.Write(ref knownProcess, p.Id); return w; }
+                p.Dispose();
             }
             catch { p.Dispose(); }
         }
@@ -461,7 +503,7 @@ internal static class ClaudeWindowRpc
             return Task.Run(async () =>
             {
                 using var owner = window.Process;
-                var bytes = await ClaudeGraphicsCapture.Capture(window.Handle, owner.Id, window.Bounds.Right, window.Bounds.Bottom, () => ValidateFrame(window, target));
+                var bytes = await ClaudeGraphicsCapture.Capture(window.Handle, owner.Id, window.Bounds.Right, window.Bounds.Bottom, () => ValidateFrame(window, target), jpeg: true);
                 ValidateFrame(window, target);
                 return new CapturedFrame(target, target + Convert.ToHexString(SHA256.HashData(bytes)), Convert.ToBase64String(bytes), window.Bounds.Right, window.Bounds.Bottom, density);
             });

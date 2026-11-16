@@ -124,7 +124,7 @@ cage agent call proxy.select --input /private/path/selection.json --wait 2m
 cage agent call proxy.status
 ```
 
-链式代理使用 `proxy.route`，输入 `{"node_ids":["入口ID","最终出口ID"]}`，顺序为入口到出口。更新订阅使用 `proxy.refresh` 和已有来源 `id`；`proxy.import` 每次创建来源，不能盲目重试。
+链式代理使用 `proxy.route`，输入 `{"node_ids":["入口ID","最终出口ID"]}`，顺序为入口到出口。`proxy.select` 总是把路由替换为所选的单个节点：已有链会被清除，所选节点即使原本在链中也可以。节点无效、配置验证或核心启动失败时保留原路由；路由保存后的网络检查仍可能失败，应以 `proxy.status` 返回的当前路由为准。要保留或重建多跳链，请重新调用 `proxy.route`。更新订阅使用 `proxy.refresh` 和已有来源 `id`；`proxy.import` 每次创建来源，不能盲目重试。
 
 `proxy.import` 成功表示节点格式和核心配置通过校验。应用节点后，用 `settings.get` 读取完整设置，再将设置对象作为 `settings.probe` 的输入，通过所选代理发起真实 HTTPS 请求，核对返回的出口 IP 和位置。报告时分别说明导入校验、实际连通性与出口验证结果；主机上其他代理客户端可用或核心进程正在运行，都不能代替实际出口验证。客机启动后，仍需按下文核对 `network.check` 和当前网络授权，确认终端与浏览器等路径通过检查。
 

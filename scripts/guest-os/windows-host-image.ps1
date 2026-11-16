@@ -24,8 +24,13 @@ function New-CageISOAnswer([pscredential]$Administrator, [string]$ComputerName =
         $Administrator.Password.Length -eq 0) {
         throw '请输入新的客机本地管理员名称和非空密码。用户名最多 20 个字符，请使用普通本地名称。'
     }
+    # Windows Setup only accepts an Autounattend.xml for its first unattend
+    # pass when the file has windowsPE settings; otherwise it logs "does not meet
+    # criteria", ignores the whole file and never applies specialize/oobeSystem.
+    # EnableNetwork=true is Setup's default, so it keeps every manual choice.
     $answer = [xml]@'
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+  <settings pass="windowsPE"><component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"><EnableNetwork>true</EnableNetwork></component></settings>
   <settings pass="specialize"><component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"><ComputerName>*</ComputerName></component></settings>
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">

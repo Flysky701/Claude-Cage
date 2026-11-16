@@ -11,7 +11,7 @@ internal static class UpdateInstaller
     public static void VerifyArchive(string path, string hash, string version, string publisher)
     {
         UpdatePolicy.DownloadPath(path, AppUpdater.Root); UpdatePolicy.PlainPath(path);
-        if (new FileInfo(path).Length is <= 0 or > (512L << 20)) throw new IOException("安装包大小无效");
+        if (new FileInfo(path).Length is <= 0 or > (2L << 30)) throw new IOException("安装包大小无效");
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         var actual = Convert.ToHexString(SHA256.HashData(stream));
         if (hash.Length != 64 || !string.Equals(actual, hash, StringComparison.OrdinalIgnoreCase))

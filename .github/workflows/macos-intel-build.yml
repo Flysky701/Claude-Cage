@@ -53,6 +53,25 @@ jobs:
         run: |
           brew install glib gettext pcre2 libffi pixman pkgconf meson ninja
           brew upgrade glib gettext pcre2
+      # The runtime build is incremental inside _output/intel-runtime. The key
+      # names every input its compiled files depend on, so any change rebuilds.
+      - name: Describe the Intel runtime build inputs
+        id: runtime-inputs
+        run: |
+          {
+            sw_vers -productVersion
+            xcrun --show-sdk-path
+            xcrun --show-sdk-version
+            xcodebuild -version
+            python3 --version
+            command -v python3
+            brew list --versions
+          } > "$RUNNER_TEMP/intel-runtime-inputs"
+          printf 'digest=%s\n' "$(shasum -a 256 "$RUNNER_TEMP/intel-runtime-inputs" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: _output/intel-runtime
+          key: intel-runtime-${{ hashFiles('scripts/build-intel-macos-runtime.sh') }}-${{ steps.runtime-inputs.outputs.digest }}
       - name: Build the macOS application without release credentials
         env:
           CAGE_SIGNING_IDENTITY: '-'
