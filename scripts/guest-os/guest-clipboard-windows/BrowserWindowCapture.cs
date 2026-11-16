@@ -14,7 +14,11 @@ namespace Cage.GuestClipboard;
 // supply a PID, HWND, screen rectangle or executable path.
 internal static class BrowserWindowCapture
 {
-    private static readonly SemaphoreSlim Captures = new(1, 1);
+    private sealed record CapturedOverlays(string Token, long Epoch, JsonArray Layers);
+    // Only publication runs under BrowserRpc's gate; WGC and PNG encoding do not.
+    private static Task<CapturedOverlays>? capturing;
+    private static CapturedOverlays? latestOverlays;
+    private static long captureStarted, captureEpoch;
     private static readonly Dictionary<int, Pin> Windows = new();
     private static View? last;
     private static string publicTarget="";
@@ -244,7 +248,8 @@ internal static class BrowserWindowCapture
         }
         finally {if(old!=IntPtr.Zero)SetThreadDpiAwarenessContext(old);}
     }
-    internal static async Task Decorate(Process node,JsonObject frame,Func<Task<JsonObject>> currentProof)
+    internal static async Task Decorate(Process node,JsonObject frame,Func<Task<JsonObject>> currentProof,
+        Func<Task, Task> waitForCapture)
     {
         var proof=frame["native"] as JsonObject??throw new InvalidDataException("browser_window_proof_invalid");
         if(proof["target"]?.GetValue<string>()!=frame["target"]?.GetValue<string>())throw new InvalidDataException("browser_target_changed");
@@ -252,16 +257,57 @@ internal static class BrowserWindowCapture
         var overlays=new JsonArray();
         if(view.NativeUI)
         {
-            await Captures.WaitAsync();
-            try
+            if (capturing is { IsCompleted: true } completed)
             {
+                capturing = null;
+                latestOverlays = null;
+                latestOverlays = completed.GetAwaiter().GetResult();
+            }
+            if (latestOverlays?.Token != view.Token || latestOverlays?.Epoch != captureEpoch) latestOverlays = null;
+            capturing ??= StartOverlays(view, proof["blankDocument"]?.GetValue<bool>() == true,
+                frame["width"]!.GetValue<int>(), frame["height"]!.GetValue<int>());
+            var pending = capturing;
+            var remaining = TimeSpan.FromSeconds(10) - Stopwatch.GetElapsedTime(captureStarted);
+            if (remaining <= TimeSpan.Zero) { latestOverlays = null; throw new InvalidDataException("browser_response_timeout"); }
+            var ready = latestOverlays;
+            if (ready is null)
+            {
+                // A new menu has no reusable pixels yet. Release the RPC gate
+                // while it is captured, then revalidate before publishing.
+                try { await waitForCapture(pending.WaitAsync(remaining)); }
+                catch (TimeoutException) { throw new InvalidDataException("browser_response_timeout"); }
+                ready = pending.GetAwaiter().GetResult();
+            }
+            var after=Resolve(node,await currentProof());
+            if(after.Token!=view.Token || ready.Token!=view.Token || ready.Epoch!=captureEpoch)
+                throw new InvalidDataException("browser_target_changed");
+            view = after;
+            overlays = (JsonArray)ready.Layers.DeepClone();
+        }
+        else latestOverlays = null;
+        last=view;publicTarget=view.Token;frame["target"]=view.Token;frame.Remove("native");if(overlays.Count>0)frame["overlays"]=overlays;
+    }
+    private static Task<CapturedOverlays> StartOverlays(View view, bool blank, int width, int height)
+    {
+        Process? retained = null;
+        try
+        {
+            retained = Process.GetProcessById(view.Pin.Process.Id);
+            if (retained.StartTime.ToUniversalTime() != view.Pin.Started) throw new InvalidDataException("browser_target_changed");
+            view = view with { Pin = view.Pin with { Process = retained } };
+            var epoch = captureEpoch;
+            captureStarted = Stopwatch.GetTimestamp();
+            return Task.Run(async () =>
+            {
+                using var owner = view.Pin.Process;
+                var overlays = new JsonArray();
                 // An independent popup has its own validated capture below.
                 // Keep the underlying CDP page instead of duplicating Edge's
                 // window controls and tab strip inside the Cage browser pane.
                 if (view.Popups.Length == 0)
                 {
                     var bytes=await GuestWindowCapture.Capture(view.Pin.Window,view.Pin.Process.Id,view.Client.Width,view.Client.Height,
-                        ()=>Validate(view.Pin),allowSolid:proof["blankDocument"]?.GetValue<bool>()==true);
+                        ()=>Validate(view.Pin),allowSolid:blank);
                     var visible = Rectangle.Intersect(view.Surface, view.Client);
                     var crop = new Rectangle(visible.X - view.Client.X, visible.Y - view.Client.Y, visible.Width, visible.Height);
                     var sx = (double)view.Width / view.Surface.Width;
@@ -277,17 +323,16 @@ internal static class BrowserWindowCapture
                     var png=await GuestWindowCapture.Capture(popup.Window,view.Pin.Process.Id,popup.Client.Width,popup.Client.Height,Check,preserveAlpha:true);
                     var sx=(double)view.Width/view.Surface.Width;var sy=(double)view.Height/view.Surface.Height;
                     var destination=new Rectangle(view.X+(int)Math.Round((popup.Client.X-view.Surface.X)*sx),view.Y+(int)Math.Round((popup.Client.Y-view.Surface.Y)*sy),(int)Math.Round(popup.Client.Width*sx),(int)Math.Round(popup.Client.Height*sy));
-                    var clipped=Rectangle.Intersect(destination,new Rectangle(0,0,frame["width"]!.GetValue<int>(),frame["height"]!.GetValue<int>()));
+                    var clipped=Rectangle.Intersect(destination,new Rectangle(0,0,width,height));
                     if(clipped.Width<1||clipped.Height<1)continue;
                     var sectionX=(int)Math.Round((clipped.X-destination.X)/sx);var sectionY=(int)Math.Round((clipped.Y-destination.Y)/sy);
                     var section=new Rectangle(sectionX,sectionY,Math.Min(popup.Client.Width-sectionX,(int)Math.Round(clipped.Width/sx)),Math.Min(popup.Client.Height-sectionY,(int)Math.Round(clipped.Height/sy)));
                     overlays.Add(Image(png,section,clipped.X,clipped.Y,clipped.Width,clipped.Height));
                 }
-                var after=Resolve(node,await currentProof());if(after.Token!=view.Token)throw new InvalidDataException("browser_target_changed");
-            }
-            finally {Captures.Release();}
+                return new CapturedOverlays(view.Token, epoch, overlays);
+            });
         }
-        last=view;publicTarget=view.Token;frame["target"]=view.Token;frame.Remove("native");if(overlays.Count>0)frame["overlays"]=overlays;
+        catch { retained?.Dispose(); throw; }
     }
     internal static JsonObject FrameReply(JsonObject frame, string? after)
     {
@@ -484,7 +529,7 @@ internal static class BrowserWindowCapture
         else characters=char.ConvertFromUtf32((int)cp).Select(c=>InputStroke.Key(c,false,true)).ToArray();
         lease.Symbols[sym]=characters;Emit(view,lease,characters);
     }
-    internal static void Close(){InputLease[] leases;lock(browserLeases)leases=browserLeases.ToArray();foreach(var lease in leases)NativeGuestInput.ResetLease(lease);foreach(var p in Windows.Values)p.Process.Dispose();Windows.Clear();last=null;publicTarget="";cachedOverlay=null;lastFrame=null;lastSequence="";}
+    internal static void Close(){captureEpoch++;latestOverlays=null;InputLease[] leases;lock(browserLeases)leases=browserLeases.ToArray();foreach(var lease in leases)NativeGuestInput.ResetLease(lease);foreach(var p in Windows.Values)p.Process.Dispose();Windows.Clear();last=null;publicTarget="";cachedOverlay=null;lastFrame=null;lastSequence="";}
 
     [DllImport("kernel32.dll",SetLastError=true)]private static extern IntPtr CreateToolhelp32Snapshot(uint flags,uint process);
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode,EntryPoint="Process32FirstW")]private static extern bool Process32First(IntPtr snapshot,ref ProcessEntry entry);

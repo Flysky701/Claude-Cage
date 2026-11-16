@@ -137,6 +137,11 @@ func controllerVMOwners(profile string) ([]string, error) {
 		return nil, err
 	}
 	if binding != nil {
+		if binding.Remote() {
+			// Cage owns this controller and its channels, not the cloud machine.
+			// Active terminals/jobs are checked independently during handoff.
+			return nil, nil
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), windowsVMProbeTimeout)
 		defer cancel()
 		state, err := guestos.WindowsVMResources(ctx, profile, 0, 0)

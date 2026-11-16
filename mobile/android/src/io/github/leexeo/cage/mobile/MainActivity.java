@@ -47,6 +47,7 @@ public final class MainActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private SharedPreferences trust;
     private HostCredentials credentials;
+    private AppUpdate updates;
     private DeviceKey device;
     private String fingerprint = "";
     private Invitation invitation;
@@ -85,8 +86,8 @@ public final class MainActivity extends Activity {
     private MobileTheme palette;
     private SharedPreferences appearance;
     private static final int SCAN = 42;
-    private static final int PREPARE_NETWORK = 43;
-    private static final int SPACE_SETTINGS_RESULT = 44;
+    private static final int PREPARE_NETWORK = 51;
+    private static final int SPACE_SETTINGS_RESULT = 52;
     private static final String SPACE = "top.niunaijun.cagetest";
     private static final String NETWORK = "io.github.leexeo.cage.localcore";
     private static final String OPEN_CLAUDE = "io.github.leexeo.cage.space.OPEN_CLAUDE";
@@ -155,6 +156,7 @@ public final class MainActivity extends Activity {
         appearance = getSharedPreferences("appearance", MODE_PRIVATE);
         palette = MobileTheme.apply(this, themeMode());
         credentials = new HostCredentials(trust);
+        updates = new AppUpdate(this, state);
         showSetup();
         if (state != null) {
             spaceFromSettings = state.getBoolean("space-from-settings");
@@ -185,6 +187,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onSaveInstanceState(Bundle saved) {
         super.onSaveInstanceState(saved);
+        updates.saveState(saved);
         saved.putString("page", page.name());
         saved.putBoolean("space-from-settings", spaceFromSettings);
         saved.putString("after-network", afterNetwork);
@@ -563,6 +566,8 @@ public final class MainActivity extends Activity {
         row("已归档会话", v -> openArchivedSessions());
         row("中继设置", v -> showAdvanced(Page.RELAY));
         row("主机与指纹", v -> showAdvanced(Page.HOST));
+        label("应用更新", 14);
+        row("检查更新   ·   " + updates.currentVersion(), v -> updates.check(true));
         statusView();
         if (focusTheme) chooser.requestFocus();
     }
@@ -673,6 +678,7 @@ public final class MainActivity extends Activity {
             }
             return;
         }
+        if (updates.onResult(code, result)) return;
         if (code == SCAN) {
             if(result==RESULT_OK && data!=null) pairScan(data.getStringExtra("code"));
             else if(data!=null && data.hasExtra("error"))status.setText(data.getStringExtra("error"));
@@ -940,11 +946,13 @@ public final class MainActivity extends Activity {
         connections.clear(); browser = null; activeDevice = null;
     }
     @Override protected void onPause() {
+        updates.pause();
         if (viewingWorkspace && browser != null) browser.onPause();
         super.onPause();
     }
     @Override protected void onResume() {
         super.onResume();
+        updates.resume();
         if (viewingWorkspace && browser != null) browser.onResume();
         else if (page == Page.LOCAL_SANDBOX) showLocalSandbox();
     }
@@ -958,5 +966,5 @@ public final class MainActivity extends Activity {
         else if (page != Page.HOME) showSetup();
         else super.onBackPressed();
     }
-    @Override public void onDestroy() { endSession(); worker.shutdown(); super.onDestroy(); }
+    @Override public void onDestroy() { updates.close(); endSession(); worker.shutdown(); super.onDestroy(); }
 }

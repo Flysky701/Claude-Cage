@@ -134,14 +134,35 @@ func (s *Server) browserClipboard(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, map[string]string{"png": base64.StdEncoding.EncodeToString(data)})
 }
 
+const (
+	nativeBrowserEventPoll     = 300 * time.Millisecond
+	nativeBrowserEventIdlePoll = 1200 * time.Millisecond
+	nativeBrowserEventActive   = 10 * time.Second
+)
+
+// noteNativeBrowserUse records that a viewer is watching or operating the
+// guest browser, which keeps its event poll at the interactive rate.
+func (s *Server) noteNativeBrowserUse() { s.nativeBrowserUsed.Store(time.Now().UnixNano()) }
+
+// nativeBrowserEventDelay is the wait before the next event poll. Copies and
+// tab changes follow a viewer's input or a page that is still changing; with
+// neither, each poll only makes the guest answer that nothing happened.
+func nativeBrowserEventDelay(now, used, changed time.Time) time.Duration {
+	if now.Sub(used) < nativeBrowserEventActive || now.Sub(changed) < nativeBrowserEventActive {
+		return nativeBrowserEventPoll
+	}
+	return nativeBrowserEventIdlePoll
+}
+
 func (s *Server) subscribeNativeBrowser(parent context.Context) io.ReadCloser {
 	ctx, cancel := context.WithCancel(parent)
 	reader, writer := io.Pipe()
 	go func() {
 		defer writer.Close()
 		defer cancel()
-		ticker := time.NewTicker(300 * time.Millisecond)
-		defer ticker.Stop()
+		timer := time.NewTimer(nativeBrowserEventPoll)
+		defer timer.Stop()
+		changed := time.Now()
 		var previous string
 		var latest json.RawMessage
 		var sequence uint64
@@ -176,6 +197,7 @@ func (s *Server) subscribeNativeBrowser(parent context.Context) io.ReadCloser {
 				if event.Sequence <= sequence || event.Sequence > update.Sequence {
 					continue
 				}
+				changed = time.Now()
 				switch event.Type {
 				case "clipboard", "native-clipboard", "copy-expired":
 					if len(event.Value) == 0 {
@@ -200,11 +222,13 @@ func (s *Server) subscribeNativeBrowser(parent context.Context) io.ReadCloser {
 					return
 				}
 				previous, downloadRevision = string(latest), revision
+				changed = time.Now()
 			}
+			timer.Reset(nativeBrowserEventDelay(time.Now(), time.Unix(0, s.nativeBrowserUsed.Load()), changed))
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-timer.C:
 			}
 		}
 	}()
@@ -274,6 +298,7 @@ func (s *Server) nativeBrowserVNC(w http.ResponseWriter, r *http.Request) {
 	request := func(input map[string]any, output any) error {
 		var data []byte
 		var err error
+		s.noteNativeBrowserUse()
 		switch input["action"] {
 		case "frame":
 			if inputSuspended {

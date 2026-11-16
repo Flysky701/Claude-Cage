@@ -7,6 +7,7 @@ function Assert-SmokeContract([bool]$Condition, [string]$Message) { if (-not $Co
 try {
     $env:RUNNER_TEMP = Join-Path $directory 'runner-temp'
     Assert-SmokeContract ((Get-WindowsWorkbenchTestBase) -eq [IO.Path]::GetFullPath($env:RUNNER_TEMP)) 'CI report directory ignores RUNNER_TEMP.'
+    Assert-SmokeContract ((Get-WindowsWorkbenchTestBase -WorkbenchProfile) -eq [IO.Path]::GetFullPath($env:RUNNER_TEMP)) 'CI workbench profile ignores RUNNER_TEMP.'
     $savedTemp = $env:TEMP; $savedTmp = $env:TMP
     $envFile = Join-Path $directory 'child-env.json'
     $envScript = Join-Path $directory 'child-env.ps1'
@@ -25,6 +26,11 @@ try {
     Assert-SmokeContract (-not (Test-Path -LiteralPath $childEnv.temp)) 'Owned test temp was not cleaned.'
     Remove-Item Env:RUNNER_TEMP -ErrorAction SilentlyContinue
     Assert-SmokeContract ((Get-WindowsWorkbenchTestBase) -eq [IO.Path]::GetTempPath()) 'Local report directory lost its OS temp fallback.'
+    $checkout = Split-Path $PSScriptRoot -Parent
+    Push-Location $directory
+    try {
+        Assert-SmokeContract ((Get-WindowsWorkbenchTestBase -WorkbenchProfile) -eq (Join-Path $checkout '_output/workbench-smoke')) 'Local workbench profile must stay in the checkout output directory.'
+    } finally { Pop-Location }
     $report = Join-Path $directory 'smoke.json'
     $fixture = Join-Path $directory 'fixture.json'
     $childScript = Join-Path $directory 'child.ps1'

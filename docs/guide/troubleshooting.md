@@ -32,7 +32,7 @@ keywords: 错误 失败 白屏 断网 137 OOM 代理 账号 配对 SSH 损坏 �
 | `Download interrupted` / `partial data retained` | 未完成文件已保留，修复网络后重试续传。 |
 | `checksum mismatch` | 文件摘要不符，重新下载，不跳过校验。 |
 | `Guest DNS could not resolve` | 检查节点及 DNS 配置，应用后重试。 |
-| NodeSource / APT 失败 | 查看失败来源，检查代理访问；保存具体错误与诊断。 |
+| NodeSource / APT 失败 | 提示会列出失败的 APT 命令、涉及的软件包和已脱敏的错误输出末尾；域名解析失败先查 DNS，连接超时先查代理，找不到软件包说明软件源不可用。没有可识别原因时，保留这些信息并导出诊断包。 |
 | APT 重复 `Tried to start delayed item` | 更新到包含 APT 修正的构建，旧版依赖管理器升级失败时先修复网络，不能继续依赖安装。 |
 | Debian 客机更新环境组件时报 `chromium-l10n` 依赖冲突 | 检查操作详情中的 Chromium 版本和 Debian 安全仓库索引。若索引为空，使用包含索引修复的构建重试“更新环境组件”，让 APT 重新下载索引并安装兼容的语言包。 |
 
@@ -102,6 +102,8 @@ keywords: 错误 失败 白屏 断网 137 OOM 代理 账号 配对 SSH 损坏 �
 Desktop 画面比例异常时先设“显示大小”为 100%，点“重试调整”。更新组件后保存工作、关闭再打开 Desktop。上传仍显示内部目录或出现 “The file picker didn’t open” 时，同样先同步组件再重开应用。
 
 Desktop 文件服务退出或连接中断时，Cage 会提示原因并降低重试频率；恢复后自动继续读取文件请求。反复提示服务退出时，重新打开 Desktop，并在资源设置与诊断日志中检查应用退出原因。
+
+Windows 客机的官方 Desktop 在 Code 模式选择共享项目后提示“Claude 无法打开该文件夹”，或界面像是卡住时，对话框可能只出现在客机桌面。共享项目请在 Cage 终端中使用，需要 Desktop 时改选客机本地磁盘上的文件夹，详见 [选择项目与传文件](desktop.md#windows-客机官方-desktop-提示claude-无法打开该文件夹)。
 
 共享项目出现 Git 文件所有者错误时，更新 Cage 后重新连接项目；新连接会使用环境内的用户编号显示文件。Git 远程操作出现主机密钥或认证错误时，需要在客机中完成相应的 Git 认证和主机身份核验。
 

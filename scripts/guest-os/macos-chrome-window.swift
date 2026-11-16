@@ -133,7 +133,7 @@ final class MacChromeWindow {
               let code, SecStaticCodeCheckValidity(code, [], requirement) == errSecSuccess else { throw Failure(5, "identity_error") }
         let process = Process()
         process.executableURL = app.appendingPathComponent("Contents/MacOS/Google Chrome")
-        process.arguments = args
+        process.arguments = args + (try Self.creationArguments())
         process.currentDirectoryURL = fm.homeDirectoryForCurrentUser
         process.environment = ProcessInfo.processInfo.environment.filter { ["HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE"].contains($0.key) }
         process.standardInput = FileHandle.nullDevice
@@ -141,6 +141,38 @@ final class MacChromeWindow {
         process.standardError = FileHandle.nullDevice
         try process.run()
         return process
+    }
+
+    // Read only this guest user's public, persisted creation preferences.
+    // These switches also apply to temporary authorization profiles.
+    static func creationArguments() throws -> [String] {
+        let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Cage/guest-profile.json")
+        if !FileManager.default.fileExists(atPath: file.path) { return [] }
+        let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        guard attributes[.type] as? FileAttributeType == .typeRegular,
+              let size = attributes[.size] as? NSNumber, size.intValue <= 4096 else { throw Failure(8, "invalid_profile") }
+        struct Preferences: Decodable {
+            let browser_width: Int
+            let browser_height: Int
+            let webgl: String
+            let canvas: String
+            let graphics_backend: String?
+        }
+        let value = try JSONDecoder().decode(Preferences.self, from: Data(contentsOf: file))
+        guard (800...3840).contains(value.browser_width), (600...2160).contains(value.browser_height),
+              ["native", "disabled"].contains(value.webgl), ["native", "blocked"].contains(value.canvas) else { throw Failure(8, "invalid_profile") }
+        var flags = ["--window-size=\(value.browser_width),\(value.browser_height)"]
+        let backend = value.graphics_backend ?? "auto"
+        guard ["auto", "metal", "opengl", "software"].contains(backend), value.webgl != "disabled" || backend == "auto" else { throw Failure(8, "invalid_profile") }
+        if backend != "auto" {
+            flags += ["--use-gl=angle", "--use-angle=" + (backend == "opengl" ? "gl" : backend == "software" ? "swiftshader" : "metal")]
+            if backend != "software" {
+                flags.append("--enable-zero-copy")
+            }
+        }
+        if value.webgl == "disabled" { flags += ["--disable-3d-apis", "--disable-webgl"] }
+        if value.canvas == "blocked" { flags.append("--disable-reading-from-canvas") }
+        return flags
     }
 
     func launch(_ input: Request) throws {
@@ -253,13 +285,18 @@ final class MacChromeWindow {
             guard let id = item[kCGWindowNumber as String] as? CGWindowID else { return nil }
             return candidates.first { $0.windowID == id }
         }
-        // The omnibox suggestion panel is ordered above the browser while
-        // keyboard focus remains in the original Chrome window.
-        let focused = ordered.first { window in
-            guard let pid = window.owningApplication?.processID else { return false }
-            return owningAXWindow(pid, window.frame) != nil
-        }
-        if let window = focused ?? ordered.first, let pid = window.owningApplication?.processID, owns(pid) { return window }
+        let applicationBounds = Dictionary(uniqueKeysWithValues: pids.map { ($0, macApplicationWindowBounds($0)) })
+        let selection = selectMacChromeCaptureWindow(ordered.compactMap { window in
+            guard let pid = window.owningApplication?.processID else { return nil }
+            let actual = applicationBounds[pid, default: []].contains { bounds in
+                abs(bounds.minX-window.frame.minX)<1 && abs(bounds.minY-window.frame.minY)<1 &&
+                abs(bounds.width-window.frame.width)<1 && abs(bounds.height-window.frame.height)<1
+            }
+            return MacChromeCaptureCandidate(id: window.windowID, frame: window.frame,
+                applicationWindow: actual, focused: owningAXWindow(pid, window.frame) != nil)
+        })
+        if let window = ordered.first(where: { $0.windowID == selection }),
+           let pid = window.owningApplication?.processID, owns(pid) { return window }
         throw Failure(7, "no_visible_window")
     }
 }

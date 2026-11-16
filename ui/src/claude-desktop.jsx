@@ -13,8 +13,10 @@ import { BrowserUploads } from "./browser-uploads";
 import { ProjectDialog } from "./project-dialog";
 import { api, nativeAvailable } from "./api";
 import { SafetyMessage } from "./safety-message";
+import { DeviceCheckButton } from "./device-checks";
 import { RemoteView } from "./views";
 import { useWindowVisibility } from "./window-visibility";
+import { guestCapability } from "./guest-capabilities.mjs";
 import "./claude-desktop.css";
 
 const desktopZooms = [0.75, 0.9, 1, 1.1, 1.25, 1.5];
@@ -67,6 +69,7 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
         </span>
         <span className="desktop-toolbar-spacer" />
         {children}
+        <DeviceCheckButton target="desktop" disabled={busy || !desktop?.running} />
         {desktop?.running && (
           <label className="desktop-display-size">
             显示大小
@@ -128,6 +131,7 @@ export function ClaudeDesktop({
   const [closedChooser, setClosedChooser] = useState("");
   const directoryRequest = uploads.find((item) => item.directory && item.id !== closedChooser);
   const automatic = status.guest_system?.startsWith("windows");
+  const available = guestCapability(status, "desktop");
   const [zoom, setZoom] = useDesktopZoom(automatic);
   const windowVisible = useWindowVisibility();
   const screenVisible = visible && windowVisible;
@@ -142,6 +146,7 @@ export function ClaudeDesktop({
   const ownJob = status.job?.kind?.startsWith("claude-desktop-");
   const busy = submitting || Boolean(status.job?.running) || Boolean(jobID);
   const refresh = async (valid = () => true) => {
+    if (!available) return null;
     const revision = statusRevision.current;
     const request = statusRequest.current ??= api("/claude-desktop");
     try {
@@ -158,6 +163,7 @@ export function ClaudeDesktop({
     }
   };
   const run = async (action) => {
+    if (!available) return;
     statusRevision.current++;
     statusRequest.current = null;
     setSubmitting(true);
@@ -172,7 +178,7 @@ export function ClaudeDesktop({
     }
   };
   useEffect(() => {
-    if (!screenVisible || !status.vm_running || status.job?.running) return;
+    if (!available || !screenVisible || !status.vm_running || status.job?.running) return;
     let disposed = false;
     let timer;
     const poll = async () => {
@@ -190,7 +196,7 @@ export function ClaudeDesktop({
       disposed = true;
       clearTimeout(timer);
     };
-  }, [screenVisible, status.vm_running, status.job?.running]);
+  }, [available, screenVisible, status.vm_running, status.job?.running]);
   useEffect(() => {
     if (!jobID || status.job?.id !== jobID || status.job.running) return;
     setJobID("");
@@ -218,8 +224,8 @@ export function ClaudeDesktop({
           await onProjectOpened(workspace);
         }}
       />}
-      <DesktopToolbar desktop={desktop} platform={status.guest_system === "windows-11" ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
-        onConfirm={onConfirm} onStop={() => run("stop")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
+      <DesktopToolbar desktop={desktop} platform={automatic ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
+        onConfirm={onConfirm} onStop={() => run("stop")} busy={busy || !available} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
         {desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
           if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存应用内的工作。更新会关闭 Claude Desktop，从官方软件源安装可用版本，再重新打开；登录资料继续保留。", confirm: "更新应用" })) run("update");
         }}>更新应用</button>}
@@ -243,7 +249,13 @@ export function ClaudeDesktop({
         </div>
       )}
       <div className="desktop-screen">
-        {desktop?.running && status.vm_running ? (
+        {!available ? (
+          <div className="desktop-empty">
+            <Monitor size={36} />
+            <h2>Windows 云端暂不支持 Claude Desktop</h2>
+            <p>当前可使用隔离 PowerShell{guestCapability(status, "browser") && " 和浏览器"}，无需登录 Claude 账户。</p>
+          </div>
+        ) : desktop?.running && status.vm_running ? (
           <RemoteView
             ref={remoteRef}
             desktop

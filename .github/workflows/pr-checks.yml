@@ -53,6 +53,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/build-website
+        # PR artifacts validate the committed metadata. Publishing workflows
+        # keep the action default and verify current public releases.
+        with:
+          sync_release: 'false'
   merge-check:
     name: Main PR CI
     needs: [changes, platforms, website]

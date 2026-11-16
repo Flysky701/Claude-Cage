@@ -4,6 +4,9 @@ inputs:
   release_tag:
     description: Published release to verify when building its download page
     default: ''
+  sync_release:
+    description: Refresh download metadata from public GitHub releases before building
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -20,6 +23,7 @@ runs:
       shell: bash
       run: node --test scripts/agent-bootstrap.test.mjs
     - name: Resolve the public download version
+      if: inputs.sync_release == 'true'
       shell: bash
       env:
         RELEASE_TAG: ${{ inputs.release_tag }}

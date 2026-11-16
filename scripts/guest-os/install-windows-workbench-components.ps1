@@ -50,6 +50,18 @@ function Assert-ClaudeCodeReceipt($Value, $Selected, [string]$PreviousReceipt) {
     if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Anthropic,? PBC') { throw 'The selected Claude Code signature is invalid.' }
 }
 
+# Nobody searches or starts programs from this guest's own shell. File indexing
+# and program preloading otherwise compete with the workbench for processor,
+# disk and memory. Either service can be re-enabled from services.msc.
+function Disable-UnusedGuestServices {
+    foreach ($name in @('WSearch','SysMain')) {
+        try {
+            if (!(Get-Service -Name $name -ErrorAction SilentlyContinue)) { continue }
+            Set-Service -Name $name -StartupType Disabled
+            Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
+        } catch { }
+    }
+}
 function Install-GuestComponents {
     # Windows PowerShell 5.1 ZIP APIs and Copy-Item truncate long editor
     # paths on a fresh Windows install. The OS-supplied archive tool supports
@@ -77,6 +89,7 @@ function Install-GuestComponents {
         $service=New-Service -Name $name -BinaryPathName $image -StartupType Automatic -DisplayName 'Cage dedicated workbench boot sign-in'
     } elseif ($service.PathName -cne $image -or $service.StartName -ne 'LocalSystem') { throw 'An unrelated boot service was preserved.' }
     Start-Service -Name $name
+    Disable-UnusedGuestServices
 }
 if ($Phase -eq 'Prepare') { Install-GuestComponents; return }
 

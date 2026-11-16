@@ -100,7 +100,7 @@ func (s *Server) macOSWindowRPC(w http.ResponseWriter, r *http.Request, input ma
 	var reply []byte
 	var err error
 	if input.Action == "status" {
-		reply, err = s.desktopStatus.read(r.Context(), s.lifetimeContext(), func(ctx context.Context) ([]byte, error) { return s.macOSWindowCall(ctx, input) })
+		reply, err = s.desktopStatus.read(r.Context(), s.lifetimeContext(), func(ctx context.Context) ([]byte, error) { return s.macOSWindowQuick(ctx, input) })
 	} else {
 		// Input and capture retain their own live guest ownership validation.
 		if input.Action == "launch" {

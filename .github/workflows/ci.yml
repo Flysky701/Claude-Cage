@@ -2,8 +2,10 @@ name: Three-platform checks and test packages
 on:
   # The website and user guides have their own workflow (www.yml) and are in
   # no package, so changes limited to them skip the three-platform builds.
+  # Branches are checked once, through their pull request (pr-checks.yml calls
+  # this workflow). A branch without a pull request can be run by hand.
   push:
-    branches: ['**', '!codex/release/**']
+    branches: [main]
     paths-ignore: ['README*.md', 'www/**', 'docs/guide/**', 'docs/releases/**']
   workflow_call:
   workflow_dispatch:
@@ -38,6 +40,11 @@ jobs:
           pwsh -NoProfile -File scripts/test-windows-signing.ps1
       - name: Validate workflow syntax
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -color
+      - name: Guest creation preference contracts
+        run: |
+          node scripts/guest-os/tests/browser-profile.test.mjs
+          node internal/cage/device-observation.test.mjs
+          node internal/cage/browser-audit.test.mjs
   macos:
     needs: workflow-checks
     uses: ./.github/workflows/macos-build.yml
@@ -45,6 +52,12 @@ jobs:
       ref: ${{ github.sha }}
       release: false
       artifact_name: cage-macos-arm64-test
+  macos-intel:
+    needs: workflow-checks
+    uses: ./.github/workflows/macos-intel-build.yml
+    with:
+      ref: ${{ github.sha }}
+      artifact_name: cage-macos-amd64-test
   windows-updates:
     needs: workflow-checks
     strategy:
@@ -62,7 +75,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.403
+          global-json-file: global.json
       - name: Install the verified NSIS compiler
         run: ./scripts/install-nsis.ps1
       - name: Install the verified WebView2 prerequisite

@@ -34,6 +34,7 @@ import { EnvironmentCache } from "./environment-cache";
 import { ResourceSettings } from "./resources";
 import { DiagnosticSettings } from "./diagnostics.jsx";
 import { MacOSLogin } from "./macos-login";
+import { ScreenSharingChecks } from "./macos-screen-sharing";
 import { AccountSettings } from "./account";
 import { AboutSettings } from "./about-settings";
 const sections = [
@@ -490,6 +491,20 @@ export function SettingsPanel({
                   <p>管理工作台的按键习惯与日常操作。</p>
                 </div>
                 <label>
+                  时间显示格式
+                  <InlineSelect inline
+                    aria-label="时间显示格式"
+                    value={draft.clock_12_hour ? "12" : "24"}
+                    onValueChange={(next) => update("clock_12_hour", next === "12")}
+                  >
+                    <option value="24">24 小时制</option>
+                    <option value="12">12 小时制（AM/PM）</option>
+                  </InlineSelect>
+                </label>
+                <p className="field-help">
+                  默认使用 24 小时制。保存后更新工作台底部时钟，无需重启环境；12 小时制使用 AM/PM 区分上午和下午。
+                </p>
+                <label>
                   Claude 终端启动命令
                   <input
                     value={draft.claude_terminal_command ?? "claude"}
@@ -620,6 +635,7 @@ export function SettingsPanel({
                     <MacOSLogin maintenance="input" label="辅助功能权限" disabled={!status.ready || busy} />
                   </div>
                 </section>}
+                {status.guest_system === "macos" && !isRemoteClient() && <MacOSScreenSharingSettings disabled={!status.ready || busy} onError={setError} />}
                 {!status.storage_recovery?.required && <ResourceSettings status={status} onConfirm={onConfirm} onDirtyChange={setResourceDirty} />}
  <DiagnosticSettings />
                 {status.can_restore && (
@@ -707,6 +723,60 @@ export function SettingsPanel({
             </>
           </footer>
         )}
+      </div>
+    </section>
+  );
+}
+
+function MacOSScreenSharingSettings({ disabled, onError }) {
+  const [sharingBusy, setSharingBusy] = useState("");
+  const [sharingStatus, setSharingStatus] = useState(null);
+  async function run(action) {
+    setSharingBusy(action);
+    onError("");
+    try {
+      const result = await api("/environment/macos-screen-sharing", { action });
+      if (action !== "open") setSharingStatus(result);
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      setSharingBusy("");
+    }
+  }
+  return (
+    <section aria-label="客机屏幕共享">
+      <h4>客机屏幕共享</h4>
+      <p className="field-help">日常「打开客机屏幕共享」只在本机建立 SSH 环回转发，不给客机增加外网出口，因此不要求先断网。首次安装会在置备阶段启用服务，并在系统授权引导中检查是否真正可用；macOS 26 还需在「系统设置 → 通用 → 共享」中手动打开一次。之后若要重新启用服务或再次打开该设置页，必须先在工作台暂停外网。</p>
+      <ScreenSharingChecks status={sharingStatus} />
+      <div className="project-recovery-actions">
+        <button
+          type="button"
+          className="text-button"
+          disabled={disabled || Boolean(sharingBusy)}
+          onClick={() => run("check")}
+        >
+          {sharingBusy === "check" ? <LoaderCircle size={14} /> : null}
+          检查屏幕共享状态
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          disabled={disabled || Boolean(sharingBusy)}
+          onClick={() => run("open")}
+        >
+          {sharingBusy === "open" ? <LoaderCircle size={14} /> : null}
+          打开客机屏幕共享
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          disabled={disabled || Boolean(sharingBusy)}
+          onClick={() => run("enable")}
+        >
+          {sharingBusy === "enable" ? <LoaderCircle size={14} /> : null}
+          重新启用屏幕共享服务
+        </button>
+        <MacOSLogin maintenance="sharing" label="打开屏幕共享设置" disabled={disabled || Boolean(sharingBusy)} />
       </div>
     </section>
   );

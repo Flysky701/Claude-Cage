@@ -10,7 +10,12 @@ function Invoke-BuildTool {
 }
 
 function Get-WindowsWorkbenchTestBase {
+    param([switch]$WorkbenchProfile)
     if ($env:RUNNER_TEMP) { return [IO.Path]::GetFullPath($env:RUNNER_TEMP) }
+    if ($WorkbenchProfile) {
+        # The smoke profile includes project storage, which Cage rejects inside AppData.
+        return Join-Path (Split-Path $PSScriptRoot -Parent) '_output/workbench-smoke'
+    }
     return [IO.Path]::GetTempPath()
 }
 
@@ -93,7 +98,7 @@ function Wait-WindowsWorkbenchFiles {
 function Assert-WindowsWorkbench {
     param([Parameter(Mandatory)][string]$AppDirectory)
     if (-not $IsWindows) { throw 'Workbench acceptance requires Windows.' }
-    $testRoot = Join-Path (Get-WindowsWorkbenchTestBase) ('cage-build-ui-' + [guid]::NewGuid().ToString('N'))
+    $testRoot = Join-Path (Get-WindowsWorkbenchTestBase -WorkbenchProfile) ('cage-build-ui-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
     $report = Join-Path $testRoot 'smoke.json'
     $start = [Diagnostics.ProcessStartInfo]::new((Join-Path $AppDirectory 'Cage.exe'))

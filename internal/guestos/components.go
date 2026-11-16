@@ -167,12 +167,14 @@ func nativeComponentTarget(source, system string) string {
 		return MacOSBrowserTools + "/controller/" + strings.TrimPrefix(source, "native-browser/")
 	}
 	targets := map[string]string{
+		"cage-guest-check":                "/usr/local/libexec/cage-guest-check",
 		"project/cage-sshfs":              "/usr/local/libexec/cage-sshfs",
 		"project/cage-macos-terminal":     "/usr/local/libexec/cage-macos-terminal",
 		"cage-finish-initial-setup":       "/usr/local/libexec/cage-finish-initial-setup",
 		"cage-macos-ipv6-check":           "/usr/local/libexec/cage-macos-ipv6-check",
 		"macos-browser.mjs":               "/usr/local/libexec/cage-macos-browser.mjs",
 		"cage-macos-editor":               "/usr/local/libexec/cage-macos-editor",
+		"enable-macos-screensharing.sh":   "/usr/local/libexec/cage-enable-screensharing",
 		"register-macos-claude-window.sh": "/usr/local/libexec/cage-register-claude-window",
 		"register-macos-clipboard.sh":     "/usr/local/libexec/cage-register-clipboard",
 		"register-macos-browser.sh":       "/usr/local/libexec/cage-register-browser",

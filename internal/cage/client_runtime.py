@@ -10,13 +10,20 @@ import sys
 import tempfile
 
 _KEYS = ("CAGE_CLI_STATE_ROOT", "CAGE_CLI_ACCOUNT_ROOT", "CAGE_CLI_SHARED_ROOT",
-         "CAGE_CLI_ACCOUNT_HELPER", "CAGE_CLI_BINARY", "CAGE_CLAUDE_SUBJECT")
+         "CAGE_CLI_ACCOUNT_HELPER", "CAGE_CLI_BINARY", "CAGE_CLAUDE_SUBJECT", "CAGE_REMOTE_APP_CONTAINER")
+
+_context = {**os.environ, **globals().get("_controller_context", {})}
+_remote_windows = os.name == "nt" and _context.get("CAGE_REMOTE_APP_CONTAINER") == "1"
+# Python 3.13's Windows 0700 ACL omits the package SID. Inherit the existing
+# package-private ACL instead; this does not grant access to any other identity.
+PRIVATE_MODE = 0o777 if _remote_windows else 0o700
 
 
 def root():
     owner = hashlib.sha256(str(Path.home()).encode()).hexdigest()[:16]
-    directory = Path(tempfile.gettempdir()) / ("runtime-" + owner)
-    directory.mkdir(mode=0o700, exist_ok=True)
+    temporary = Path.home() / "Temp" if _remote_windows else Path(tempfile.gettempdir())
+    directory = temporary / ("runtime-" + owner)
+    directory.mkdir(mode=PRIVATE_MODE, exist_ok=True)
     info = directory.lstat()
     if not stat.S_ISDIR(info.st_mode) or os.name != "nt" and (info.st_uid != os.getuid() or info.st_mode & 0o077):
         raise ValueError("Private runtime directory unavailable")
@@ -26,6 +33,8 @@ def root():
 def path(value):
     """Alias an existing owned integration path without moving its contents."""
     target = Path(value)
+    if _remote_windows:
+        return str(target)
     if "cage" not in str(target).lower():
         return str(target)
     if not target.exists():
@@ -33,7 +42,7 @@ def path(value):
     if os.name == "nt" and target.is_file() and "cage" not in target.name.lower():
         return str(Path(path(target.parent)) / target.name)
     directory = root() / "paths"
-    directory.mkdir(mode=0o700, exist_ok=True)
+    directory.mkdir(mode=PRIVATE_MODE, exist_ok=True)
     name = hashlib.sha256(str(target.absolute()).encode()).hexdigest()[:32]
     if target.is_file() and target.suffix.lower() in (".exe", ".dll", ".json", ".py"):
         name += target.suffix.lower()

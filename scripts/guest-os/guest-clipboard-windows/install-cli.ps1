@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory)][string]$BundleDirectory,
     [Parameter(Mandatory)][string]$BridgeDirectory,
     [string]$ReceiptDirectory = (Join-Path $env:USERPROFILE 'Cage\CLI\install-receipts'),
+    [string]$ToolDirectory = (Join-Path $env:USERPROFILE 'Cage\CLI\tools'),
     [switch]$WorkbenchSetup
 )
 $ErrorActionPreference = 'Stop'
@@ -55,8 +56,12 @@ function New-PrivateDirectory([string]$Path) {
     Assert-NoReparse $Path; Protect-Path $Path $true
 }
 function Select-ClaudeCodeBinary([string]$Claude, [string]$Version, [string]$Digest, [string]$BridgeDirectory) {
-    $reported=(& $claude --version | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or $reported -notmatch '^(\d+\.\d+\.\d+)(?:\s|$)' -or $Matches[1] -ne $Version) { throw 'The downloaded Claude Code version differs from the selected release.' }
+    # Drain the native command before selecting its version line. Closing its
+    # stdout on the first line can abort the process and leave a nonzero exit.
+    $versionOutput = & $claude --version
+    $versionExit = $LASTEXITCODE
+    $reported = $versionOutput | Select-Object -First 1
+    if ($versionExit -ne 0 -or $reported -notmatch '^(\d+\.\d+\.\d+)(?:\s|$)' -or $Matches[1] -ne $Version) { throw 'The downloaded Claude Code version differs from the selected release.' }
     $claudeVersion=$Version
     $claudeDigest=$Digest
     $previousReceipt=Join-Path $BridgeDirectory 'cli-tools.json'
@@ -66,8 +71,10 @@ function Select-ClaudeCodeBinary([string]$Claude, [string]$Version, [string]$Dig
         if ((Get-FileHash -LiteralPath $previous.claude -Algorithm SHA256).Hash -ne $previous.claude_sha256) { throw 'The installed Claude Code no longer matches its protected receipt.' }
         $signature=Get-AuthenticodeSignature -LiteralPath $previous.claude
         if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Anthropic,? PBC') { throw 'The installed Claude Code signature is invalid.' }
-        $reported=(& $previous.claude --version | Select-Object -First 1)
-        if ($LASTEXITCODE -ne 0 -or $reported -notmatch '^(\d+\.\d+\.\d+)(?:\s|$)') { throw 'The installed Claude Code version could not be verified.' }
+        $versionOutput = & $previous.claude --version
+        $versionExit = $LASTEXITCODE
+        $reported = $versionOutput | Select-Object -First 1
+        if ($versionExit -ne 0 -or $reported -notmatch '^(\d+\.\d+\.\d+)(?:\s|$)') { throw 'The installed Claude Code version could not be verified.' }
         if ([version]$Matches[1] -gt [version]$claudeVersion) {
             $claudeVersion=$Matches[1]; $claude=$previous.claude; $claudeDigest=$previous.claude_sha256
         }
@@ -88,7 +95,7 @@ foreach ($name in @('claude','git')) {
     if ($signature.Status -ne 'Valid') { throw 'An official Windows executable has an invalid Authenticode signature.' }
     if ($name -eq 'claude' -and $signature.SignerCertificate.Subject -notmatch 'Anthropic,? PBC') { throw 'The native Claude binary has the wrong signer.' }
 }
-$tools = Join-Path $env:USERPROFILE 'Cage\CLI\tools'
+$tools = $ToolDirectory
 New-PrivateDirectory $tools
 $uvDir = Join-Path $tools ('uv\' + $manifest.uv.version)
 New-PrivateDirectory $uvDir

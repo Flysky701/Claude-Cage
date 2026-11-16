@@ -139,7 +139,7 @@ cage_configure_claude_npm_prefix() {
   # Claude's updater starts a new npm process without the install command's --prefix.
   current_prefix="$(npm prefix --global </dev/null)" || return
   if [ "$current_prefix" != "$prefix" ]; then
-    npm config set --global --location=user "prefix=$prefix" </dev/null
+    npm config set --location=user "prefix=$prefix" </dev/null
   fi
 }
 

@@ -161,6 +161,10 @@ func TestWindowsBrowserRouteRejectsPathAndCredentialInjection(t *testing.T) {
 	if validWindowsBrowserRoute("GET", "/file-open") {
 		t.Fatal("accepted file mutation using GET")
 	}
+	// Guest attach synchronizes the browser profile; reading it back stays closed.
+	if !validWindowsBrowserRoute("POST", "/profile") || validWindowsBrowserRoute("GET", "/profile") {
+		t.Fatal("browser profile synchronization must be POST only")
+	}
 	client := fixtureWindowsBrowserClient(t)
 	if _, err := client.request(context.Background(), "POST", "/tabs?secret", nil); err == nil {
 		t.Fatal("invalid route reached transport")
@@ -326,5 +330,23 @@ func TestNativeBrowserViewerOwnershipUsesServiceCapability(t *testing.T) {
 				t.Fatalf("closing a viewer closed the owning connection: %v", err)
 			}
 		})
+	}
+}
+
+func TestNativeBrowserEventPollSlowsOnlyWhenNothingUsesOrChangesTheBrowser(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	long := now.Add(-time.Minute)
+	for name, test := range map[string]struct {
+		used, changed time.Time
+		want          time.Duration
+	}{
+		"a viewer is operating the browser": {now.Add(-time.Second), long, nativeBrowserEventPoll},
+		"a page changed without a viewer":   {long, now.Add(-2 * time.Second), nativeBrowserEventPoll},
+		"never used since start":            {time.Unix(0, 0), now.Add(-nativeBrowserEventActive), nativeBrowserEventIdlePoll},
+		"idle and unwatched":                {long, long, nativeBrowserEventIdlePoll},
+	} {
+		if got := nativeBrowserEventDelay(now, test.used, test.changed); got != test.want {
+			t.Errorf("%s: polls every %v, want %v", name, got, test.want)
+		}
 	}
 }

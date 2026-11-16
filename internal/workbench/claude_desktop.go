@@ -40,6 +40,9 @@ print(json.dumps({'installed':installed,'version':package[1] if installed else '
 CAGE_DESKTOP_STATE`
 
 func (s *Server) claudeDesktopStatus(w http.ResponseWriter, r *http.Request) {
+	if s.remoteWindowsDesktopUnavailable(w) {
+		return
+	}
 	if !s.vmRunning() {
 		http.Error(w, "请先启动 Cage 环境", 409)
 		return
@@ -51,7 +54,7 @@ func (s *Server) claudeDesktopStatus(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		if s.windowsGuest != nil {
 			var result claudeDesktopState
-			if err := s.windowsDesktopRequest(ctx, "status", nil, &result); err != nil {
+			if err := s.windowsDesktopQuick(ctx, "status", nil, &result); err != nil {
 				return nil, err
 			}
 			return json.Marshal(result)
@@ -79,6 +82,9 @@ func (s *Server) claudeDesktopAction(w http.ResponseWriter, r *http.Request) {
 	}
 	var input struct{}
 	if !readJSON(w, r, &input) {
+		return
+	}
+	if s.remoteWindowsDesktopUnavailable(w) {
 		return
 	}
 	if !s.vmRunning() {
@@ -176,6 +182,15 @@ func (s *Server) runDesktopScript(script string, timeout time.Duration) error {
 	// A guest cgroup owns apt and all descendants, including across SSH loss.
 	// The application's persistent service is separate from this operation.
 	command := fmt.Sprintf("sudo systemd-run --quiet --pipe --wait --collect --unit=cage-desktop-operation --property=User=cage --property=RuntimeMaxSec=%d --property=KillMode=control-group --setenv=HOME=/home/cage --working-directory=/home/cage /bin/bash -se", int(timeout.Seconds()))
+	var renderErr error
+	command, renderErr = s.linuxTemplate(command)
+	if renderErr != nil {
+		return renderErr
+	}
+	script, renderErr = s.linuxTemplate(script)
+	if renderErr != nil {
+		return renderErr
+	}
 	cmd := s.sshCommand(ctx, "-T", s.sshTarget(), "--", command)
 	cmd.Stdin = strings.NewReader(script)
 	cmd.Stdout, cmd.Stderr = s.jobs.execution(), s.jobs.execution()
@@ -200,7 +215,7 @@ func (s *Server) claudeDesktopCredentials(w http.ResponseWriter, r *http.Request
 	defer cancel()
 	b, err := s.guestQuick(ctx, `set -eu
 systemctl is-active --quiet cage-claude-desktop.service
-password=$(cat /home/cage/.config/claude-cage/desktop-password)
+password=$(cat "$HOME/.config/claude-cage/desktop-password")
 printf '%s\n' "$password"
 if test -f /run/cage-desktop/base-display-scale; then cat /run/cage-desktop/base-display-scale
 elif test -f /run/cage-desktop/display-scale; then cat /run/cage-desktop/display-scale
@@ -226,6 +241,9 @@ func validDisplayDensity(scale float64) bool {
 }
 
 func (s *Server) claudeDesktopResize(w http.ResponseWriter, r *http.Request) {
+	if s.remoteWindowsDesktopUnavailable(w) {
+		return
+	}
 	var input struct {
 		Width  int     `json:"width"`
 		Height int     `json:"height"`

@@ -63,7 +63,12 @@ func (s *Server) remoteInput(w http.ResponseWriter, r *http.Request) {
 		var output map[string]any
 		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 		defer cancel()
-		if err := s.windowsDesktopRequest(ctx, "ime", value, &output); err != nil {
+		request := s.windowsDesktopRequest
+		if input.Mode == "status" {
+			// Caret polls only read the focused control.
+			request = s.windowsDesktopQuick
+		}
+		if err := request(ctx, "ime", value, &output); err != nil {
 			http.Error(w, err.Error(), 502)
 			return
 		}

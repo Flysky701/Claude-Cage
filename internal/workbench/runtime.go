@@ -319,6 +319,9 @@ func (s *Server) runCage(args ...string) error {
 				return fmt.Errorf("%s失败：虚拟机未能启动。QEMU 启动失败：%s。请查看操作详情；仍无法启动时，在设置中导出诊断包。", action, reason)
 			}
 		}
+		if packageErr := packageInstallFailure(action, errors.Join(ctx.Err(), err), s.jobs.snapshot().Log); packageErr != nil {
+			return packageErr
+		}
 		diagnostics.Log("error", "environment-operation", fmt.Sprintf("operation=%s error=%v context=%v", args[0], err, ctx.Err()))
 		return executionFailure(action, errors.Join(ctx.Err(), err), s.jobs.snapshot().Log)
 	}
@@ -328,6 +331,7 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 	s.desktopViews.reset()
 	s.browserViews.reset()
 	s.controlSession.close()
+	s.nativeControl.close()
 	s.desktopStatus.invalidate()
 	defer s.desktopStatus.invalidate()
 	if err := s.requireStorageReady(); err != nil {
@@ -567,7 +571,7 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 	if s.windowsGuest != nil {
 		wasReady = s.windowsState.Running
 	} else if s.macosGuest != nil {
-		wasReady = macOSInstanceRunning(s.instanceDir())
+		wasReady = macOSInstanceRunning(s.instanceDir(), s.macosGuest.Backend)
 	}
 	s.mu.Unlock()
 	changed := old != v.Config || oldPrefs.AutoTimezone != v.Preferences.AutoTimezone || oldPrefs.AutoLanguage != v.Preferences.AutoLanguage
@@ -742,7 +746,7 @@ func (s *Server) vmRunning() bool {
 		return s.windowsState.Running
 	}
 	if s.macosGuest != nil {
-		return macOSInstanceRunning(s.instanceDir())
+		return macOSInstanceRunning(s.instanceDir(), s.macosGuest.Backend)
 	}
 	return vmAlive(s.profile, s.environmentDir())
 }
