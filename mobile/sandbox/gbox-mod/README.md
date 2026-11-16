@@ -1,5 +1,7 @@
 # GBox 定向修改构建
 
+当前进展与接续安排统一见 [Android STATUS](../../STATUS.md)，开发分支为 `codex/android`。以下日期段落保留对应阶段的构建与验证记录。
+
 以用户提供的 GBox 1.8.4.02 APK 为输入，保留原 VLite 引擎与四个预置组件，构建独立测试副本。此目录保存本项目新增的构建、重定位和屏蔽代码；它不是 GBox 原始 Java/C++ 工程的完整恢复。原 APK 仍是构建必需输入。
 
 **后续真机与补充验收：** Android16 路线见 [真机报告](../../PHONE-GBOX-VALIDATION-2026-11-15.md)，当前 SIM/VPN 已测路径通过，WebView 首脚本时区仍未通过。用户提供的 Claude 静态分析及新增遗漏项已整理为 [隐私风险与补充验收](PRIVACY-REVIEW-2026-11-15.md)，按优先级列出 12 项待办。以下暂停状态及 `acceptance.json` 属于 MuMu 路线，不能替代真机结果。

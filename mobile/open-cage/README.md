@@ -1,7 +1,9 @@
 # Cage Open Android：源码重建与集成测试包
 
-本目录根据 `docs/gbox-rea-analysis-20261115` 的架构报告和
-`codex/android-experiments-20261115` 的历史实验，建立**不输入 GBox APK、不恢复 GBox
+当前进展、阻塞和下一步统一见 [Android STATUS](../STATUS.md)，开发分支为 `codex/android`。
+
+本目录根据 [GBox 架构报告](../GBOX-REA-ANALYSIS-2026-11-15.md) 和
+既有 Android 实验，建立**不输入 GBox APK、不恢复 GBox
 DEX/原生库、也不依赖旧 BlackBox APK** 的独立构建入口。
 
 这是第一阶段的容器源码构建实验，**不是已验证的 GBox 等价替代品**。

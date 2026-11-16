@@ -12,7 +12,7 @@ copyright, license and third-party notices remain inside the original archives.
 Companion is a compatibility component, not the Google Play app store.
 
 Cage test probe and host integration: MIT, Claude-Cage contributors.
-https://github.com/Flysky701/Claude-Cage/tree/codex/android-open-source-rebuild-20261115/mobile/open-cage
+https://github.com/Flysky701/Claude-Cage/tree/4cf86e7e638ca1a47a37e7787e14a4c386ce155f/mobile/open-cage
 
 BlackBoxReborn: fd0640919c7903a167abf0215ee68ebeaea53485.
 https://github.com/fdavids77/BlackBoxReborn

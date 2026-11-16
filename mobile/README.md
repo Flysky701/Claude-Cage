@@ -1,19 +1,18 @@
 # 在手机上使用 Cage
 
+Android 开发统一在 `codex/android` 接续；当前进展、阻塞和下一步见 [STATUS.md](STATUS.md)。
+
 手机 Cage 是远程客户端。点首页中央的「连接电脑」，用二维码或配对码连接主机，即可查看项目、接续 Claude Code 会话和处理工具审批。配对后还可在手机上操作主机里的浏览器和 Claude Desktop。代理、时区和语言在远程主机的 Cage 中设置。右上角的设置提供主题和电脑连接选项。
 
 Android arm64 APK 可从[官网下载入口](https://claude-cage.com/#download)获取，支持 Android 8.0+。iOS 17+ 设备版由用户通过 Xcode 在本地构建并签名安装。
 
 ### Android 实验版：在本机空间打开 Claude
 
-#### 从公开源码重建（2026-11-15）
+#### 从公开源码重建
 
-新增 [Cage Open 独立构建入口](open-cage/README.md)，依据其他分支的 GBox 架构分析与既有
-Android 实验，重建容器和单 APK 导入／启动界面。构建不输入 GBox 或旧 BlackBox APK，
-ARM64 原生库和宿主 APK 已从源码编译通过。独立包名 `io.github.flysky701.cage.open`。
-`0.0.2` 已内置 microG Services、Companion 与独立测试应用，首次打开自动准备，并提供
-设置与 Google 登录入口。尚未完成原版分包安装、真机及 Google／Claude 登录验收；
-不能继承下文其他实验包的验证结论。见[集成测试说明](open-cage/BUNDLED-TESTING.md)。
+[Cage Open](open-cage/README.md) 从公开源码构建独立 ARM64 容器，不输入 GBox 或旧 BlackBox APK。
+构建输入、组件来源和操作方法见该目录 README；各版本的当前验证结论与剩余问题统一见 [STATUS.md](STATUS.md)。
+以下日期章节保留各条历史实验的证据，不作为 Cage Open 当前状态。
 
 #### 轻量 DEMO 与系统网关（2026-11-14）
 
