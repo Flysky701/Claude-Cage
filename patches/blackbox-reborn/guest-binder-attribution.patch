@@ -1,0 +1,184 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/NativeCore.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/NativeCore.java
+@@ -99,56 +99,19 @@
+ 
+     @Keep
+     public static int getCallingUid(int origCallingUid) {
+-        if (io.github.flysky701.cage.open.GuestAccountBridge.isServerCaller(android.os.Binder.getCallingPid(), origCallingUid))
++        if (origCallingUid != BlackBoxCore.getHostUid() || Boolean.TRUE.equals(sReentrantGuard.get()))
+             return origCallingUid;
+-        // Fix 6 (API 37): Android 17 changed PropertyInvalidatedCache to call
+-        // Binder.getCallingUid() from inside cache queries. Since we hook
+-        // getCallingUid() and call back into getPackageInfo() (which uses the
+-        // cache), this creates an infinite recursion → StackOverflowError.
+-        // Guard with a ThreadLocal re-entrancy flag to break the cycle.
+-        if (Boolean.TRUE.equals(sReentrantGuard.get())) {
++        sReentrantGuard.set(true);
++        try {
++            int ownUid = BActivityThread.getBUid();
++            if (BActivityThread.getAppPackageName() == null || ownUid <= 0) return origCallingUid;
++            int pid = android.os.Binder.getCallingPid();
++            if (pid == Process.myPid()) return ownUid;
++            int caller = BlackBoxCore.getBActivityManager().getService()
++                    .getUidForPid(pid, BActivityThread.getUserId());
++            return caller > 0 ? caller : origCallingUid;
++        } catch (Exception unavailable) {
+             return origCallingUid;
+-        }
+-        sReentrantGuard.set(true);
+-        try {
+-            
+-            if (origCallingUid > 0 && origCallingUid < Process.FIRST_APPLICATION_UID)
+-                return origCallingUid;
+-            
+-            if (origCallingUid > Process.LAST_APPLICATION_UID)
+-                return origCallingUid;
+-
+-            if (origCallingUid == BlackBoxCore.getHostUid()) {
+-                // Return the real system UID of the virtual app so Telecom/JobScheduler accept it
+-                String appPackageName = BlackBoxCore.getAppPackageName();
+-                if (appPackageName != null) {
+-                    // GMS and WebView need their own process UID
+-                    if (appPackageName.equals("com.google.android.gms") ||
+-                        appPackageName.equals("com.google.android.webview")) {
+-                        return Process.myUid();
+-                    }
+-                    // All other virtual apps: return real system UID.
+-                    // Use the cached real UID set before PM proxy hooks fire.
+-                    if (sCachedRealUid > 0 && sCachedRealUidPkg != null
+-                            && sCachedRealUidPkg.equals(appPackageName)) {
+-                        Log.d(TAG, "getCallingUid: cached uid=" + sCachedRealUid
+-                                + " spoofing " + origCallingUid + " for " + appPackageName);
+-                        return sCachedRealUid;
+-                    }
+-                    // Fallback: callingBUid
+-                    try {
+-                        int callingBUid = BlackBoxCore.getCallingBUid();
+-                        if (callingBUid > 0 && callingBUid < Process.LAST_APPLICATION_UID) {
+-                            return callingBUid;
+-                        }
+-                    } catch (Exception ignored) {}
+-                }
+-                return BlackBoxCore.getHostUid();
+-            }
+-            return origCallingUid;
+-        } catch (Exception e) {
+-            Log.e(TAG, "Error in getCallingUid: " + e.getMessage());
+-            return Process.myUid();
+         } finally {
+             sReentrantGuard.set(false);
+         }
+--- a/Bcore/src/main/aidl/top/niunaijun/blackbox/core/system/am/IBActivityManagerService.aidl
++++ b/Bcore/src/main/aidl/top/niunaijun/blackbox/core/system/am/IBActivityManagerService.aidl
+@@ -58,4 +58,5 @@
+     void getIntentSender(in IBinder target, String packageName, int uid, int userId);
+     String getPackageForIntentSender(in IBinder target, int userId);
+     int getUidForIntentSender(in IBinder target, int userId);
++    int getUidForPid(int pid, int userId);
+ }
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/BActivityManagerService.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/BActivityManagerService.java
+@@ -373,4 +373,11 @@
+     public void systemReady() {
+         mBroadcastManager.startup();
+     }
++    @Override
++    public int getUidForPid(int pid, int userId) {
++        ProcessRecord caller = BProcessManagerService.get().findProcessByPid(Binder.getCallingPid());
++        ProcessRecord target = BProcessManagerService.get().findProcessByPid(pid);
++        if (caller == null || caller.userId != userId || target == null || target.userId != userId) return -1;
++        return target.buid;
++    }
+ }
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/context/providers/ContentProviderStub.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/context/providers/ContentProviderStub.java
+@@ -43,84 +43,12 @@
+ 
+     @Override
+     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+-        if ("asBinder".equals(method.getName())) {
+-            return method.invoke(mBase, args);
+-        }
+-        
+-        
+-        String methodName = method.getName();
+-        
+-        
+-        
+-        if ("call".equals(methodName)) {
+-            
+-            AttributionSourceUtils.fixAttributionSourceInArgs(args);
+-        } else {
+-            
+-            if (args != null && args.length > 0) {
+-                for (int i = 0; i < args.length; i++) {
+-                    Object arg = args[i];
+-                    if (arg instanceof String) {
+-                        String strArg = (String) arg;
+-                        
+-                        if (!isSystemProviderAuthority(strArg)) {
+-                            
+-                            args[i] = mAppPkg;
+-                        }
+-                    }
+-                }
+-                
+-                AttributionSourceUtils.fixAttributionSourceInArgs(args);
+-            }
+-        }
+-        
+-        
+-        methodName = method.getName();
+-        if (methodName.equals("query") || methodName.equals("insert") || 
+-            methodName.equals("update") || methodName.equals("delete") || 
+-            methodName.equals("bulkInsert") || methodName.equals("call")) {
+-            
+-            
+-            try {
+-                return method.invoke(mBase, args);
+-            } catch (Throwable e) {
+-                
+-                Throwable cause = e.getCause();
+-                if (isUidMismatchError(cause)) {
+-                    Slog.w(TAG, "UID mismatch in ContentProvider call, returning safe default: " + cause.getMessage());
+-                    return getSafeDefaultValue(methodName, method.getReturnType());
+-                } else if (cause instanceof RuntimeException) {
+-                    String message = cause.getMessage();
+-                    if (message != null && (message.contains("uid") || message.contains("permission"))) {
+-                        Slog.w(TAG, "Permission/UID error in ContentProvider call, returning safe default: " + message);
+-                        return getSafeDefaultValue(methodName, method.getReturnType());
+-                    }
+-                }
+-                
+-                
+-                if (methodName.equals("call")) {
+-                    Slog.w(TAG, "Error in call method, returning safe default: " + e.getMessage());
+-                    return getSafeDefaultValue(methodName, method.getReturnType());
+-                }
+-                
+-                throw e.getCause();
+-            }
+-        }
+-        
+-        
+-        try {
+-            return method.invoke(mBase, args);
+-        } catch (Throwable e) {
+-            
+-            Throwable cause = e.getCause();
+-            if (isUidMismatchError(cause)) {
+-                Slog.w(TAG, "UID mismatch in " + methodName + ", returning safe default: " + cause.getMessage());
+-                return getSafeDefaultValue(methodName, method.getReturnType());
+-            }
+-            throw e.getCause();
+-        }
++        if ("asBinder".equals(method.getName())) return method.invoke(mBase, args);
++        Object[] mapped = io.github.flysky701.cage.open.ProviderAttribution.arguments(args, mAppPkg);
++        try { return method.invoke(mBase, mapped); }
++        catch (java.lang.reflect.InvocationTargetException failed) { throw failed.getCause(); }
+     }
+-    
++
+     private Object getSafeDefaultValue(String methodName) {
+         switch (methodName) {
+             case "query":

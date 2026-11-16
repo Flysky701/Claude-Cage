@@ -1,0 +1,34 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
+@@ -799,6 +799,31 @@
+         }
+     }
+ 
++    // Android 14+ Context checks use (permission, pid, uid, deviceId).
++    // The last integer is a device ID, not a UID. Keep the system's decision for
++    // the real host, and require the guest to have declared the permission too.
++    @ProxyMethod("checkPermissionForDevice")
++    public static class CheckPermissionForDevice extends MethodHook {
++        @Override
++        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
++            if (args != null && args.length == 4 && args[1] instanceof Integer
++                    && args[2] instanceof Integer && (int) args[1] == android.os.Process.myPid()
++                    && (int) args[2] == BActivityThread.getBUid()
++                    && BActivityThread.getAppPackageName() != null) {
++                android.content.pm.PackageInfo guest = BlackBoxCore.getBPackageManager().getService()
++                        .getPackageInfo(BActivityThread.getAppPackageName(),
++                                PackageManager.GET_PERMISSIONS, BActivityThread.getUserId());
++                if (guest == null || guest.requestedPermissions == null
++                        || !java.util.Arrays.asList(guest.requestedPermissions).contains(args[0]))
++                    return PackageManager.PERMISSION_DENIED;
++                Object[] mapped = args.clone();
++                mapped[2] = BlackBoxCore.getHostUid();
++                return method.invoke(who, mapped);
++            }
++            return method.invoke(who, args);
++        }
++    }
++
+     @ProxyMethod("checkPermission")
+     public static class checkPermission extends MethodHook {
+         @Override

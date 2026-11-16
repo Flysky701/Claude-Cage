@@ -1,0 +1,34 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/pm/PackageManagerCompat.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/pm/PackageManagerCompat.java
+@@ -277,6 +277,8 @@
+                     .getPackageArchiveInfo(sourceDir, 0).applicationInfo;
+         }
+         ApplicationInfo ai = new ApplicationInfo(p.applicationInfo);
++        // Archive parsing does not know the private user's actual install state.
++        ai.flags = state.installed ? ai.flags | ApplicationInfo.FLAG_INSTALLED : ai.flags & ~ApplicationInfo.FLAG_INSTALLED;
+         if ((flags & PackageManager.GET_META_DATA) != 0) {
+             ai.metaData = p.mAppMetaData;
+         }
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPackageManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPackageManagerProxy.java
+@@ -115,6 +115,20 @@
+                 return resolveInfo;
+             }
+             return method.invoke(who, args);
++        }
++    }
++
++    @ProxyMethod("getApplicationEnabledSetting")
++    public static class GetApplicationEnabledSetting extends MethodHook {
++        @Override
++        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
++            String packageName = (String) args[0];
++            if (AppSystemEnv.isOpenPackage(packageName)) return method.invoke(who, args);
++            ApplicationInfo info = BlackBoxCore.getBPackageManager().getService()
++                    .getApplicationInfo(packageName, 0, BlackBoxCore.getUserId());
++            if (info == null) throw new IllegalArgumentException("Unknown private application");
++            // Private apps currently retain the enabled value from their own manifest.
++            return PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
+         }
+     }
+ 

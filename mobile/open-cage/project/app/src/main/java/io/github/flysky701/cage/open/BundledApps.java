@@ -43,8 +43,10 @@ final class BundledApps {
             JSONObject item = items.getJSONObject(i);
             String label = item.getString("label"), pkg = item.getString("package");
             PackageInfo current = installed(host, pkg);
-            if (current != null) {
-                progress.show(label + " 已在空间内，保留现有版本和数据");
+            boolean updateProbe = current != null && "io.github.flysky701.cage.probe".equals(pkg)
+                    && current.getLongVersionCode() < item.getLong("versionCode");
+            if (current != null && !updateProbe) {
+                progress.show(pkg + " " + current.versionName + " 已在空间内，保留现有版本和数据");
                 continue;
             }
             progress.show("正在准备 " + label + "（" + (i + 1) + "/" + items.length() + "）…");

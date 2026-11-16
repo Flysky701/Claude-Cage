@@ -1,0 +1,10 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/ServiceConnectionDelegate.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/ServiceConnectionDelegate.java
+@@ -95,6 +95,7 @@
+ 
+     public void connected(ComponentName name, IBinder service, boolean dead) throws RemoteException {
+         service = io.github.flysky701.cage.open.StoreBinderTransport.connect(mComponentName, service);
++        service = io.github.leexeo.cage.space.AccountTransport.wrapIntegrity(mComponentName, service);
+         if (BuildCompat.isOreo()) {
+             BRIServiceConnectionO.get(mConn).connected(mComponentName, service, dead);
+         } else {

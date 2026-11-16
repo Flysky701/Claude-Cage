@@ -43,10 +43,18 @@ python -m pip install --target mobile/.build/integrity-test/python -r mobile/int
 
 - `appIntegrity.appRecognitionVerdict`：Google Play 是否识别本应用及签名。
 - `accountDetails.appLicensingVerdict`：当前账号对本应用的 Play 许可状态。
-- `deviceIntegrity.deviceRecognitionVerdict`：Google 返回的设备完整性标签；空数组保持显示为空，不当作通过。
+- `deviceIntegrity.deviceRecognitionVerdict`：Google 返回的设备完整性标签；缺失时界面归一化为 `[]`，不当作通过。助手另输出“设备标签字段存在”，并在 `tokenPayloadExternal` 中保留原始字段。
 - API 错误或网络错误单独显示，不能当作设备判定。
 
 直接安装、未在 Play 发布的应用可能得到 `UNRECOGNIZED_VERSION`、`UNLICENSED` 或 `UNEVALUATED`。本应用的结果不能代替其他应用的服务端判定。本工具只用于手动诊断，不作为生产鉴权服务，也不修改任何完整性结果。
+
+**不能用本项目当前的空标签证明 BASIC 失败。** 本项目未关联 Play Console；
+`MEETS_BASIC_INTEGRITY` / `MEETS_STRONG_INTEGRITY` 是需要启用的可选标签。
+截至 2026-11-16，[官方说明](https://developer.android.com/google/play/integrity/verdicts#optional_device_information)
+还要求 Android 13 以上请求应用具有 Play 许可才返回这些可选标签；未满足条件时会省略。
+当前可直接判断的是有没有返回 `MEETS_DEVICE_INTEGRITY`，BASIC/STRONG 的缺失应记为不可判定。
+`UNEVALUATED` 表示相关评估缺少前置条件，不提供唯一根因。API 请求和 Google 解码成功只能证明
+请求链已完成，不能证明全部环境兼容性正确。
 
 ## 构建
 

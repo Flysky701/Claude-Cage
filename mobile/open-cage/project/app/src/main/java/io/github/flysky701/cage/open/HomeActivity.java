@@ -29,7 +29,7 @@ public final class HomeActivity extends Activity {
     private static final String PROBE = "io.github.flysky701.cage.probe";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final List<Button> controls = new ArrayList<>();
-    private final StringBuilder log = new StringBuilder("Cage Open 0.0.2 / Android API " + android.os.Build.VERSION.SDK_INT + "\n");
+    private final StringBuilder log = new StringBuilder("Cage Open 0.0.6 / Android API " + android.os.Build.VERSION.SDK_INT + "\n");
     private LinearLayout body, apps;
     private TextView status;
     interface Job { void run() throws Exception; }
@@ -43,13 +43,15 @@ public final class HomeActivity extends Activity {
         TextView title = new TextView(this); title.setText("Cage Open · 集成测试版"); title.setTextSize(25); body.addView(title);
         TextView note = new TextView(this); note.setTextSize(15);
         note.setText("已内置 microG Services、Companion 和测试应用，首次打开自动准备。\n"
-            + "网络沿用手机当前设置；Google / Claude 登录及隐私保护仍待实测。\n"
-            + "Companion 提供兼容服务，不是可下载应用的 Play 商店。Claude 原包需另行导入。\n");
+            + "Claude 和测试探针已接入 SIM、VPN 可见性屏蔽及东京时区。网页首次读取时区仍待确认。\n"
+            + "网络沿用手机当前设置。设备完整性尚未通过；本版供你继续测试 Claude 登录。\n"
+            + "Companion 不是完整 Play 商店。完整商店和 Claude 不随包提供；已有应用及数据会保留。\n");
         body.addView(note);
+        button("打开 Claude · 测试登录", () -> launch("com.anthropic.claude"));
         button("1 · 运行内置测试应用", () -> launch(PROBE));
         button("2 · 打开 microG 设置", () -> start(GMS, "org.microg.gms.ui.MainSettingsActivity", Intent.ACTION_MAIN));
         button("3 · 添加 Google 测试账号", () -> start(GMS, "org.microg.gms.auth.login.LoginActivity", "com.google.android.gms.auth.login.LOGIN"));
-        button("打开 Companion", () -> start("com.android.vending", "org.microg.vending.ui.MainActivity", Intent.ACTION_MAIN));
+        button("打开商店 / Companion", () -> launch("com.android.vending"));
         Button importApk = new Button(this); importApk.setText("导入其他单个 APK"); body.addView(importApk); controls.add(importApk);
         importApk.setOnClickListener(v -> {
             Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/vnd.android.package-archive");
@@ -97,7 +99,6 @@ public final class HomeActivity extends Activity {
     }
     private void launch(String pkg) throws Exception {
         if (GMS.equals(pkg)) { start(pkg, "org.microg.gms.ui.MainSettingsActivity", Intent.ACTION_MAIN); return; }
-        if ("com.android.vending".equals(pkg)) { start(pkg, "org.microg.vending.ui.MainActivity", Intent.ACTION_MAIN); return; }
         if (BundledApps.installed(this, pkg) == null) throw new IllegalStateException("应用尚未导入当前空间");
         if (!BlackBoxCore.get().launchApk(pkg, 0)) throw new IllegalStateException("找不到启动入口：" + pkg);
         say("已请求启动 " + pkg);

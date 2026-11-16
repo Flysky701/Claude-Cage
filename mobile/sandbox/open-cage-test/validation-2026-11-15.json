@@ -1,0 +1,83 @@
+{
+  "tested_at": "2026-11-15T23:24:00+08:00",
+  "scope": "用户指定的 Cage Open 0.0.2 集成包真机测试；不包含此前 HIHATS 基线测试结果。",
+  "artifact": {
+    "filename": "Cage-Open-Bundled-Preview-0.0.2.apk",
+    "source": "用户提供的 ChatGPT Library 文件，通过已登录 Chrome 下载",
+    "size_bytes": 120942906,
+    "sha256": "b31b641dbd2294fbcc8a61ac39717c60782cae5a88d4e3340b2c99a228425c1e",
+    "signer_sha256": "ac34aa811fd4002099503213a9696a35c0ec79b2ba1614f96a86057c826929c2",
+    "package": "io.github.flysky701.cage.open",
+    "version_code": 2,
+    "version_name": "0.0.2-bundled-preview",
+    "source_branch": "codex/android-open-source-rebuild-20261115",
+    "source_commit": "d72a5fa256ccf9a2fe76e90b8dfa54f6939844ec",
+    "identity_check": "PASS：大小、SHA256 与已有构建记录一致；签名与已安装 0.0.1 一致。"
+  },
+  "device": { "android_api": 36, "abi": "arm64-v8a", "physical_device": true },
+  "result": "PARTIAL_PASS_WITH_BLOCKERS",
+  "checks": [
+    {
+      "name": "覆盖安装和冷启动",
+      "status": "PASS",
+      "observed": "从 0.0.1 原位覆盖成功；0.0.2 首次冷启动 379 ms，重启冷启动 417 ms。"
+    },
+    {
+      "name": "首次自动准备",
+      "status": "PASS",
+      "observed": "UI 显示测试应用、microG Services、Companion 均准备完成。重启后列出三个来宾组件，并保留已有数据。",
+      "evidence": ["bundled-first-ui.txt", "bundled-restart-ui.txt"]
+    },
+    {
+      "name": "内置来宾应用、WebView 和数据保存",
+      "status": "PASS",
+      "observed": "来宾应用可启动，WebView 本地页面与 JavaScript 时区可见。Java 与 JS 时区均为 Asia/Shanghai。停止整个宿主后重启，计数从 1 增加为 2，保存为 true。",
+      "evidence": ["bundled-probe-before-network.png", "bundled-probe-restart-ui.txt"]
+    },
+    {
+      "name": "Google HTTPS 连接",
+      "status": "PASS",
+      "observed": "通过内置按钮执行一次 HEAD https://accounts.google.com/，返回 HTTP 302。仅证明该请求可达，不代表账号登录成功。",
+      "evidence": ["bundled-probe-network-ui.txt"]
+    },
+    {
+      "name": "来宾 PackageManager 组件识别",
+      "status": "FAIL",
+      "expected": "来宾识别到内置 microG Services 0.3.18.252432 和 Companion 0.3.18.40226。",
+      "observed": "测试应用实际读到 GMS 26.42.31 (260400-1005867181) 与 Play Store 38.4.22-21 [0] [PR] 582466152，和手机个人区现有版本一致。重启后现象相同。",
+      "evidence": ["bundled-probe-network-ui.txt", "bundled-probe-restart-ui.txt"]
+    },
+    {
+      "name": "microG 设置",
+      "status": "PARTIAL",
+      "observed": "设置首页可以打开，显示 0.3.18.252432。点击自我检查停留在首页，日志明确报告 moveTaskToFront 缺少 android.permission.REORDER_TASKS。最终 APK 声明的权限确实不包含此权限。",
+      "evidence": ["bundled-microg-ui.txt", "microg-navigation-errors.txt"]
+    },
+    {
+      "name": "Companion 入口",
+      "status": "LIMITED",
+      "observed": "进程与 MainActivity 已启动，随后活动结束返回 Cage 首页；未观察到持续显示的 Companion 页面。所查日志未见该进程的 AndroidRuntime 致命异常，不能据此认定崩溃或商店功能通过。",
+      "evidence": ["bundled-companion-settled-ui.txt"]
+    },
+    {
+      "name": "Google 登录入口",
+      "status": "BLOCKED",
+      "observed": "能进入 microG 登录提示。点击登录后观察约 100 秒，仍显示正在建立到 Google 服务器的连接，未到达账号输入页。WebView 日志出现 EmbeddedSetup 的 pageFinished，但界面未推进。",
+      "related_log": "GoogleApiManager 报告 UID [10002] is not related to packageName [com.google.android.gms] (seems to be io.github.flysky701.cage.open)。该异常尚不能单独证明是登录停滞的唯一原因。",
+      "evidence": ["bundled-login-ui.txt", "bundled-login-final-ui.txt", "bundled-login-final.png", "google-service-identity-errors.txt"]
+    }
+  ],
+  "not_verified": [
+    "真实 Google 账号登录、令牌保存与重新登录",
+    "Claude 原包导入和登录",
+    "Google 设备注册、推送、完整性验证",
+    "个人区账号、权限、设备身份和网络等完整隔离"
+  ],
+  "changes_made": ["下载并原位升级 Cage Open 至原有 0.0.2 包", "运行内置准备与定向测试", "保存本地测试证据"],
+  "constraints": "未创建新分支或重编译 APK，未输入账号凭证，未修改手机网络设置，未操作原有 GBox/Cage 应用的数据。",
+  "evidence_directory": "mobile/.build/open-cage-device-test",
+  "next_fix_targets": [
+    "宿主补齐活动栈实际依赖的 REORDER_TASKS 声明后，重测 microG 自检跳转。",
+    "修复来宾包查询与 Google 服务调用身份映射，再定位登录页面停滞；不能将 HTTPS 可达当成登录通过。"
+  ]
+}

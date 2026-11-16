@@ -1,0 +1,437 @@
+{
+  "date": "2026-11-16",
+  "hostPackage": "io.github.flysky701.cage.open",
+  "hostVersion": "0.0.4-bundled-preview",
+  "device": {
+    "type": "physical",
+    "android": 16,
+    "api": 36,
+    "abi": "arm64-v8a"
+  },
+  "store": {
+    "package": "com.android.vending",
+    "versionCode": 84571730,
+    "originalApk": true,
+    "bundledInHost": false
+  },
+  "checks": {
+    "authorizedGoogleAccountRetained": "passed",
+    "catalogAndClaudeSearch": "passed",
+    "downloadQueuedByOriginalStore": "passed",
+    "playDownloadCompleted": {
+      "result": "passed",
+      "files": 5,
+      "downloadBytes": 27995566
+    },
+    "privateInstallerCommit": {
+      "result": "passed",
+      "signedApkParts": 4,
+      "status": 0
+    },
+    "installedClaude": {
+      "version": "1.261113.19",
+      "versionCode": 26111319,
+      "originalSignaturesValidated": true
+    },
+    "storeInstalledState": "passed: search shows installed; detail offers uninstall",
+    "storeOpenButton": "passed: original Store search shows Open for installed Claude; button not activated before the ordered login stage",
+    "freshSourcePreparation": "Final patches applied to pinned prepared source; all Bcore Java source files and native Android.mk matched the build directory",
+    "preparedRuntimeSourceComparison": "matched fresh source before microG compatibility addition",
+    "probe15": "passed: data counter retained; guest process/UID, original and compatible signatures, installed flags, enabled state, unknown import source, absent package rejection, Claude launch query",
+    "companionRestorationProbe15": "passed: retained counter 10, original Store signature unchanged, microG archive signature unchanged and declared compatibility present, guest UID/installed/source/Claude launcher checks true",
+    "storeRestorationLiveSearch": "passed after Companion comparison: original Play Store Claude search shows Installed and Open; launch not activated",
+    "finalKeystoreBuildProbe15": "passed after experimental serial mapping was removed and final APK installed: counter 11 retained; original signatures/compatible microG identity, UID, package-source semantics and Claude launcher query checks passed."
+  },
+  "network": {
+    "temporarySwitchAuthorized": true,
+    "observation": "Google login HTTPS succeeded while the selected APK CDN HTTPS timed out. A fresh Store connection under temporary global proxy mode downloaded all payloads.",
+    "restoration": "Original rule mode, original selected node, and original inactive GLOBAL selection restored after download tests."
+  },
+  "integrity": {
+    "classicRequest1": "-7 APP_UID_MISMATCH, fixed by preserving registered caller PID across one-way Binder delivery",
+    "classicRequest2": "-6 PLAY_SERVICES_NOT_FOUND; Store logs identify original microG signing certificate as incompatible",
+    "googleVerdict": "Obtained and validated package, nonce and freshness. No integrity labels returned; not passed.",
+    "signatureCompatibility": "validated by owned probe and real Google requests; microG original APK unchanged",
+    "classicRequest3": "-100 INTERNAL_ERROR; installed imported application was incorrectly reported missing when install source was unknown; corrected PackageManager semantics",
+    "classicRequest4": {
+      "tokenDecoded": true,
+      "hardwareAttestationBlocked": true,
+      "appRecognitionVerdict": "UNEVALUATED",
+      "appLicensingVerdict": "UNEVALUATED",
+      "deviceRecognitionVerdict": []
+    },
+    "classicRequest5": {
+      "tokenDecoded": true,
+      "hardwareAttestationBlocked": false,
+      "appRecognitionVerdict": "UNEVALUATED",
+      "appLicensingVerdict": "UNEVALUATED",
+      "deviceRecognitionVerdict": []
+    },
+    "standardRequest1": "-100: Android 16 JNI abort on microG dynamic IBinder.dump proxy; fixed by concrete forwarding methods scoped to its DroidGuard service cache",
+    "upstreamVersion": "microG 0.3.18.252432 confirmed latest upstream stable on 2026-11-16",
+    "classicRequest6": {
+      "tokenDecoded": true,
+      "hardwareAttestationBlocked": false,
+      "fixedDevicePropertyHookRemoved": true,
+      "appRecognitionVerdict": "UNEVALUATED",
+      "appLicensingVerdict": "UNEVALUATED",
+      "deviceRecognitionVerdict": []
+    },
+    "classicRequest7": {
+      "tokenDecoded": true,
+      "hardwareAttestationBlocked": true,
+      "fixedDevicePropertyHookRemoved": true,
+      "nativeBinderCompat": true,
+      "appRecognitionVerdict": "UNEVALUATED",
+      "appLicensingVerdict": "UNEVALUATED",
+      "deviceRecognitionVerdict": []
+    },
+    "standardRequest2": {
+      "tokenDecoded": true,
+      "nativeBinderCompat": true,
+      "hardwareAttestationBlocked": false,
+      "appRecognitionVerdict": "UNEVALUATED",
+      "appLicensingVerdict": "UNEVALUATED",
+      "deviceRecognitionVerdict": []
+    },
+    "physicalSystemControl": {
+      "sameOwnedTestApk": true,
+      "mode": "classic",
+      "appRecognitionVerdict": "UNRECOGNIZED_VERSION",
+      "appLicensingVerdict": "UNEVALUATED",
+      "deviceRecognitionVerdict": [
+        "MEETS_DEVICE_INTEGRITY"
+      ],
+      "temporaryControlAppRemovedKeepingPriorTestData": true,
+      "notEvidenceOfCagePassing": true
+    },
+    "hardwareAttestationSetting": "Both states compared; upstream default blocking restored, embedded mode retained",
+    "upstreamCompanionComparison": {
+      "reference": "mobile/GBOX-REA-ANALYSIS-2026-11-15.md",
+      "version": "0.3.18.40226",
+      "versionCode": 84022636,
+      "originalApk": true,
+      "signatureCompatibility": "Same private-path, original microG certificate and declared compatibility-certificate checks as Services; original Google Store is excluded by its different original certificate.",
+      "classic": {
+        "tokenDecoded": true,
+        "appRecognitionVerdict": "UNEVALUATED",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": []
+      },
+      "standard": {
+        "tokenDecoded": true,
+        "appRecognitionVerdict": "UNEVALUATED",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": []
+      },
+      "hardwareAttestationBlocked": true,
+      "embeddedDroidGuard": true,
+      "originalStoreAndDataRestored": true,
+      "networkChangedForComparison": false,
+      "conclusion": "Upstream Companion request chains work but do not by themselves produce device-integrity labels in this environment."
+    },
+    "hardwareIdentityDiagnostic": {
+      "requestedPackage": "io.github.flysky701.cage.attestationprobe",
+      "visibleUid": 10006,
+      "ephemeralKeyRemoved": true,
+      "isPlayIntegrityVerdict": false,
+      "rootTrustAndRevocationChecked": false,
+      "chainSignaturesValid": true,
+      "attestationSecurityLevel": 1,
+      "keyMintSecurityLevel": 1,
+      "challengeMatches": true,
+      "applicationIdentityLocation": "software",
+      "attestedPackages": [
+        {
+          "package": "io.github.flysky701.cage.open",
+          "version": 4
+        }
+      ],
+      "signerDigests": [
+        "1dba72036c407f4a8bf85254f2e4827f756d808cf9354fbb309abd3031a0d6ab"
+      ],
+      "deviceLocked": true,
+      "verifiedBootState": 0,
+      "systemDiagnosticControl": "New diagnostic APK installation rejected by phone policy; package absent for user 0. Existing earlier Play Integrity system control remains separate evidence.",
+      "scope": "Diagnostic certificate contents only; not a Google verdict or proven cause of the empty device labels. Upstream default also blocks DroidGuard certificate-chain access.",
+      "certificateCount": 5
+    },
+    "hardwareRequestTrace": {
+      "providerEnabled": true,
+      "backingSpi": "android.security.keystore2.AndroidKeyStoreSpi",
+      "beforeFix": "DroidGuard KeyPairGenerator.getInstance threw NoSuchAlgorithmException; no getCertificateChain call observed in that request.",
+      "debuggerAttachedRequestUsedForAcceptance": false,
+      "baselineClassic8": {
+        "deviceRecognitionVerdict": [],
+        "tokenDecoded": true
+      },
+      "fix": "Restore missing platform provider registrations only, retain original microG KeyStore SPI and certificate blocking policy; scoped to guest microG DroidGuard START on API 36.",
+      "upstreamReference": "https://github.com/kdrag0n/safetynet-fix/blob/89a4cf49360a1fc4c10a09e9ff56deda08e922e4/java/app/src/main/java/dev/kdrag0n/safetynetfix/proxy/ProxyProvider.kt",
+      "restoredEntries": 28,
+      "ecAvailable": true,
+      "rsaAvailable": true,
+      "blockerRetained": true,
+      "certificateChainBlockObservedWithoutDebugger": true,
+      "classic9": {
+        "tokenDecoded": true,
+        "appRecognitionVerdict": "UNEVALUATED",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": []
+      },
+      "standard3": {
+        "tokenDecoded": true,
+        "appRecognitionVerdict": "UNEVALUATED",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": []
+      },
+      "hardwareIdentityConclusion": "AAID follows real Binder UID and system package manager. Guest probe host identity is real, but blocked-chain requests cannot be assumed to have transmitted that certificate. This is not a proven root cause for empty Play Integrity labels."
+    },
+    "gboxProfileReview": {
+      "sampleReadOnly": true,
+      "closedCodeBundled": false,
+      "constructorAlsoOmitsPlatformAlgorithms": true,
+      "extraBehavior": "Copies 19 selected microG Profile string fields into Android Build",
+      "currentProfile": "native",
+      "equalFields": 18,
+      "differentFields": [
+        "SERIAL"
+      ],
+      "valuesLogged": false,
+      "initialComparison": {
+        "request": "classic10",
+        "deviceRecognitionVerdict": [],
+        "profileSynchronizationRan": false,
+        "reason": "Profile not initialized yet at service bind; excluded as a valid profile comparison."
+      },
+      "effectiveComparison": {
+        "request": "classic11",
+        "profileSynchronizationRan": true,
+        "serialChanged": true,
+        "alignmentReadBack": true,
+        "tokenDecoded": true,
+        "appRecognitionVerdict": "UNEVALUATED",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": [],
+        "temporarySourceRemoved": true,
+        "retainedInShippingRuntime": false
+      },
+      "finalRestoration": "Temporary runtime mapping removed; final canonical APK compiled and installed; all Cage processes restarted."
+    },
+    "samePhoneGboxControl": {
+      "date": "2026-11-16",
+      "samePhysicalPhone": true,
+      "sameApk": true,
+      "networkChanged": false,
+      "gboxPackage": "com.cage.android",
+      "gboxVersion": "1.8.4.02",
+      "gboxHostUid": 10382,
+      "gboxProbeUidVerified": true,
+      "gboxMgcAndGmsUnstableUidVerified": true,
+      "gboxClassic": {
+        "tokenDecoded": true,
+        "requestPackageValidated": true,
+        "bindingValidated": true,
+        "freshnessValidated": true,
+        "googleRequestTime": "2026-11-16T13:31:52.549000+08:00",
+        "appRecognitionVerdict": "UNEVALUATED",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": [],
+        "deviceRecognitionVerdictPresent": false,
+        "debuggerAttached": false
+      },
+      "gboxStandard": {
+        "tokenDecoded": true,
+        "requestPackageValidated": true,
+        "bindingValidated": true,
+        "freshnessValidated": true,
+        "googleRequestTime": "2026-11-16T13:34:24.593000+08:00",
+        "appRecognitionVerdict": "UNEVALUATED",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": [],
+        "deviceRecognitionVerdictPresent": false,
+        "debuggerAttached": false
+      },
+      "systemClassic": {
+        "tokenDecoded": true,
+        "requestPackageValidated": true,
+        "bindingValidated": true,
+        "freshnessValidated": true,
+        "googleRequestTime": "2026-11-16T13:35:39.873000+08:00",
+        "appRecognitionVerdict": "UNRECOGNIZED_VERSION",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": [
+          "MEETS_DEVICE_INTEGRITY"
+        ],
+        "deviceRecognitionVerdictPresent": true,
+        "debuggerAttached": false
+      },
+      "openClassic": {
+        "tokenDecoded": true,
+        "requestPackageValidated": true,
+        "bindingValidated": true,
+        "freshnessValidated": true,
+        "googleRequestTime": "2026-11-16T13:37:08.216000+08:00",
+        "appRecognitionVerdict": "UNEVALUATED",
+        "appLicensingVerdict": "UNEVALUATED",
+        "deviceRecognitionVerdict": [],
+        "deviceRecognitionVerdictPresent": false,
+        "debuggerAttached": false
+      },
+      "comparisonScope": "Whole existing environments; GBox retains different MG/MGC and privacy patches. Not a container-free upstream microG baseline.",
+      "claudeOpened": false,
+      "gboxDataCleared": false,
+      "gboxUpdated": false,
+      "temporarySystemProbeUninstalledKeepingData": true,
+      "networkRestorationNeeded": false,
+      "usbDecoderStopped": true,
+      "adbForwardsRemoved": true,
+      "conclusion": "GBox is not a positive DEVICE control for this owned probe; earlier Claude login success does not establish a DEVICE verdict. Current system control still passes DEVICE."
+    },
+    "droidGuardExecutionTrace": {
+      "date": "2026-11-16",
+      "source": "diagnostics/attestation/SignalTrace.java",
+      "hostUid": 10500,
+      "process": "com.google.android.gms.unstable",
+      "readOnly": true,
+      "bundledInApk": false,
+      "activeDiagnosticRequests": 2,
+      "idleTraceExcluded": true,
+      "debuggerRequestsDecodedForAcceptance": false,
+      "vmInitSucceeded": true,
+      "vmSnapshotBytes": 34530,
+      "vmRbNonNull": true,
+      "vmClosed": true,
+      "fallbackCreateObserved": false,
+      "noSuchAlgorithmExceptionObserved": false,
+      "actualVmPackageQueries": [
+        "com.google.android.gms",
+        "com.android.vending",
+        "android",
+        "io.github.flysky701.integritytest"
+      ],
+      "identityReadAttempts": [
+        "Build.getSerial",
+        "TelephonyManager.getImei",
+        "TelephonyManager.getPhoneType"
+      ],
+      "otherReadAttempts": [
+        "Settings.Global",
+        "ServiceManager",
+        "System.getProperty",
+        "file open/access/stat"
+      ],
+      "exceptions": [
+        "ContextImpl.getDisplay: UnsupportedOperationException",
+        "microG engineGetCertificateChain: UnsupportedOperationException",
+        "Linux access/connect/open: ErrnoException",
+        "IPersistentDataBlockService.getFlashLockState: SecurityException"
+      ],
+      "permissionObservation": {
+        "officialSystemGmsGranted": [
+          "READ_OEM_UNLOCK_STATE",
+          "READ_PRIVILEGED_PHONE_STATE",
+          "DUMP"
+        ],
+        "openHostMatchingGrantsListed": false,
+        "gboxHostMatchingGrantsListed": false
+      },
+      "valuesOrContentsLogged": false,
+      "concreteFilePathsEstablished": false,
+      "concreteSettingsKeysEstablished": false,
+      "limitations": [
+        "Android 16 boot-class frames often reject argument reads with InternalException/InconsistentDebugInfoException",
+        "Native direct syscalls are not covered",
+        "Debugger affects execution; counts are diagnostic only",
+        "No evidence identifying which collected signals were uploaded or caused the Google verdict"
+      ],
+      "counts": {
+        "RETURN com.google.ccc.abuse.droidguard.DroidGuard.init success=true": 1,
+        "RETURN com.google.ccc.abuse.droidguard.DroidGuard.rb nonNull=true": 1,
+        "RETURN com.google.ccc.abuse.droidguard.DroidGuard.ss arrayLength=34530": 1,
+        "android.app.ApplicationPackageManager.getApplicationInfo detail=<InternalException>": 11,
+        "android.app.ApplicationPackageManager.getApplicationInfo query=com.google.android.gms": 11,
+        "android.app.ApplicationPackageManager.getInstallerPackageName detail=<InternalException>": 3,
+        "android.app.ApplicationPackageManager.getPackageInfo detail=<InternalException>": 14,
+        "android.app.ApplicationPackageManager.getPackageInfo query=<other-package-or-feature>": 6,
+        "android.app.ApplicationPackageManager.getPackageInfo query=android": 2,
+        "android.app.ApplicationPackageManager.getPackageInfo query=com.android.vending": 2,
+        "android.app.ApplicationPackageManager.getPackageInfo query=com.google.android.gms": 2,
+        "android.app.ApplicationPackageManager.getPackageInfo query=io.github.flysky701.integritytest": 2,
+        "android.app.ApplicationPackageManager.hasSystemFeature": 6,
+        "android.app.ApplicationPackageManager.hasSystemFeature detail=<InternalException>": 6,
+        "android.os.Build.getSerial": 2,
+        "android.os.ServiceManager.getService detail=<InternalException>": 7,
+        "android.provider.Settings$Global.getInt detail=<InternalException>": 7,
+        "android.provider.Settings$Global.getString detail=<InternalException>": 8,
+        "android.provider.Settings$Global.getStringForUser detail=<InternalException>": 8,
+        "android.telephony.TelephonyManager.getImei": 2,
+        "android.telephony.TelephonyManager.getPhoneType": 1,
+        "com.google.ccc.abuse.droidguard.DroidGuard.close": 1,
+        "com.google.ccc.abuse.droidguard.DroidGuard.init": 1,
+        "com.google.ccc.abuse.droidguard.DroidGuard.initNative": 1,
+        "com.google.ccc.abuse.droidguard.DroidGuard.rb": 1,
+        "com.google.ccc.abuse.droidguard.DroidGuard.ss": 1,
+        "java.lang.System.getProperty detail=<InternalException>": 5,
+        "java.security.KeyPairGenerator.getInstance": 2,
+        "java.security.KeyPairGenerator.initialize": 3,
+        "java.security.KeyStore.aliases": 1,
+        "java.security.KeyStore.containsAlias": 2,
+        "java.security.KeyStore.deleteEntry": 2,
+        "java.security.KeyStore.getCertificateChain": 1,
+        "java.security.KeyStore.getInstance": 1,
+        "java.security.KeyStore.load": 1,
+        "java.security.KeyStore.size": 1,
+        "libcore.io.BlockGuardOs.access detail=<InconsistentDebugInfoException>": 8,
+        "libcore.io.BlockGuardOs.open detail=<InternalException>": 9,
+        "libcore.io.BlockGuardOs.stat": 14,
+        "libcore.io.ForwardingOs.access detail=<InconsistentDebugInfoException>": 16,
+        "libcore.io.ForwardingOs.open detail=<InconsistentDebugInfoException>": 18,
+        "libcore.io.ForwardingOs.stat": 28,
+        "libcore.io.Linux.access detail=<InternalException>": 8,
+        "libcore.io.Linux.open detail=<InternalException>": 9,
+        "libcore.io.Linux.stat detail=<InternalException>": 14,
+        "org.microg.gms.droidguard.HandleProxy.close": 1,
+        "org.microg.gms.droidguard.HandleProxy.init": 1,
+        "org.microg.gms.droidguard.core.DroidGuardHandleImpl.close": 1,
+        "org.microg.gms.droidguard.core.DroidGuardHandleImpl.initWithRequest": 1,
+        "org.microg.gms.droidguard.core.DroidGuardHandleImpl.snapshot": 1,
+        "org.microg.gms.droidguard.core.HardwareAttestationBlockingKeyStore.engineGetCertificateChain": 1,
+        "throws android.system.ErrnoException at libcore.io.Linux.access": 4,
+        "throws android.system.ErrnoException at libcore.io.Linux.connect": 3,
+        "throws android.system.ErrnoException at libcore.io.Linux.open": 1,
+        "throws java.lang.SecurityException at libcore.util.SneakyThrow.sneakyThrow_": 1,
+        "throws java.lang.UnsupportedOperationException at android.app.ContextImpl.getDisplay": 1,
+        "throws java.lang.UnsupportedOperationException at org.microg.gms.droidguard.core.HardwareAttestationBlockingKeyStore.engineGetCertificateChain": 1
+      }
+    }
+  },
+  "remaining": [
+    "No DEVICE label in either existing GBox or Cage Open on the same phone; system official GMS still passes. Open VM initializes and snapshots without observed fallback. Concrete file/settings arguments and upstream-only baseline remain unavailable; no proven causal fix for verdict.",
+    "Apply the requested privacy modules after the integrity stage passes.",
+    "Test Claude login last, following the user specified order."
+  ],
+  "privacy": "No credentials, account identifiers, tokens, device serials, proxy endpoints or private backup data included.",
+  "artifact": {
+    "file": "Cage-Open-Bundled-Preview-0.0.4.apk",
+    "bytes": 121800576,
+    "sha256": "0970839a283567ac7dbccd65f0b36b201a4c2ea5195c07b4b53ba1766f10aa48",
+    "versionCode": 4,
+    "installedOnTestPhone": true,
+    "lastChange": "Restore missing AndroidKeyStore algorithm registrations for API 36 guest microG DroidGuard. Original certificate-chain blocking retained. Serial-profile comparison removed, final APK installed and probe passed."
+  },
+  "verdictInterpretation": {
+    "verifiedDate": "2026-11-16",
+    "playConsoleLinked": false,
+    "testAppPublishedOnPlay": false,
+    "emptyListMeaning": "Presentation normalizes omitted deviceRecognitionVerdict to []; private raw Google payloads preserve deviceIntegrity: {}.",
+    "deviceAssessment": "No MEETS_DEVICE_INTEGRITY returned in Cage; system control returns it.",
+    "basicAssessment": "Indeterminate from current responses. Optional label not configured; current official documentation additionally omits BASIC/STRONG on Android 13+ when the requesting app is not licensed.",
+    "strongAssessment": "Indeterminate from current responses; do not equate omitted optional label with a failed check.",
+    "unevaluatedMeaning": "Relevant assessment prerequisites were unmet; not a root-cause code.",
+    "primarySource": "https://developer.android.com/google/play/integrity/verdicts",
+    "setupSource": "https://developer.android.com/google/play/integrity/setup",
+    "noContainerMicrogBaseline": "Still unavailable: user has no spare microG-ready phone. Current phone has system official GMS; it was not removed or replaced.",
+    "gboxEvidence": "GBox is not a positive DEVICE control for this owned probe; earlier Claude login success does not establish a DEVICE verdict. Current system control still passes DEVICE.",
+    "rawSignalClaims": "Dobby, maps, host paths and package identity are hypotheses until measured in the actual DroidGuard collection path; no captured upload evidence establishes a unique cause."
+  }
+}

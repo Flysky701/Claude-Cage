@@ -7,8 +7,8 @@ android {
         applicationId 'io.github.flysky701.cage.probe'
         minSdk 28
         targetSdk 28
-        versionCode 1
-        versionName '1.0'
+        versionCode 6
+        versionName '1.5'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

@@ -1,0 +1,90 @@
+{
+  "date": "2026-11-15",
+  "timezone": "Asia/Shanghai",
+  "scope": "BlackBox-HIHATS 原版在 Android 16 ARM64 真机上的基础兼容性与上游 microG 启动测试",
+  "scope_correction": {
+    "reason": "用户随后澄清，本次原本要求接续测试的是已经构建的 Cage Open 0.0.2 集成包；此前误接了另一段 HIHATS 候选评估上下文。",
+    "requested_branch": "codex/android-open-source-rebuild-20261115",
+    "requested_commit": "d72a5fa256ccf9a2fe76e90b8dfa54f6939844ec",
+    "requested_apk": "Cage-Open-Bundled-Preview-0.0.2.apk",
+    "requested_package": "io.github.flysky701.cage.open",
+    "requested_engine": "BlackBoxReborn",
+    "requested_build_tested_in_this_report": false,
+    "interpretation": "本报告仅为 HIHATS 上游基线对照，不能用于认定 Cage Open 0.0.2 的通过或失败。"
+  },
+  "summary": "基础应用运行通过；跨进程 ContentProvider 查询存在 UID 一致性错误，阻塞 microG 设置页启动。尚不具备直接替换现有 Cage/GBox 的验证依据。",
+  "baseline": {
+    "repository": "https://github.com/jimkazama110403-pixel/BlackBox-HIHATS",
+    "commit": "63b6cb1927159ff4fbf3b0ac5d088e65f9250b15",
+    "workflow_run": "https://github.com/jimkazama110403-pixel/BlackBox-HIHATS/actions/runs/39123177341",
+    "artifact_id": 12134508499,
+    "artifact_zip_sha256": "3d5bb546a9a909fd900a92a12df520b5aeb50d4d86b87a541758b419d8f49c0e",
+    "artifact_digest_matched_github": true,
+    "apk": "outputs/apk/BlackBox64/debug/app-BlackBox64-debug.apk",
+    "package": "top.niunaijun.blackboxa64",
+    "version": "2.3.1 (16)",
+    "engine_apk_modified": false,
+    "engine_built_locally": false,
+    "engine_build_note": "使用上游该提交的成功构建产物，保留原签名。源码已下载用于定位，本轮未在本机重新编译容器。"
+  },
+  "fixture": {
+    "package": "io.github.flysky701.hihatsprobe",
+    "source_files": ["ProbeActivity.java", "ProbeService.java", "ProbeProvider.java", "build_probe.py"],
+    "built_locally": true,
+    "min_sdk": 28,
+    "target_sdk": 28,
+    "requested_permissions": [],
+    "data": "固定测试标记和启动次数；无账号、凭据、设备标识或外部网络请求代码",
+    "build": "python mobile/sandbox/hihats-test/build_probe.py --jdk <JDK17> --sdk <AndroidSDK> --output mobile/.build/hihats-test/Cage-HIHATS-Probe.apk",
+    "toolchain": "JDK 17, Android platform 35, Build Tools 34.0.0",
+    "toolchain_note": "本机受限环境中 aapt 发生访问异常；同一构建在正常本机执行环境中完成。"
+  },
+  "checks": [
+    {"name": "独立安装与冷启动", "result": "PASS", "evidence": "ADB 安装成功，BlackBox64 MainActivity 正常显示；没有覆盖原 Cage/GBox 包。"},
+    {"name": "从系统文件选择器导入 APK", "result": "PASS", "evidence": "探针和 microG 分别出现在容器私有应用目录；探针可从主页启动。"},
+    {"name": "普通 Activity", "result": "PASS", "host": true, "guest": true},
+    {"name": "跨进程绑定 Service 并执行 Binder 回调", "result": "PASS", "host": true, "guest": true},
+    {"name": "WebView 本地页面及 JavaScript", "result": "PASS", "host": true, "guest": true, "limit": "只验证自有内置页面，不覆盖外部 HTTPS、登录页或任意 WebView 应用。"},
+    {"name": "私有数据保存与个人区分离", "result": "PASS", "evidence": "个人区初始计数 1；空间内初始计数 1，强停整个容器再启动后为 2，个人区仍为 1。后续升级探针后空间计数为 3。", "limit": "仅验证该探针私有首选项与文件，不能据此宣称容器全部隔离边界通过。"},
+    {"name": "跨进程 ContentProvider 查询", "result": "FAIL", "host": true, "guest_error": "SecurityException", "exception": "Calling uid: <virtual-uid> doesn't match source uid: <host-uid>", "stack": ["AttributionSource.enforceCallingUid", "AttributionSource.<init>", "AttributionSource$1.createFromParcel", "ContentProviderNative.onTransact"]},
+    {"name": "上游 microG 0.3.18.252432 导入", "result": "PASS", "package": "com.google.android.gms", "version_code": 252432036},
+    {"name": "microG 设置页启动", "result": "FAIL", "activity": "org.microg.gms.ui.MainSettingsActivity", "evidence": "读取自身配置 Provider 时发生同类 UID 校验错误，最终导致 Activity 布局初始化异常并退出。"}
+  ],
+  "diagnosis": {
+    "confirmed": "问题可由独立自有 Provider 复现，不依赖 Google 账号、Play Integrity 或 Claude。",
+    "source_inference": "ContentProviderStub/ContextCompat 在新版 Android 上把 AttributionSource 写为宿主 UID；NativeCore.getCallingUid 又把宿主 Binder UID 映射成虚拟调用 UID。日志与这两处处理在 Provider 接收端发生冲突相符，尚未用修改后对照验证根因。",
+    "relevant_sources": [
+      "Bcore/src/main/java/top/niunaijun/blackbox/fake/service/context/providers/ContentProviderStub.java",
+      "Bcore/src/main/java/top/niunaijun/blackbox/utils/compat/ContextCompat.java",
+      "Bcore/src/main/java/top/niunaijun/blackbox/core/NativeCore.java",
+      "Bcore/src/main/cpp/Hook/BinderHook.cpp"
+    ],
+    "next_step": "先在独立源码构建中修正 Provider 传输两端的身份一致性，保留 Android 校验与虚拟应用权限边界；复测本探针与 microG 设置页，再推进分包、Google 登录和 Claude。"
+  },
+  "not_verified": [
+    "容器在本机从完整 Java/C++ 源码重新构建",
+    "独立分包导入与升级",
+    "Google 账号登录",
+    "Play 商店下载与许可",
+    "Classic/Standard Play Integrity",
+    "Claude 登录与对话",
+    "联网、隐私屏蔽、断流保护及任意应用兼容性"
+  ],
+  "preservation": {
+    "existing_cage_gbox_packages_or_accounts_modified": false,
+    "global_network_settings_modified": false,
+    "new_account_login_attempted": false,
+    "paid_api_requested": false,
+    "installed_test_apps_retained": ["top.niunaijun.blackboxa64", "io.github.flysky701.hihatsprobe"],
+    "microg_location": "仅导入新建 HIHATS 容器，没有替换手机系统 Google Play 服务"
+  },
+  "local_evidence_directory": "mobile/.build/hihats-test",
+  "local_evidence_files": ["host-baseline.json", "guest-first.json", "guest-restart.json", "host-after-guest.json", "host-provider.json", "guest-provider.json", "microg-provider-failure.txt", "probe-provider-failure.txt", "guest-first.png", "guest-provider.png"],
+  "reproduction": [
+    "安装上游 ARM64 debug APK 到未占用的新包 top.niunaijun.blackboxa64，不覆盖旧空间。",
+    "构建探针，安装到个人区并启动 ProbeActivity，读取 run-as io.github.flysky701.hihatsprobe cat files/result.json。",
+    "从 BlackBox64 的加号、手动选择导入同一个探针 APK，启动后读取 run-as top.niunaijun.blackboxa64 cat blackbox/data/user/0/io.github.flysky701.hihatsprobe/files/result.json。",
+    "对照 remote_provider 与 remote_provider_error；按实际探针 Provider PID 读取 DatabaseUtils 异常栈，不抓取其他应用日志。",
+    "microG 对照仅向新空间导入原版 0.3.18.252432 APK，通过原壳 ShortcutActivity 的 pkg=com.google.android.gms、userId=0 启动；不需要登录账号即可复现设置页崩溃。"
+  ]
+}

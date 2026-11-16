@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import privacy
 import tarfile
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -20,6 +21,16 @@ BUNDLE = json.loads((HERE / "bundle.lock.json").read_text())
 
 def run(*args, cwd=None):
     subprocess.run([os.fspath(x) for x in args], cwd=cwd, check=True)
+
+
+def sdk_tool(args, name):
+    suffix = ".bat" if os.name == "nt" else ""
+    return args.sdk / "build-tools/36.1.0" / (name + suffix)
+
+
+def gradle(project, *tasks):
+    command = [project / "gradlew.bat"] if os.name == "nt" else ["bash", project / "gradlew"]
+    run(*command, "--no-daemon", *tasks, cwd=project)
 
 
 def source(name, provided, cache):
@@ -82,6 +93,8 @@ def prepare(args, project):
     core.write_text(text[:start] + signature + '\n        if (listener != null) listener.onFailure("Log upload is not included in Cage Open");\n    }' + text[end:])
     (java / "utils/LogSender.java").unlink()
     (java / "hooks/IntegrityProxy.java").unlink()
+    # Keep actual device properties for attestation; the fork installs fixed Pixel 6 values globally.
+    replace(project / "Bcore/src/main/cpp/Android.mk", "Utils/VirtualSpoof.cpp " + chr(92) + "\n", "")
     replace(java / "app/configuration/ClientConfiguration.java", 'return "-1003719573856";', "return null;")
     service = java / "fake/service/IActivityManagerProxy.java"
     remove_region(service, "            // Phase 2 / Fix 10:", "            if (intent == null) {")
@@ -106,6 +119,22 @@ def prepare(args, project):
     shutil.copytree(HERE / "runtime", project / "Bcore/src/main/java", dirs_exist_ok=True)
     # Reuse the existing source patch, rather than recovered APK/smali content.
     run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/android16-apk-import.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-package-identity.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/android-device-permission-check.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-process-identity.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-google-provider-routing.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-account-transport.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-service-connection.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-store-binder-transport.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-integrity-transport.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-account-session-identity.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-authenticator-cache.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-binder-attribution.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-application-locales.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-cross-profile.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-installed-state.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-microg-signature-compat.patch", cwd=project)
+    prepare_store_runtime(project / "Bcore/src/main/java")
     accounts = java / "core/system/accounts/BAccountManagerService.java"
     text = accounts.read_text(); start = text.index("        \n        BUserAccounts userAccounts", text.index("public AuthenticatorDescription[] getAuthenticatorTypes"))
     end = text.index("\n    }", start)
@@ -113,7 +142,13 @@ def prepare(args, project):
     guest = project / "Bcore/src/main/java/io/github/leexeo/cage/space"
     guest.mkdir(parents=True, exist_ok=True)
     shutil.copy2(HERE.parent / "sandbox/blackbox-light/GuestAuthenticatorTypes.java", guest)
+    shutil.copy2(HERE.parent / "sandbox/blackbox-light/demo/AccountTransport.java", guest)
     prepare_microg_runtime(java)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-store-installer.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-package-query-semantics.patch", cwd=project)
+    run("git", "apply", HERE.parent.parent / "patches/blackbox-reborn/guest-microg-native-binder.patch", cwd=project)
+    prepare_login_runtime(project / "Bcore/src/main/java")
+    privacy.prepare(project)
     # Keep component declarations but narrow host permissions for this import/start milestone.
     manifest = project / "Bcore/src/main/AndroidManifest.xml"
     android = "{http://schemas.android.com/apk/res/android}"
@@ -121,7 +156,8 @@ def prepare(args, project):
     ET.register_namespace("tools", "http://schemas.android.com/tools")
     xml = ET.parse(manifest); root = xml.getroot()
     keep = {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
-            "android.permission.WAKE_LOCK", "android.permission.FOREGROUND_SERVICE"}
+            "android.permission.WAKE_LOCK", "android.permission.FOREGROUND_SERVICE",
+            "android.permission.REORDER_TASKS"}
     seen = set()
     for child in list(root):
         if child.tag.startswith("uses-permission"):
@@ -138,11 +174,31 @@ def prepare(args, project):
     # Rebuild Dobby instead of linking the binary archives supplied by the container fork.
     for binary in (project / "Bcore/src/main/cpp/Dobby").rglob("*.a"): binary.unlink()
     replace(project / "Bcore/build.gradle", "abiFilters 'arm64-v8a', 'armeabi-v7a'", "abiFilters 'arm64-v8a'")
-    (project / "local.properties").write_text("sdk.dir=" + args.sdk.as_posix() + "\n")
+    (project / "local.properties").write_text("sdk.dir=" + args.sdk.as_posix().replace(":", "\\:") + "\n")
     return dobby
 
 
+def prepare_store_runtime(java):
+    """Reuse this repository's original-APK installer, scoped to Cage Open."""
+    source = HERE.parent / "sandbox/blackbox-light/demo"
+    destination = java / "io/github/leexeo/cage/space"
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in ("ClaudeBundle", "ClaudeUpgrade", "GuestSplits", "GuestInstaller"):
+        path = source / (name + ".java")
+        if name == "GuestInstaller":
+            path = source / "java/io/github/leexeo/cage/space/GuestInstaller.java"
+        content = path.read_text(encoding="utf-8").replace("top.niunaijun.microdem", "io.github.flysky701.cage.open")
+        if name == "GuestInstaller":
+            content = content.replace(" && !SharedGateway.METHOD.equals(method)", "")
+            content = content.replace("            if (SharedGateway.METHOD.equals(method)) return SharedGateway.localStatus(context);\n", "")
+        (destination / (name + ".java")).write_text(content, encoding="utf-8")
+
+
 def prepare_microg_runtime(java):
+    replace(java / "app/BActivityThread.java",
+            "    public synchronized void handleBindApplication(String packageName, String processName) {",
+            "    public synchronized void handleBindApplication(String packageName, String processName) {\n"
+            "        io.github.flysky701.cage.open.GuestCredentialPolicy.beforeBind(packageName);")
     hooks = java / "fake/hook/HookManager.java"
     for name in ("GmsProxy", "GoogleAccountManagerProxy", "AuthenticationProxy"):
         replace(hooks, f"            addInjector(new {name}());", "")
@@ -157,7 +213,7 @@ def prepare_microg_runtime(java):
             pi.signatures = original.signatures;
             pi.signingInfo = original.signingInfo;
         }
-''' + text[end:])
+''' + text[end:], newline='\n')
     # These newer account sessions have no guest implementation; never forward to personal accounts.
     accounts = java / "fake/service/IAccountManagerProxy.java"
     marker = '    public static final String TAG = "IAccountManagerProxy";'
@@ -185,16 +241,56 @@ def prepare_microg_runtime(java):
 ''')
 
 
+def prepare_login_runtime(java):
+    """Reuse the existing original-PendingIntent result bridge for Claude/microG."""
+    for name in ("GuestPendingActivity", "GuestCredentialResult"):
+        source = HERE.parent / "sandbox/blackbox-light/demo" / (name + ".java")
+        content = source.read_text(encoding="utf-8")
+        content = content.replace("top.niunaijun.microdem", "io.github.flysky701.cage.open")
+        content = content.replace("cage_demo_google_pending", "cage_open_google_pending")
+        content = content.replace('"CageDemo"', '"CageGooglePending"').replace("this DEMO's", "this space's")
+        destination = java / "io/github/leexeo/cage/space" / (name + ".java")
+        destination.write_text(content, encoding="utf-8", newline="\n")
+    runtime = java / "top/niunaijun/blackbox"
+    bridge = "io.github.leexeo.cage.space.GuestPendingActivity"
+    replace(runtime / "fake/service/IActivityManagerProxy.java",
+            "            IInterface invoke = (IInterface) method.invoke(who, args);\n            if (invoke != null) {",
+            f"            {bridge}.prepare(method, args);\n"
+            "            IInterface invoke = (IInterface) method.invoke(who, args);\n"
+            f"            {bridge}.created(invoke, method, args);\n            if (invoke != null) {{")
+    replace(runtime / "fake/service/IActivityTaskManagerProxy.java",
+            '    public static final String TAG = "ActivityTaskManager";',
+            '    public static final String TAG = "ActivityTaskManager";\n'
+            '    @Override public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {\n'
+            f'        Object result = {bridge}.start(getBase(), method, args);\n'
+            '        return result != null ? result : super.invoke(proxy, method, args);\n    }')
+    replace(runtime / "core/system/SystemCallProvider.java",
+            "    public Bundle call(@NonNull String method, @Nullable String arg, @Nullable Bundle extras) {",
+            "    public Bundle call(@NonNull String method, @Nullable String arg, @Nullable Bundle extras) {\n"
+            f"        Bundle pending = {bridge}.call(this, method, arg, extras);\n"
+            "        if (pending != null) return pending;")
+    replace(runtime / "proxy/ProxyPendingActivity.java",
+            "        super.onCreate(savedInstanceState);\n        finish();",
+            "        super.onCreate(savedInstanceState);\n"
+            f"        if ({bridge}.finishProxy(this)) return;\n        finish();")
+    for name in ("ActivityManagerCommonProxy", "IActivityClientProxy"):
+        path = runtime / "fake/service" / (name + ".java")
+        marker = ('    public static class FinishActivity extends MethodHook {\n'
+                  '        @Override\n'
+                  '        protected Object hook(Object who, Method method, Object[] args) throws Throwable {')
+        replace(path, marker, marker + '\n            io.github.leexeo.cage.space.GuestCredentialResult.finish(args);')
+
+
 def build_bundle(args, project):
     assets = project / "app/src/main/assets/bundle"
     assets.mkdir(parents=True, exist_ok=True)
     cache = args.bundle_inputs or args.work / "bundle-downloads"
     cache.mkdir(parents=True, exist_ok=True)
-    run("bash", project / "gradlew", "--no-daemon", ":probe:assembleDebug", cwd=project)
+    gradle(project, ":probe:assembleDebug")
     probe = project / "probe/build/outputs/apk/debug/probe-debug.apk"
     shutil.copy2(probe, assets / "cage-probe.apk")
     entries = [{"label": "Cage 内置测试", "package": "io.github.flysky701.cage.probe",
-                "versionCode": 1, "file": "cage-probe.apk", "sha256": hashlib.sha256(probe.read_bytes()).hexdigest()}]
+                "versionCode": 6, "file": "cage-probe.apk", "sha256": hashlib.sha256(probe.read_bytes()).hexdigest()}]
     for spec in sorted(BUNDLE["apps"], key=lambda item: item["package"] != "com.google.android.gms"):
         apk = cache / spec["name"]
         if not apk.exists():
@@ -206,7 +302,7 @@ def build_bundle(args, project):
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         if apk.stat().st_size != spec["size"] or digest != spec["sha256"]:
             raise ValueError("Bundled upstream APK checksum mismatch: " + spec["name"])
-        signature = subprocess.check_output([str(args.sdk / "build-tools/36.1.0/apksigner"),
+        signature = subprocess.check_output([str(sdk_tool(args, "apksigner")),
                                             "verify", "--print-certs", str(apk)], text=True)
         if "Signer #1 certificate SHA-256 digest: " + BUNDLE["signerSha256"] not in signature:
             raise ValueError("Unexpected microG signing certificate")
@@ -228,7 +324,7 @@ def build_assets(args, project):
     jar = work / "empty-classes.jar"
     with ZipFile(jar, "w", ZIP_DEFLATED) as z:
         for file in classes.rglob("*.class"): z.write(file, file.relative_to(classes))
-    run(args.sdk / "build-tools/36.1.0/d8", "--min-api", "28", "--output", work, jar)
+    run(sdk_tool(args, "d8"), "--min-api", "28", "--output", work, jar)
     with ZipFile(project / "Bcore/src/main/assets/empty.jar", "w", ZIP_DEFLATED) as z:
         z.write(work / "classes.dex", "classes.dex")
 
@@ -279,10 +375,11 @@ def main():
     shutil.copy2(native / "libdobby.a", project / "Bcore/src/main/cpp/Dobby/arm64-v8a/libdobby.a")
     build_assets(args, project)
     bundled = build_bundle(args, project)
-    run("bash", project / "gradlew", "--no-daemon", ":app:assembleDebug", cwd=project)
+    privacy.build_native(args, project)
+    gradle(project, ":app:assembleDebug")
     apk = project / "app/build/outputs/apk/debug/app-debug.apk"
-    run(args.sdk / "build-tools/36.1.0/apksigner", "verify", "--verbose", apk)
-    output = args.work / "Cage-Open-Bundled-Preview-0.0.2.apk"; shutil.copy2(apk, output)
+    run(sdk_tool(args, "apksigner"), "verify", "--verbose", apk)
+    output = args.work / "Cage-Open-Bundled-Preview-0.0.6.apk"; shutil.copy2(apk, output)
     report = {"artifact": output.name, "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
               "sources": LOCK, "bundledApps": bundled, "deviceTested": False, "claudeLoginTested": False}
     (args.work / "build-result.json").write_text(json.dumps(report, indent=2) + "\n")

@@ -1,0 +1,11 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/BActivityManagerService.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/BActivityManagerService.java
+@@ -173,6 +173,8 @@
+             ActivityManager.RunningAppProcessInfo runningAppProcessInfo = runningProcessMap.get(processRecord.pid);
+             if (runningAppProcessInfo != null) {
+                 runningAppProcessInfo.processName = processRecord.processName;
++                runningAppProcessInfo.uid = processRecord.buid;
++                runningAppProcessInfo.pkgList = new String[]{processRecord.getPackageName()};
+                 appProcessInfo.mAppProcessInfoList.add(runningAppProcessInfo);
+             }
+         }

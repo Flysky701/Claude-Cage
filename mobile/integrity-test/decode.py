@@ -70,7 +70,8 @@ def validate_verdict(data, payload):
         "应用识别": payload.get("appIntegrity", {}).get("appRecognitionVerdict", "未返回"),
         "应用许可": payload.get("accountDetails", {}).get("appLicensingVerdict", "未返回"),
         "设备完整性": payload.get("deviceIntegrity", {}).get("deviceRecognitionVerdict", []),
-        "说明": "这是本测试应用的判定；未上架应用的识别和许可结果不能代表其他应用。",
+        "设备标签字段存在": "deviceRecognitionVerdict" in payload.get("deviceIntegrity", {}),
+        "说明": "这是本测试应用的判定。设备标签缺失以 [] 展示；BASIC/STRONG 是可选标签，返回还受配置和 Play 许可条件约束，缺失不等于检测失败。未上架应用的识别和许可结果不能代表其他应用。",
         "tokenPayloadExternal": payload,
     }
 

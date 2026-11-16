@@ -1,4 +1,4 @@
-Cage Open 0.0.2 集成测试版
+Cage Open 0.0.6 登录兼容测试版
 
 microG Services 0.3.18.252432 / com.google.android.gms
 microG Companion 0.3.18.40226 / com.android.vending
@@ -25,4 +25,10 @@ and build.py in the project linked above. The APK was built with AndroidX,
 Material Components, FreeReflection, BlackReflection and toml4j dependencies.
 
 本版自动准备仅发生在 Cage 自己的来宾空间。已有来宾组件不会自动覆盖。
-尚未完成真机、Google/Claude 登录或隐私隔离验收。
+Google 账号认证与商店下载已有真机记录。Claude 的登录结果回传已修复，但仍提示无法经 Google Play 验证，尚未登录成功；设备完整性尚未通过。
+SIM、VPN 可见性和东京时区补丁仅作用于选定来宾，具体覆盖以本版测试记录为准。
+
+Privacy dependencies: ByteHook 1.1.2 and ShadowHook 2.0.1 (MIT).
+Full notices: assets/cage-privacy/THIRD-PARTY-NOTICES.txt.
+Sources: https://github.com/bytedance/bhook/tree/v1.1.2
+https://github.com/bytedance/android-inline-hook/tree/v2.0.1

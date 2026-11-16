@@ -29,16 +29,30 @@ public final class AccountTransport {
     public static IBinder wrap(ComponentName name, IBinder remote) {
         if (name == null || remote == null || !"com.google.android.gms".equals(name.getPackageName())
                 || !SERVICE.equals(name.getClassName())) return remote;
+        return wrap(remote, DESCRIPTOR);
+    }
+
+    /** Preserve the registered guest caller, without changing any integrity request or verdict. */
+    public static IBinder wrapIntegrity(ComponentName name, IBinder remote) {
+        if (name == null || remote == null || !"com.android.vending".equals(name.getPackageName())) return remote;
+        if ("com.google.android.finsky.integrityservice.IntegrityService".equals(name.getClassName()))
+            return wrap(remote, "com.google.android.play.core.integrity.protocol.IIntegrityService");
+        if ("com.google.android.finsky.expressintegrityservice.ExpressIntegrityService".equals(name.getClassName()))
+            return wrap(remote, "com.google.android.play.core.integrity.protocol.IExpressIntegrityService");
+        return remote;
+    }
+
+    private static IBinder wrap(IBinder remote, String descriptor) {
         if (Proxy.isProxyClass(remote.getClass()) && Proxy.getInvocationHandler(remote) instanceof Forwarder)
             return remote;
         try {
-            if (!DESCRIPTOR.equals(remote.getInterfaceDescriptor())) return remote;
+            if (!descriptor.equals(remote.getInterfaceDescriptor())) return remote;
         } catch (RemoteException unavailable) {
             throw new IllegalStateException("Private authenticator unavailable", unavailable);
         }
         Forwarder existing = channels.get(remote);
         if (existing != null) return existing.proxy;
-        Forwarder created = new Forwarder(remote);
+        Forwarder created = new Forwarder(remote, descriptor);
         existing = channels.putIfAbsent(remote, created);
         if (existing != null) { created.close(); return existing.proxy; }
         try {
@@ -55,6 +69,7 @@ public final class AccountTransport {
 
     private static final class Forwarder implements InvocationHandler, IBinder.DeathRecipient {
         final IBinder remote, proxy;
+        final String descriptor;
         final AtomicBoolean closed = new AtomicBoolean(), linked = new AtomicBoolean();
         private final Object enqueueLock = new Object();
         private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS,
@@ -64,8 +79,9 @@ public final class AccountTransport {
                     return thread;
                 }, new ThreadPoolExecutor.AbortPolicy());
 
-        Forwarder(IBinder remote) {
+        Forwarder(IBinder remote, String descriptor) {
             this.remote = remote;
+            this.descriptor = descriptor;
             proxy = (IBinder) Proxy.newProxyInstance(AccountTransport.class.getClassLoader(),
                     new Class<?>[]{IBinder.class}, this);
             worker.allowCoreThreadTimeOut(true);
@@ -146,8 +162,8 @@ public final class AccountTransport {
                     if (closed.get()) return;
                     outgoing = workerRequest();
                     reply = Parcel.obtain();
-                    // This worker belongs to BAccountManagerService's process. A synchronous
-                    // kernel Binder transaction exposes that actual process PID to microG.
+                    // Synchronous kernel delivery preserves this actual process PID so the
+                    // receiving service can resolve the registered private caller's UID.
                     if (!remote.transact(code, outgoing, reply, flags)) throw unavailable();
                     // This is a void oneway AIDL interface: success has no business reply.
                     // A synchronous delivery can nevertheless carry a framework exception.
@@ -173,7 +189,7 @@ public final class AccountTransport {
                     data.setDataPosition(0);
                     // Ask the platform to consume its own version-dependent Binder header.
                     // enforceInterface also imports StrictMode and WorkSource into this thread.
-                    data.enforceInterface(DESCRIPTOR);
+                    data.enforceInterface(descriptor);
                     payload = data.dataPosition();
                 } finally {
                     try { StrictMode.setThreadPolicy(workerPolicy); }
@@ -185,7 +201,7 @@ public final class AccountTransport {
                     // its header after converting to synchronous delivery would instead import
                     // the original main-thread policy. Generate a header on this worker, after
                     // restoring its policy, without relaxing any thread or process-wide policy.
-                    outgoing.writeInterfaceToken(DESCRIPTOR);
+                    outgoing.writeInterfaceToken(descriptor);
                     outgoing.appendFrom(data, payload, data.dataSize() - payload);
                     outgoing.setDataPosition(0);
                     return outgoing;

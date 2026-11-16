@@ -1,0 +1,41 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/accounts/BAccountManagerService.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/accounts/BAccountManagerService.java
+@@ -531,10 +531,23 @@
+                 authenticatorInfo != null && authenticatorInfo.desc.customTokens;
+ 
+         
+-        final String callerPkg = loginOptions.getString(AccountManager.KEY_ANDROID_PACKAGE_NAME);
+-
+-        
+-        loginOptions.putInt(AccountManager.KEY_CALLER_UID, Binder.getCallingUid());
++        ProcessRecord caller = BProcessManagerService.get().findProcessByPid(Binder.getCallingPid());
++        if (caller == null || caller.userId != userId)
++            throw new SecurityException("Unknown private account caller");
++        final String callerPkg = caller.getPackageName();
++        if (loginOptions == null) throw new IllegalArgumentException("Login options required");
++        String claimed = loginOptions.getString(AccountManager.KEY_ANDROID_PACKAGE_NAME);
++        if (claimed != null && !callerPkg.equals(claimed))
++            throw new SecurityException("Account request package mismatch");
++        int visibility = resolveAccountVisibility(account, callerPkg, accounts);
++        boolean owner = authenticatorInfo != null && callerPkg.equals(authenticatorInfo.desc.packageName);
++        if (!owner && visibility != AccountManager.VISIBILITY_VISIBLE
++                && visibility != AccountManager.VISIBILITY_USER_MANAGED_VISIBLE)
++            throw new SecurityException("Account is not visible to caller");
++        loginOptions.putString(AccountManager.KEY_ANDROID_PACKAGE_NAME, callerPkg);
++
++        
++        loginOptions.putInt(AccountManager.KEY_CALLER_UID, caller.buid);
+         loginOptions.putInt(AccountManager.KEY_CALLER_PID, Binder.getCallingPid());
+ 
+         if (notifyOnAuthFailure) {
+@@ -910,7 +923,9 @@
+         BUserAccounts userAccounts = getUserAccounts(userId);
+         if (userAccounts == null)
+             return false;
+-        return setAccountVisibility(account, packageName, newVisibility, userAccounts);
++        boolean changed = setAccountVisibility(account, packageName, newVisibility, userAccounts);
++        if (changed) saveAllAccounts();
++        return changed;
+     }
+ 
+     @Override

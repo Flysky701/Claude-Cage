@@ -1,0 +1,305 @@
+{
+  "date": "2026-11-16",
+  "artifact": {
+    "file": "Cage-Open-Bundled-Preview-0.0.6.apk",
+    "bytes": 121977386,
+    "sha256": "3804ad9df2182093edd0f9bd1d13ed49542aaba55fdce3be6c2198f1dcfe929d",
+    "package": "io.github.flysky701.cage.open",
+    "versionCode": 6,
+    "versionName": "0.0.6-login-preview",
+    "sameSignerUpdateInstalled": true
+  },
+  "device": {
+    "android": 16,
+    "api": 36,
+    "abi": "arm64-v8a"
+  },
+  "authorization": "User provided test account and authorized direct login testing; privacy patches may precede integrity acceptance.",
+  "implementation": [
+    "Framework credential service unavailable only in guest processes; existing AndroidX Play Services fallback used",
+    "Reuse repository GuestPendingActivity.java with original one-shot PendingIntent validation and result routing",
+    "Reuse repository GuestCredentialResult.java for Android 14+ result container compatibility; credential Bundle preserved"
+  ],
+  "validation": {
+    "build": "PASS",
+    "freshSourcePreparation": "PASS",
+    "preparedSourceFilesCompared": 13,
+    "modifiedPreparedSourcesMatch": true,
+    "sameSignatureUpdate": "PASS",
+    "installedVersionCode": 6,
+    "googleAccountAuthenticated": true,
+    "testAccountInGuestAccountFile": true,
+    "testAccountInSystemAccountDump": false,
+    "privateGoogleClientPackage": "com.anthropic.claude",
+    "pendingIntentRegistered": true,
+    "pendingIntentClaimed": true,
+    "realSystemSenderAccepted": true,
+    "privateActivityDispatched": true,
+    "actualResultContainerAdapted": true,
+    "claudeProcessUidMatchesHost": true,
+    "claudePrivacyFlagsActive": {
+      "sim": true,
+      "vpn": true,
+      "timezone": true,
+      "nativeProperties": true
+    },
+    "claudeLogin": "FAILED_PLAY_VERIFICATION",
+    "visibleError": "此应用无法经 Google Play 验证",
+    "serverPath": "/auth/verify_google_mobile",
+    "httpStatus": 400,
+    "finalInstalledBuildReproducedFailure": true
+  },
+  "preservation": {
+    "uninstallOrClearData": false,
+    "existingGuestComponentsRetained": true,
+    "gboxDataModified": false,
+    "phoneNetworkChanged": false,
+    "claudeMessagesSent": 0,
+    "payments": 0,
+    "credentialsInReport": false
+  },
+  "limits": {
+    "deviceIntegrity": "Prior owned-probe DEVICE verdict absent; no new acceptance verdict",
+    "claudeIntegrityTokenDecoded": false,
+    "specificPlayRejectionCause": "Not isolated among device, app recognition, licensing or other server checks",
+    "privacyProbeSuite": "0.0.5 results retained; not rerun because policy code unchanged; activation observed in final Claude process",
+    "optionalProfilePhoto": "Nonfatal String-to-Uri warning observed during candidate credential parsing; not changed",
+    "loginSuccess": false
+  },
+  "evidence": {
+    "privateLocalFolder": "mobile/.build/open-cage-store-test/claude-login",
+    "screenshot": "claude-play-verification-block.png",
+    "finalObservedTimeLocal": "2026-11-16 14:48:28 +08:00"
+  },
+  "followupPlayVerification": {
+    "observedAt": "2026-11-16T16:13:53+08:00",
+    "status": "FAILED_PLAY_VERIFICATION",
+    "newRuntimePatch": false,
+    "newApkBuilt": false,
+    "installedBuildRetained": "0.0.6-login-preview",
+    "claudeVersionCode": 26111319,
+    "storeOwnership": {
+      "matchingTestAccountRow": true,
+      "decodedLicensingVerdictNotEstablished": true
+    },
+    "diagnosticRequestObject": {
+      "googleCredentialPresent": true,
+      "recaptchaPresent": true,
+      "classicPlayIntegrityTokenPresent": true,
+      "classicPlayIntegrityTokenLength": 1443,
+      "optionalClientAttestationPresent": false,
+      "tokensOutputOrSaved": false,
+      "claudeIntegrityTokenDecoded": false
+    },
+    "server": {
+      "path": "/auth/verify_google_mobile",
+      "httpStatus": 400,
+      "errorType": "InvalidRequestError",
+      "enum": "MISSING_CLIENT_ATTESTATION",
+      "code": "missing_client_attestation",
+      "specificVerdictCauseUnresolved": true
+    },
+    "upstream": {
+      "tag": "v0.3.18.252432",
+      "comparedWith": "master",
+      "compareStatus": "identical",
+      "aheadBy": 0,
+      "newerReusablePatchFound": false
+    },
+    "gbox": {
+      "classicBindingFieldsCompared": true,
+      "earlierClaudeVersionCode": 26111119,
+      "sameVersionFreshLoginControlAvailable": false,
+      "existingSessionAndDataPreserved": true
+    },
+    "validation": {
+      "diagnosticJavac": "PASS",
+      "boundedRequestObjectRead": "PASS",
+      "postResponseErrorSnapshot": "PASS",
+      "freshUnattachedLogin": "FAILED_PLAY_VERIFICATION",
+      "loginSucceeded": false,
+      "methodEventAndBreakpointPrototypeRemovedAfterJdwpInstability": true,
+      "debugPortRemoved": true
+    },
+    "preservation": {
+      "dataCleared": false,
+      "networkChanged": false,
+      "payments": 0,
+      "claudeMessagesSent": 0
+    },
+    "limits": [
+      "Optional client_attestation absence is not proof that adding it will fix login.",
+      "Store ownership is not a decoded LICENSED verdict.",
+      "Owned-probe verdict is not the Claude app verdict.",
+      "No Claude-project decoding authority or service-side detailed verdict available."
+    ],
+    "evidenceDirectory": "mobile/.build/open-cage-store-test/play-verification"
+  },
+  "continuationSameVersionControls": {
+    "date": "2026-11-16",
+    "phoneOperationsDelegated": true,
+    "phoneOperatorModel": "gpt-6.1-terra",
+    "runtimeChanged": false,
+    "newCageApkBuilt": false,
+    "cageFirstColdLoginBranch": {
+      "legacyMint": "MINTED",
+      "legacyMintMs": 5644,
+      "challengeAttempted": false,
+      "clientAttestationPresent": false,
+      "featureCount": 44,
+      "credentialAttestationFlagServerRecordPresent": false,
+      "credentialAttestationFlagOverridePresent": false,
+      "attemptCount": 1,
+      "blockedUntilPresent": false,
+      "source": "open-first-branch.txt and open-flag-state.txt"
+    },
+    "gboxSameVersionControl": {
+      "date": "2026-11-16",
+      "device": "physical Android 16",
+      "independentHost": "com.cagx.android",
+      "claudeVersionCode": 26111319,
+      "clonedBaseMatchesOriginal": true,
+      "googleAccountAuthentication": "PASS",
+      "claudeLogin": "FAILED_PLAY_VERIFICATION",
+      "serverErrorEnum": "MISSING_CLIENT_ATTESTATION",
+      "serverErrorCode": "missing_client_attestation",
+      "legacyMint": "MINTED",
+      "legacyMintMs": 6024,
+      "challengeAttempted": false,
+      "observedRequestObject": {
+        "classicPlayIntegrityTokenPresent": false,
+        "clientAttestationPresent": false,
+        "caveat": "Heap polling may observe an intermediate request object; final serialized request not separately observed."
+      },
+      "featureFlag": {
+        "name": "claudeai_google_sign_in_credential_attestation",
+        "serverRecordPresent": false,
+        "overridePresent": false,
+        "loadedFeatureCount": 44
+      },
+      "diagnosticDebuggerAttachedDuringLogin": true,
+      "unattachedRetest": {
+        "timestamp": "2026-11-16T17:11:02+08:00",
+        "coldStart": true,
+        "debuggerAttached": false,
+        "adbForwardPresent": false,
+        "googleAccount": "existing test account authorized",
+        "claudeLogin": "PASS",
+        "visibleResult": "Claude home, Free plan, input available",
+        "http400Observed": false,
+        "matchingFailureLogEvents": 0,
+        "requestFieldsAndServerSuccessStatus": "not observed",
+        "finalScreen": "Claude signed-in home",
+        "messagesSent": 0
+      },
+      "existingGboxNewLogin": "FAILED_PLAY_VERIFICATION",
+      "networkChanged": false,
+      "messagesSent": 0,
+      "dataCleared": false,
+      "systemClaudeInstalledAsCloneSource": true,
+      "credentialsOrTokensIncluded": false,
+      "interpretation": "Prior diagnostic-attached attempt failed; fresh unattached attempt succeeded. Debugger influence, server variation, and other timing differences remain unisolated."
+    },
+    "cageContemporaryUnattachedControl": {
+      "timestamp": "2026-11-16T17:12:47+08:00",
+      "host": "io.github.flysky701.cage.open",
+      "hostVersion": "0.0.6",
+      "claudeVersionCode": 26111319,
+      "coldStart": true,
+      "debuggerAttached": false,
+      "adbForwards": false,
+      "googleAccount": "existing test account",
+      "httpStatus": 400,
+      "path": "/auth/verify_google_mobile",
+      "uiResult": "FAILED_PLAY_VERIFICATION",
+      "networkChanged": false,
+      "messagesSent": 0,
+      "gboxLoggedInSessionPreserved": true
+    },
+    "upstreamCompanionLoginControl": {
+      "time": "2026-11-16T17:19:13+08:00",
+      "companionVersion": "0.3.18.40226",
+      "test": "FAILED_PLAY_VERIFICATION",
+      "http400Observed": true,
+      "companionIntegrityRequestCalled": true,
+      "debuggerAttached": false,
+      "originalStoreRestored": "45.7.17-31 [0] [PR] 744026385",
+      "originalStoreApkMatches": true,
+      "originalCeDeRestoredByMove": true,
+      "testAccountFoundInAccountsFile": true,
+      "claudeVersion": "1.261113.19",
+      "claudeDataCleared": false,
+      "backup": "store-before-companion.tar",
+      "gboxSessionUntouched": true,
+      "credentialsIncluded": false
+    },
+    "successfulGboxLogComparison": {
+      "gboxSuccessWindow17_11": {
+        "bufferLinesInMinute": 13,
+        "fixedEventCounts": {
+          "requestIntegrityToken": 0,
+          "IntegrityService": 0,
+          "DroidGuard": 0,
+          "EmbeddedDroidGuard": 0,
+          "NetworkDroidGuard": 0,
+          "onRequestIntegrityToken": 0,
+          "verify_google_mobile": 0
+        },
+        "claudePackageMentioned": false,
+        "version26111319Observed": false,
+        "errorClasses": [],
+        "tokenCallback": "not observed",
+        "certificateMatch": "not observed",
+        "remoteDroidGuard": "not established"
+      },
+      "cageCompanionWindow17_19": {
+        "bufferLinesInMinute": 1117,
+        "fixedEventCounts": {
+          "requestIntegrityToken": 0,
+          "IntegrityService": 0,
+          "DroidGuard": 0,
+          "EmbeddedDroidGuard": 0,
+          "NetworkDroidGuard": 0,
+          "onRequestIntegrityToken": 0,
+          "verify_google_mobile": 0
+        },
+        "claudePackageMentioned": false,
+        "version26111319Observed": false,
+        "errorClasses": [],
+        "tokenCallback": "not observed",
+        "certificateMatch": "not observed",
+        "remoteDroidGuard": "not established"
+      },
+      "limits": "Counts only in fixed minute windows; absence is not proof a request did not occur. No tokens, account identifiers, raw log lines, or endpoint addresses retained."
+    },
+    "upstreamReview": {
+      "microgTag": "v0.3.18.252432",
+      "microgMasterComparison": "identical",
+      "microgAheadBy": 0,
+      "blackboxPinnedCommit": "fd0640919c7903a167abf0215ee68ebeaea53485",
+      "blackboxComparedMain": "7b86a9d62a974650e0659825758931cd91140827",
+      "blackboxAheadBy": 3,
+      "blackboxChangeScope": "WhatsApp integrity bridge and session import; not a verified Claude fix",
+      "reusableClaudeFixFound": false
+    },
+    "analysisCorrections": {
+      "missingFlagExplainsSkippedBranch": true,
+      "missingFlagAloneProvesServerRejectionCause": false,
+      "credentialBoundBranchUsesClassicIntegrityApi": true,
+      "genericProbeHostCertificateProvesDroidGuardUploadedHostCertificate": false,
+      "previousMicrogCertificateChainBlockingObserved": true,
+      "claudeTokenDecoded": false,
+      "claudeTokenDecodeCredentialsAvailable": false,
+      "gboxSuccessfulRequestFieldsObserved": false,
+      "debuggerAsSoleCauseEstablished": false,
+      "serverTimeChangeAsSoleCauseEstablished": false
+    },
+    "diagnostics": {
+      "flagObserverArchived": true,
+      "boundedObserverTimeoutMessageClarified": true,
+      "pollingRetainedAfterIntermediateRequestObserved": true,
+      "javacJdk17": "PASS",
+      "includedInApk": false
+    }
+  }
+}

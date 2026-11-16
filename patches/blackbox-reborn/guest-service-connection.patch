@@ -1,0 +1,14 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
+@@ -368,10 +368,7 @@
+                     IServiceConnection proxy = ServiceConnectionDelegate.createProxy(connection, intent);
+                     args[4] = proxy;
+ 
+-                    WeakReference<?> weakReference = BRLoadedApkServiceDispatcherInnerConnection.get(connection).mDispatcher();
+-                    if (weakReference != null) {
+-                        BRLoadedApkServiceDispatcher.get(weakReference.get())._set_mConnection(proxy);
+-                    }
++                    // Keep Android's ServiceConnection; unbindService maps the original Binder to this delegate.
+                 }
+ 
+                 

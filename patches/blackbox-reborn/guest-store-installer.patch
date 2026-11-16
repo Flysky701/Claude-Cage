@@ -1,0 +1,100 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
+@@ -899,7 +899,7 @@
+             for (ProviderInfo providerInfo : providers) {
+                 try {
+                     if (processName.equals(providerInfo.processName) ||
+-                            providerInfo.processName.equals(context.getPackageName()) || providerInfo.multiprocess) {
++                            providerInfo.multiprocess) {
+                         installProvider(BlackBoxCore.mainThread(), context, providerInfo, null);
+                     }
+                 } catch (SecurityException se) {
+@@ -921,6 +921,7 @@
+     }
+ 
+     public static Context createPackageContext(ApplicationInfo info) {
++        io.github.leexeo.cage.space.GuestSplits.beforeContext(info);
+         try {
+             return BlackBoxCore.getContext().createPackageContext(info.packageName,
+                     Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+@@ -1028,7 +1029,7 @@
+                         continue;
+                     }
+                     if (processName.equals(providerInfo.processName) ||
+-                            providerInfo.processName.equals(context.getPackageName()) || providerInfo.multiprocess) {
++                            providerInfo.multiprocess) {
+                         installProvider(BlackBoxCore.mainThread(), context, providerInfo, null);
+                     }
+                 } catch (Throwable ignored) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/pm/PackageManagerCompat.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/pm/PackageManagerCompat.java
+@@ -195,7 +195,7 @@
+             pi.signatures = original.signatures;
+             pi.signingInfo = original.signingInfo;
+         }
+-        return pi;
++        return io.github.leexeo.cage.space.GuestSplits.packageInfo(pi, flags);
+     }
+ 
+     public static ActivityInfo generateActivityInfo(BPackage.Activity a, int flags, BPackageUserState state, int userId) {
+@@ -312,7 +312,7 @@
+             }
+         }
+         fixJar(ai);
+-        return ai;
++        return io.github.leexeo.cage.space.GuestSplits.apply(ai, userId);
+     }
+ 
+     private static boolean checkUseInstalledOrHidden(int flags, BPackageUserState state,
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/SystemCallProvider.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/SystemCallProvider.java
+@@ -47,6 +47,8 @@
+             Slog.d(TAG, "call: " + method + ", " + extras);
+             if (io.github.flysky701.cage.open.GuestAccountBridge.METHOD.equals(method))
+                 return io.github.flysky701.cage.open.GuestAccountBridge.identify(this, arg, extras);
++            Bundle installer = io.github.leexeo.cage.space.GuestInstaller.provide(this, method, arg, extras);
++            if (installer != null) return installer;
+             if ("VM".equals(method)) {
+                 Bundle bundle = new Bundle();
+                 if (extras != null) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPackageManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPackageManagerProxy.java
+@@ -364,12 +364,19 @@
+         }
+     }
+ 
+-    @ProxyMethod("getInstallerPackageName")
++    @top.niunaijun.blackbox.fake.hook.ProxyMethods({"getInstallerPackageName", "getInstallSourceInfo"})
+     public static class GetInstallerPackageName extends MethodHook {
+         @Override
+         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+-            
+-            return "com.android.vending";
++            return io.github.leexeo.cage.space.GuestInstaller.querySource(method, args);
++        }
++    }
++
++    @ProxyMethod("getPackageInstaller")
++    public static class GetPackageInstaller extends MethodHook {
++        @Override
++        protected Object hook(Object who, Method method, Object[] args) {
++            return io.github.leexeo.cage.space.GuestInstaller.get();
+         }
+     }
+ 
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/ContentProviderDelegate.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/ContentProviderDelegate.java
+@@ -73,8 +73,11 @@
+             if (!sInjected.contains(providerName)) {
+                 sInjected.add(providerName);
+                 final IInterface iInterface = BRActivityThreadProviderClientRecordP.get(value).mProvider();
+-                BRActivityThreadProviderClientRecordP.get(value)._set_mProvider(new ContentProviderStub().wrapper(iInterface, BlackBoxCore.getHostPkg()));
+-                BRActivityThreadProviderClientRecordP.get(value)._set_mNames(new String[]{providerName});
++                if (iInterface == null || iInterface instanceof Proxy) continue;
++                android.content.pm.ProviderInfo guestProvider = BlackBoxCore.getBPackageManager()
++                        .resolveContentProvider(providerName, 0, top.niunaijun.blackbox.app.BActivityThread.getUserId());
++                String owner = guestProvider == null ? BlackBoxCore.getHostPkg() : guestProvider.packageName;
++                BRActivityThreadProviderClientRecordP.get(value)._set_mProvider(new ContentProviderStub().wrapper(iInterface, owner));
+             }
+         }
+     }

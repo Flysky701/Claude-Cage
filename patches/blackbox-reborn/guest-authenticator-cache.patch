@@ -1,0 +1,13 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/accounts/BAccountManagerService.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/accounts/BAccountManagerService.java
+@@ -1385,9 +1385,7 @@
+     public void loadAuthenticatorCache(String packageName) {
+         mAuthenticatorCache.authenticators.clear();
+         Intent intent = new Intent(AccountManager.ACTION_AUTHENTICATOR_INTENT);
+-        if (packageName != null) {
+-            intent.setPackage(packageName);
+-        }
++        // The map is rebuilt in full after every package change.
+         generateServicesMap(
+                 mPms.queryIntentServices(intent, PackageManager.GET_META_DATA, BUserHandle.USER_ALL),
+                 mAuthenticatorCache.authenticators, new RegisteredServicesParser());

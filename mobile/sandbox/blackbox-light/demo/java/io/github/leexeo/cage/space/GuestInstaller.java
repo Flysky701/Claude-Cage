@@ -61,6 +61,7 @@ public final class GuestInstaller {
     static final String SESSION = "android.content.pm.IPackageInstallerSession";
     static final long MAX_FILE = 160L * 1024 * 1024;
     static final long MAX_TOTAL = 256L * 1024 * 1024;
+    static final long MAX_APP_METADATA = 32000;
     private static volatile Engine engine;
     private static Object client;
 
@@ -440,12 +441,18 @@ public final class GuestInstaller {
             if ("getParentSessionId".equals(name)) return -1;
             if ("getInstallFlags".equals(name)) return 0;
             if ("fetchPackageNames".equals(name)) return s.packageName == null ? Collections.emptyList() : Collections.singletonList(s.packageName);
-            if ("getDataLoaderParams".equals(name) || "getAppMetadataFd".equals(name) || "getPreVerifiedDomains".equals(name)) return null;
+            if ("getDataLoaderParams".equals(name) || "getPreVerifiedDomains".equals(name)) return null;
+            if ("getAppMetadataFd".equals(name)) {
+                File metadata = child(s.directory, "app-metadata.pb");
+                return metadata.isFile() ? ParcelFileDescriptor.open(metadata, ParcelFileDescriptor.MODE_READ_ONLY) : null;
+            }
             if ("abandon".equals(name)) { abandon(s); return null; }
             if ("commit".equals(name)) {
                 if (s.finished || s.sealed || Boolean.TRUE.equals(args[1])) throw new IllegalStateException("Session cannot be committed");
                 if (args[0] == null) throw new IllegalArgumentException("Result receiver required");
                 for (Object bridge : s.bridges) if (!bridgeClosed(bridge)) throw new SecurityException("Session still has open streams");
+                if (child(s.directory, "app-metadata.pb").length() > MAX_APP_METADATA)
+                    throw new IllegalArgumentException("App metadata exceeds platform limit");
                 s.sealed = true; s.save();
                 IntentSender receiver = (IntentSender) args[0];
                 commits.execute(() -> commit(s, receiver));
@@ -459,6 +466,12 @@ public final class GuestInstaller {
                 s.save(); notify(s, "onSessionProgressChanged", id, s.progress); return null;
             }
             if ("openWrite".equals(name)) return openWrite(s, (String) args[0], (Long) args[1], (Long) args[2]);
+            if ("openWriteAppMetadata".equals(name)) {
+                File metadata = child(s.directory, "app-metadata.pb");
+                ParcelFileDescriptor fd = ParcelFileDescriptor.open(metadata,
+                    ParcelFileDescriptor.MODE_CREATE | ParcelFileDescriptor.MODE_READ_WRITE | ParcelFileDescriptor.MODE_TRUNCATE);
+                return writeTransport(s, metadata, fd, 0);
+            }
             if ("write".equals(name)) {
                 try (InputStream in = new ParcelFileDescriptor.AutoCloseInputStream((ParcelFileDescriptor) args[3])) {
                     copyTo(s, (String) args[0], (Long) args[1], (Long) args[2], in);
@@ -473,7 +486,11 @@ public final class GuestInstaller {
                 return null;
             }
             if ("setChecksums".equals(name)) { child(s.payload, (String) args[0]); return null; } // Original APK signatures are checked at commit.
-            if ("removeAppMetadata".equals(name)) return null;
+            if ("removeAppMetadata".equals(name)) {
+                File metadata = child(s.directory, "app-metadata.pb");
+                if (metadata.exists() && !metadata.delete()) throw new IOException("Cannot remove app metadata");
+                return null;
+            }
             if ("seal".equals(name)) throw new UnsupportedOperationException("Seal through commit");
             throw new UnsupportedOperationException("Private session operation not supported: " + name);
         }
@@ -521,11 +538,15 @@ public final class GuestInstaller {
 
         ParcelFileDescriptor openWrite(Session s, String name, long offset, long length) throws Exception {
             ParcelFileDescriptor fd = fileForWrite(s, name, offset, length);
+            return writeTransport(s, child(s.payload, name), fd, offset);
+        }
+
+        ParcelFileDescriptor writeTransport(Session s, File target, ParcelFileDescriptor fd, long offset) throws Exception {
             boolean revocable = (Boolean) PackageInstaller.class.getField("ENABLE_REVOCABLE_FD").get(null);
             if (revocable) {
                 fd.close();
                 final boolean[] closed = { false };
-                ParcelFileDescriptor watched = ParcelFileDescriptor.open(child(s.payload, name),
+                ParcelFileDescriptor watched = ParcelFileDescriptor.open(target,
                     ParcelFileDescriptor.MODE_CREATE | ParcelFileDescriptor.MODE_READ_WRITE,
                     handler, error -> { synchronized (Engine.this) { closed[0] = true; } });
                 Os.lseek(watched.getFileDescriptor(), offset, OsConstants.SEEK_SET);
@@ -593,13 +614,21 @@ public final class GuestInstaller {
                 synchronized (this) { files = names(s); }
                 if (files.length == 0) throw new IOException("Empty session");
                 File archive = child(s.directory, "payload.zip");
-                String expectedBase = null; long expectedVersion = -1; long total = 0;
+                String expectedBase = null; long expectedVersion = -1; long total = 0; int apkCount = 0;
                 try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(archive))) {
                     for (String name : files) {
                         File file = child(s.payload, name);
                         if (file.length() <= 0 || file.length() > MAX_FILE || (total += file.length()) > MAX_TOTAL)
                             throw new IOException("Invalid staged file size");
+                        // ART profiles are optional install sidecars, not executable APK splits.
+                        // Keep their original bytes in the private session; never load or repackage them.
+                        if (name.endsWith(".dm")) {
+                            if (!child(s.payload, name.substring(0, name.length() - 3) + ".apk").isFile())
+                                throw new IOException("Dex metadata has no matching APK");
+                            continue;
+                        }
                         Object apk = inspect(file);
+                        apkCount++;
                         String split = (String) field(apk, "split");
                         long version = ((Number) field(apk, "version")).longValue();
                         if (expectedVersion != -1 && expectedVersion != version) throw new IOException("Mixed APK versions");
@@ -616,7 +645,7 @@ public final class GuestInstaller {
                     }
                 }
                 if (expectedBase == null) throw new IOException("Missing base APK");
-                Log.i("CageInstall", "commit_validated parts=" + files.length);
+                Log.i("CageInstall", "commit_validated parts=" + apkCount);
                 Class.forName("io.github.leexeo.cage.space.ClaudeBundle").getMethod("install", Context.class, File.class).invoke(null, context, archive);
                 File installed = installedBase();
                 PackageInfo info = context.getPackageManager().getPackageArchiveInfo(installed.getPath(), PackageManager.GET_SIGNING_CERTIFICATES);

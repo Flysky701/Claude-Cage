@@ -1,0 +1,76 @@
+{
+  "date": "2026-11-16",
+  "artifact": {
+    "file": "Cage-Open-Bundled-Preview-0.0.5.apk",
+    "bytes": 121960646,
+    "sha256": "beb66c95c64f8e084bcfecd88197c4bbd19400a3dd77675e9b5efcde9d322ada",
+    "versionCode": 5,
+    "versionName": "0.0.5-privacy-preview",
+    "package": "io.github.flysky701.cage.open",
+    "signerSha256": "1dba72036c407f4a8bf85254f2e4827f756d808cf9354fbb309abd3031a0d6ab",
+    "installedOnTestPhone": true
+  },
+  "authorization": "User changed sequence: apply privacy patches now and personally test Claude login.",
+  "device": {
+    "android": 16,
+    "api": 36,
+    "abi": "arm64-v8a"
+  },
+  "scope": {
+    "selectedPackages": [
+      "com.anthropic.claude",
+      "io.github.leexeo.cage.gboxprobe",
+      "io.github.flysky701.cage.probe"
+    ],
+    "timezone": "Asia/Tokyo",
+    "systemPropertiesWritten": false,
+    "phoneNetworkChanged": false,
+    "microgAndStorePolicyEnabled": false,
+    "gboxBinaryInput": false
+  },
+  "implementation": [
+    "Reuse repository privacy module through BlackBox source adapters",
+    "Process-local SIM/timezone property reads using pinned Dobby",
+    "ISub proxy added after real probe exposed default subscription IDs",
+    "Pinned ByteHook 1.1.2 and ShadowHook 2.0.1 for selected native callers",
+    "Existing child environment and WebView monitor policy"
+  ],
+  "validation": {
+    "build": "PASS",
+    "freshSourcePreparation": "PASS",
+    "modifiedPreparedSourcesMatch": true,
+    "comparedSourceFiles": 17,
+    "sim": "PASS_FOR_RECORDED_PATHS",
+    "vpnVisibility": "PASS_FOR_RECORDED_PATHS",
+    "activeTunnelMetadata": "PASS_FOR_RECORDED_ACTIVE_TUNNEL",
+    "timezone": "PASS_FOR_RECORDED_PATHS",
+    "finalFirstWebViewScript": "Asia/Tokyo / +540",
+    "nativePropertyApiControls": "INCONCLUSIVE_MISSING_OR_INVALID_READINGS",
+    "builtinProbeCounter": 12,
+    "builtinIdentitySignatureInstallSourceChecks": "PASS",
+    "claudeLoginPageVisible": true,
+    "claudeProcessUidMatchesHost": true,
+    "claudePrivacyNativeBindResult": 2,
+    "claudePrivacyFlagsActive": true,
+    "claudeChildPolicyActive": true,
+    "claudeWebviewMonitor": "ARMED_BEFORE_ENGINE"
+  },
+  "preservation": {
+    "sameSignatureUpdate": true,
+    "uninstallOrClearData": false,
+    "existingGuestComponentsRetained": true,
+    "existingProbeCounterRetained": true,
+    "gboxDataModified": false,
+    "phoneNetworkChanged": false
+  },
+  "pending": {
+    "claudeLogin": "USER_TEST_PENDING",
+    "deviceIntegrity": "NOT_RETESTED; prior DEVICE verdict absent",
+    "webviewFirstScriptGuarantee": "Not established across renderer startup/recreation; observed Tokyo in both candidate and final runs",
+    "rawSyscallsNetlink": "NOT_TESTED",
+    "explicitChildEnvironment": "NOT_TESTED",
+    "networkFailureBlocking": "NOT_TESTED",
+    "fullDataIsolation": "NOT_RETESTED"
+  },
+  "evidence": "Private local mobile/.build/open-cage-store-test/privacy-test; no accounts, identifiers, raw addresses, tokens or credentials in this summary."
+}

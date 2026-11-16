@@ -1,0 +1,20 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
+@@ -60,6 +60,7 @@
+ 
+         try {
+             IBinder iBinder = service.onBind(intent);
++            iBinder = io.github.flysky701.cage.open.StoreBinderTransport.publish(serviceInfo, iBinder);
+             record.addBinder(intent, iBinder);
+             return iBinder;
+         } catch (Throwable e) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/ServiceConnectionDelegate.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/ServiceConnectionDelegate.java
+@@ -94,6 +94,7 @@
+     }
+ 
+     public void connected(ComponentName name, IBinder service, boolean dead) throws RemoteException {
++        service = io.github.flysky701.cage.open.StoreBinderTransport.connect(mComponentName, service);
+         if (BuildCompat.isOreo()) {
+             BRIServiceConnectionO.get(mConn).connected(mComponentName, service, dead);
+         } else {

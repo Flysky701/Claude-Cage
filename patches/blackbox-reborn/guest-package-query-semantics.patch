@@ -1,0 +1,52 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPackageManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPackageManagerProxy.java
+@@ -103,6 +103,27 @@
+         }
+     }
+ 
++    @ProxyMethod("queryIntentActivities")
++    public static class QueryIntentActivities extends MethodHook {
++        @Override
++        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
++            Intent intent = (Intent) args[0];
++            Intent target = intent.getSelector() == null ? intent : intent.getSelector();
++            String packageName = target.getComponent() == null ? target.getPackage()
++                    : target.getComponent().getPackageName();
++            if (packageName == null || AppSystemEnv.isOpenPackage(packageName))
++                return method.invoke(who, args);
++            List<ResolveInfo> activities = BlackBoxCore.getBPackageManager().getService()
++                    .queryIntentActivities(target, MethodParameterUtils.toInt(args[2]),
++                            (String) args[1], BlackBoxCore.getUserId());
++            if (activities == null) activities = new ArrayList<>();
++            if (ParceledListSliceCompat.isReturnParceledListSlice(method))
++                return ParceledListSliceCompat.create(activities);
++            if (List.class.isAssignableFrom(method.getReturnType())) return activities;
++            throw new UnsupportedOperationException("Unsupported private activity list type");
++        }
++    }
++
+     @ProxyMethod("resolveService")
+     public static class ResolveService extends MethodHook {
+         @Override
+@@ -383,7 +404,20 @@
+     public static class GetInstallerPackageName extends MethodHook {
+         @Override
+         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+-            return io.github.leexeo.cage.space.GuestInstaller.querySource(method, args);
++            String packageName = (String) args[0];
++            if (AppSystemEnv.isOpenPackage(packageName)) return method.invoke(who, args);
++            int user = BlackBoxCore.getUserId();
++            if (args.length > 1 && ((Integer) args[1]) != user)
++                throw new SecurityException("Wrong private package user");
++            ApplicationInfo info = BlackBoxCore.getBPackageManager().getService()
++                    .getApplicationInfo(packageName, 0, user);
++            if (info == null) return null;
++            Object source = io.github.leexeo.cage.space.GuestInstaller.querySource(method, args);
++            if (source != null || "getInstallerPackageName".equals(method.getName())) return source;
++            // Installed imports have unknown provenance, not a missing package or Play provenance.
++            return Class.forName("android.content.pm.InstallSourceInfo")
++                    .getConstructor(String.class, android.content.pm.SigningInfo.class, String.class, String.class)
++                    .newInstance(null, null, null, null);
+         }
+     }
+ 

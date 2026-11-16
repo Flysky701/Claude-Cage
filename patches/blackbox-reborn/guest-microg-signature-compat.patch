@@ -1,0 +1,13 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPackageManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPackageManagerProxy.java
+@@ -149,8 +149,9 @@
+             // Only explicitly shared system packages may resolve outside Cage.
+             // The upstream facade has host/fake fallbacks, so call the guest service directly.
+             if (AppSystemEnv.isOpenPackage(packageName)) return method.invoke(who, args);
+-            return BlackBoxCore.getBPackageManager().getService()
++            PackageInfo info = BlackBoxCore.getBPackageManager().getService()
+                     .getPackageInfo(packageName, flags, BlackBoxCore.getUserId());
++            return io.github.flysky701.cage.open.MicrogSignatureCompat.forGuest(info, flags);
+         }
+     }
+ 

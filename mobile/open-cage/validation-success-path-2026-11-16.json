@@ -1,0 +1,1239 @@
+{
+  "updatedAt": "2026-11-16T18:46:31+08:00",
+  "phoneOperationsDelegated": true,
+  "phoneOperatorModel": "gpt-6.1-terra",
+  "goalStatus": "NOT_YET_ACHIEVED",
+  "claudeVersionCode": 26111319,
+  "productionApk": "Cage-Open-Bundled-Preview-0.0.6.apk",
+  "diagnosticCandidatesAreNotReleases": true,
+  "controls": {
+    "gboxNewLocalSuccess": {
+      "result": {
+        "time": "2026-11-16T17:43:25+08:00",
+        "claudeVersionCode": 26111319,
+        "baseMatchesOriginal": true,
+        "googleAccountAuthentication": "PASS",
+        "login": "PASS",
+        "freePlanAndInputVisible": true,
+        "http400Observed": false,
+        "debuggerAttached": false,
+        "messagesSent": 0,
+        "existingGboxSessionUntouched": true,
+        "metadataLog": "gbox-second-route.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T09:42:44.865437+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 17:42:56.732",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:42:58.113",
+          "event": "mgc_service_connected"
+        },
+        {
+          "time": "11-16 17:42:58.134",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:42:58.156",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 17:42:59.495",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 17:42:59.497",
+          "event": "droidguard_local_selected"
+        },
+        {
+          "time": "11-16 17:43:00.825",
+          "event": "droidguard_embedded_initialized"
+        },
+        {
+          "time": "11-16 17:43:01.030",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 17:43:01.033",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 17:43:01.033",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 17:43:01.793",
+          "event": "classic_token_returned",
+          "tokenChars": 1854,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 17:43:01.793",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:43:01.793",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 17:43:05.326",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 17:43:13.158",
+          "event": "droidguard_local_selected"
+        }
+      ]
+    },
+    "companionBaseline": {
+      "result": {
+        "time": "2026-11-16T17:45:33+08:00",
+        "login": "FAILED_PLAY_VERIFICATION",
+        "http400": true,
+        "debuggerAttached": false,
+        "originalStoreVersion": "45.7.17-31 [0] [PR] 744026385",
+        "originalStoreApkMatches": true,
+        "originalCeDeRestored": true,
+        "claudeDataCleared": false,
+        "gboxSessionsUntouched": true,
+        "routeLog": "open-companion-route.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T09:44:34.936199+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 17:45:05.170",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:45:05.665",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:45:06.073",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 17:45:08.322",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 17:45:08.324",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 17:45:08.324",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 17:45:08.920",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 17:45:08.932",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:45:08.934",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 17:45:11.484",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 17:45:11.989",
+          "event": "verify_google_http400"
+        }
+      ]
+    },
+    "unchangedUpstreamProvider": {
+      "result": {
+        "timestamp": "2026-11-16T17:53:16+08:00",
+        "upstreamProviderControlObserved": true,
+        "login": "FAILED_PLAY_VERIFICATION",
+        "http400": true,
+        "tokenLength": 1443,
+        "originalStoreRestored": true,
+        "originalStoreApkMatches": true,
+        "originalStoreCeDeRestored": true,
+        "originalCageApkReinstalled": true,
+        "claudeDataCleared": false,
+        "gboxSessionsUntouched": true,
+        "route": "open-upstream-provider-route.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T09:52:18.588903+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 17:52:43.243",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:52:43.788",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:52:44.124",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 17:52:44.995",
+          "event": "upstream_provider_control"
+        },
+        {
+          "time": "11-16 17:52:46.035",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 17:52:46.036",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 17:52:46.036",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 17:52:46.743",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 17:52:46.754",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 17:52:46.756",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 17:52:49.098",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 17:52:49.595",
+          "event": "verify_google_http400"
+        }
+      ]
+    },
+    "claudePrivacyDisabled": {
+      "result": {
+        "timestamp": "2026-11-16T18:05:36+08:00",
+        "privacySelectionDisabledObserved": true,
+        "claudePrivacyLibraryMapped": false,
+        "login": "FAILED_PLAY_VERIFICATION",
+        "http400": true,
+        "tokenLength": 1443,
+        "claudePackageSignatureAndNonceMatch": true,
+        "originalStoreRestored": true,
+        "originalStoreApkMatches": true,
+        "originalStoreCeDeRestored": true,
+        "originalCageApkReinstalled": true,
+        "claudeDataCleared": false,
+        "gboxSessionsUntouched": true,
+        "requestedProfile": "not established; exact name absent from APK entry names only",
+        "route": "open-privacy-disabled-route.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T10:04:24.285175+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 18:04:42.429",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:42.570",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:44.387",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:44.571",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:45.248",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:45.435",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:53.862",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:04:54.030",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:54.058",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:54.329",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:04:54.739",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:04:55.380",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:55.729",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:56.046",
+          "event": "droidguard_certificate_blocked"
+        },
+        {
+          "time": "11-16 18:04:56.143",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:56.290",
+          "event": "privacy_selection_disabled"
+        },
+        {
+          "time": "11-16 18:04:56.867",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 18:04:56.869",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:04:56.869",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 18:04:57.648",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 18:04:57.659",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:04:57.661",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 18:04:59.939",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 18:05:00.454",
+          "event": "verify_google_http400"
+        }
+      ]
+    },
+    "upstreamProfileSelection": {
+      "result": {
+        "timestamp": "2026-11-16T18:08:19+08:00",
+        "profileSelectedInUi": "Emulator arm64-v8a (Android 13)",
+        "runtimeProfileLoadedLog": "not observed in capture; selection confirmed only",
+        "login": "FAILED_PLAY_VERIFICATION",
+        "http400": true,
+        "tokenLength": 1443,
+        "originalProfileRestoredInUi": "auto native",
+        "originalStoreRestored": true,
+        "originalStoreApkMatches": true,
+        "originalStoreCeDeRestored": true,
+        "claudeDataCleared": false,
+        "gboxSessionsUntouched": true,
+        "route": "open-upstream-profile-route.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T10:06:50.707364+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 18:07:21.633",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:07:22.187",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:07:22.523",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:07:24.249",
+          "event": "droidguard_certificate_blocked"
+        },
+        {
+          "time": "11-16 18:07:25.252",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 18:07:25.254",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:07:25.254",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 18:07:25.957",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 18:07:25.968",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:07:25.969",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 18:07:27.445",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 18:07:28.118",
+          "event": "verify_google_http400"
+        }
+      ]
+    },
+    "profileAlignmentSkipped": {
+      "result": {
+        "timestamp": "2026-11-16T18:13:28+08:00",
+        "profileSelectedAndColdRestartConfirmed": true,
+        "alignment": "skipped",
+        "matched": "not observed",
+        "changed": "not observed",
+        "failed": "not observed",
+        "sdkUnchanged": "not observed",
+        "login": "FAILED_PLAY_VERIFICATION",
+        "http400": true,
+        "tokenLength": 1443,
+        "profileRestored": "auto native",
+        "originalStoreAndCeDeRestored": true,
+        "originalCageApkReinstalled": true,
+        "gboxSessionsUntouched": true,
+        "route": "open-profile-alignment-route2.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T10:12:05.043357+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 18:12:33.553",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:12:34.007",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:12:34.415",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:12:35.397",
+          "event": "hardware_attestation_blocking_enabled"
+        },
+        {
+          "time": "11-16 18:12:35.442",
+          "event": "profile_alignment_skipped"
+        },
+        {
+          "time": "11-16 18:12:35.610",
+          "event": "droidguard_certificate_blocked"
+        },
+        {
+          "time": "11-16 18:12:36.427",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 18:12:36.429",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:12:36.429",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 18:12:37.116",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 18:12:37.131",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:12:37.133",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 18:12:41.016",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 18:12:41.506",
+          "event": "verify_google_http400"
+        }
+      ]
+    },
+    "applicationContextProfileInitialization": {
+      "result": {
+        "timestamp": "2026-11-16T18:22:48+08:00",
+        "configuredTargetObserved": true,
+        "activeAfterTargetObserved": true,
+        "alignment": {
+          "matched": 19,
+          "changed": 14,
+          "failed": 0,
+          "sdkUnchanged": true
+        },
+        "queryNull": "false in observed provider queries",
+        "securityExceptionProviderAttribution": "not established",
+        "deadObjectObserved": false,
+        "http400": true,
+        "login": "FAILED_PLAY_VERIFICATION",
+        "profileRestored": "auto native",
+        "originalStoreCeDeRestored": true,
+        "originalCageApkReinstalled": true,
+        "gboxSessionsUntouched": true,
+        "route": "open-profile-trace-route.jsonl",
+        "correction": "Latest parser recovered same-request markers omitted by initial capture."
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T10:21:11.419889+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 18:21:40.156",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:21:40.732",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:21:41.146",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:21:42.168",
+          "event": "hardware_attestation_blocking_enabled"
+        },
+        {
+          "time": "11-16 18:21:42.387",
+          "event": "droidguard_certificate_blocked"
+        },
+        {
+          "time": "11-16 18:21:43.224",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 18:21:43.226",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:21:43.226",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 18:21:44.247",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 18:21:44.261",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:21:44.264",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 18:21:46.325",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 18:21:47.176",
+          "event": "verify_google_http400"
+        }
+      ],
+      "recoveredEvents": [
+        {
+          "time": "11-16 18:21:00.106",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:00.111",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:00.115",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:01.106",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:01.111",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:01.114",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:02.104",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:02.109",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:02.112",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:03.110",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:03.116",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:03.119",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:04.112",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:04.117",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:04.120",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:40.450",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:41.779",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:41.781",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.208",
+          "event": "profile_configuration_state",
+          "stage": "activeBefore",
+          "value": "uninitialized"
+        },
+        {
+          "time": "11-16 18:21:42.210",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.210",
+          "event": "profile_configuration_state",
+          "stage": "configured",
+          "value": "target"
+        },
+        {
+          "time": "11-16 18:21:42.211",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.212",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.214",
+          "event": "profile_configuration_state",
+          "stage": "activeAfter",
+          "value": "target"
+        },
+        {
+          "time": "11-16 18:21:42.214",
+          "event": "profile_strings_aligned",
+          "matched": 19,
+          "changed": 14,
+          "failed": 0,
+          "sdkUnchanged": true
+        },
+        {
+          "time": "11-16 18:21:42.230",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.231",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.240",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.309",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.312",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.563",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        },
+        {
+          "time": "11-16 18:21:42.566",
+          "event": "profile_provider_query",
+          "returnedNull": false
+        }
+      ]
+    },
+    "serviceContext": {
+      "result": {
+        "timestamp": "2026-11-16T18:31:04+08:00",
+        "contextComparison": {
+          "oldPackage": true,
+          "oldApplication": true,
+          "oldLoader": true,
+          "oldResource": true,
+          "newPackage": true,
+          "newSource": true,
+          "newApplication": true,
+          "newLoader": true
+        },
+        "activeBefore": "uninitialized",
+        "upstreamProfileLoadedObserved": true,
+        "login": "FAILED_PLAY_VERIFICATION",
+        "http400": true,
+        "tokenLength": 1443,
+        "profileRestored": "auto native",
+        "originalStoreCeDeRestored": true,
+        "originalCageApkReinstalled": true,
+        "gboxSessionsUntouched": true,
+        "route": "open-service-context-route.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T10:29:46.061104+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 18:30:15.548",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:30:15.780",
+          "event": "upstream_android13_profile_loaded"
+        },
+        {
+          "time": "11-16 18:30:15.980",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:30:16.361",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:30:16.978",
+          "event": "upstream_android13_profile_loaded"
+        },
+        {
+          "time": "11-16 18:30:17.333",
+          "event": "service_context_comparison",
+          "oldPackage": true,
+          "oldApplication": true,
+          "oldLoader": true,
+          "oldResource": true,
+          "newPackage": true,
+          "newSource": true,
+          "newApplication": true,
+          "newLoader": true
+        },
+        {
+          "time": "11-16 18:30:17.343",
+          "event": "hardware_attestation_blocking_enabled"
+        },
+        {
+          "time": "11-16 18:30:17.352",
+          "event": "profile_configuration_state",
+          "stage": "activeBefore",
+          "value": "uninitialized"
+        },
+        {
+          "time": "11-16 18:30:17.397",
+          "event": "upstream_android13_profile_loaded"
+        },
+        {
+          "time": "11-16 18:30:17.558",
+          "event": "droidguard_certificate_blocked"
+        },
+        {
+          "time": "11-16 18:30:18.341",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 18:30:18.342",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:30:18.342",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 18:30:19.079",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 18:30:19.089",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:30:19.090",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 18:30:21.474",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 18:30:22.041",
+          "event": "verify_google_http400"
+        }
+      ]
+    },
+    "companionCertificatePolicy": {
+      "result": {
+        "timestamp": "2026-11-16T18:35:08+08:00",
+        "companionCertificatePolicyInstalled": true,
+        "companionCertificateChainRequest": "not observed",
+        "gmsDroidguardCertificateBlocked": true,
+        "tokenLength": 1443,
+        "http400": true,
+        "login": "FAILED_PLAY_VERIFICATION",
+        "originalStoreCeDeRestored": true,
+        "originalCageApkReinstalled": true,
+        "gboxSessionsUntouched": true,
+        "route": "open-companion-keystore-route.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T10:34:13.813748+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 18:34:37.999",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:34:38.306",
+          "event": "companion_certificate_policy_installed"
+        },
+        {
+          "time": "11-16 18:34:38.519",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:34:38.930",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:34:39.917",
+          "event": "hardware_attestation_blocking_enabled"
+        },
+        {
+          "time": "11-16 18:34:40.113",
+          "event": "droidguard_certificate_blocked"
+        },
+        {
+          "time": "11-16 18:34:40.976",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 18:34:40.978",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:34:40.978",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 18:34:41.814",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 18:34:41.826",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:34:41.828",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 18:34:44.039",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 18:34:44.540",
+          "event": "verify_google_http400"
+        }
+      ]
+    },
+    "api31ProfileAlignment": {
+      "result": {
+        "profileKeysSemanticallyRestored": {
+          "device_profile": true,
+          "device_profile_serial": true
+        },
+        "customFileRestored": true,
+        "originalStoreCeDeRestored": true,
+        "originalCageApkReinstalled": true,
+        "api31": true,
+        "initial29": true,
+        "userProfile": true,
+        "alignment": {
+          "matched": 19,
+          "changed": 13,
+          "failed": 0,
+          "sdkUnchanged": true
+        },
+        "http400": true,
+        "tokenLength": 1443,
+        "login": "FAILED_PLAY_VERIFICATION",
+        "gboxSessionsUntouched": true,
+        "route": "open-api31-profile-route.jsonl"
+      },
+      "events": [
+        {
+          "event": "capture_started",
+          "utc": "2026-11-16T10:39:04.122593+00:00",
+          "rawLogsRetained": false
+        },
+        {
+          "time": "11-16 18:39:30.078",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:39:30.758",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:39:31.180",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:39:32.201",
+          "event": "hardware_attestation_blocking_enabled"
+        },
+        {
+          "time": "11-16 18:39:32.242",
+          "event": "api31_profile_control",
+          "api31": true,
+          "initial29": true,
+          "userProfile": true
+        },
+        {
+          "time": "11-16 18:39:32.242",
+          "event": "profile_strings_aligned",
+          "matched": 19,
+          "changed": 13,
+          "failed": 0,
+          "sdkUnchanged": true
+        },
+        {
+          "time": "11-16 18:39:33.451",
+          "event": "droidguard_certificate_blocked"
+        },
+        {
+          "time": "11-16 18:39:34.809",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": false
+        },
+        {
+          "time": "11-16 18:39:34.812",
+          "event": "droidguard_flow",
+          "flow": "pia_attest_e1",
+          "claudeMentioned": true
+        },
+        {
+          "time": "11-16 18:39:34.812",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1,
+          "originalClaudeCertificateMatches": true
+        },
+        {
+          "time": "11-16 18:39:35.696",
+          "event": "classic_token_returned",
+          "tokenChars": 1443,
+          "dotSegments": 5
+        },
+        {
+          "time": "11-16 18:39:35.709",
+          "event": "classic_requested"
+        },
+        {
+          "time": "11-16 18:39:35.711",
+          "event": "classic_callback"
+        },
+        {
+          "time": "11-16 18:39:36.189",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 18:39:36.820",
+          "event": "verify_google_http400"
+        }
+      ]
+    }
+  },
+  "profilePropagation": {
+    "afterSelection": {
+      "ce": [
+        {
+          "file": "com.google.android.gms_preferences.xml",
+          "deviceProfile": "target",
+          "deviceSerialPresent": false
+        }
+      ],
+      "de": []
+    },
+    "afterColdRestart": {
+      "ceDeviceProfile": "target",
+      "deviceSerialPresent": false,
+      "profileManagerExceptionTypes": [
+        "java.lang.IllegalArgumentException"
+      ]
+    },
+    "restoredUi": "auto native",
+    "limits": "Preference persistence does not establish effective activeProfile in DroidGuard process. ProfileManager exception type observed in existing buffer is not time-correlated or attributed."
+  },
+  "profileExceptions": {
+    "exceptions": [
+      {
+        "reason": "query_null",
+        "uriCategory": "microg_settings_profile",
+        "frames": [
+          "org.microg.gms.settings.SettingsContract.getSettings$lambda$0"
+        ]
+      },
+      {
+        "reason": "query_null",
+        "uriCategory": "microg_settings_profile",
+        "frames": [
+          "org.microg.gms.settings.SettingsContract.getSettings$lambda$0"
+        ]
+      },
+      {
+        "reason": "query_null",
+        "uriCategory": "microg_settings_profile",
+        "frames": [
+          "org.microg.gms.settings.SettingsContract.getSettings$lambda$0"
+        ]
+      }
+    ],
+    "rawLinesRetained": false
+  },
+  "limits": [
+    "GBox successful Classic token: 1854 characters, 5 JWE segments; Cage baseline: 1443. Length is not a decoded verdict.",
+    "Package, version, certificate and nonce byte length match; nonce bytes and tokens are not compared or retained.",
+    "GBox explicitly selected local Embedded DroidGuard; a cloud forwarder is not required for the observed success.",
+    "Successful final HTTP request body and Claude integrity verdict were not captured or decoded.",
+    "Initial fromMgc=false fields only meant the marker was absent from an individual line; removed as misleading metadata.",
+    "Profile selection UI alone did not establish runtime adoption. Application-context initialization did adopt the selected upstream profile.",
+    "Later service-context control shows profile loading after onBind while processing the actual request. An uninitialized field at the bind boundary alone does not prove failed propagation.",
+    "Current 0.0.6 excludes GuestTelephonyPolicy; patches existing elsewhere are not evidence of their inclusion.",
+    "Restoring upstream provider registrations and disabling Claude privacy each failed as isolated remedies.",
+    "The API31 / initial API29 custom profile was loaded and 19 Build strings matched, but the token remained 1443 characters and Claude returned HTTP 400. This profile alignment is not a demonstrated fix."
+  ],
+  "upstreamProfile": "https://github.com/microg/GmsCore/blob/v0.3.18.252432/play-services-core/src/main/res/xml/profile_sdk_gphone64_arm64_33.xml"
+}

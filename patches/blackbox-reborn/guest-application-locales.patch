@@ -1,0 +1,11 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/hook/HookManager.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/hook/HookManager.java
+@@ -110,6 +110,8 @@
+             addInjector(new OsStub());
+             addInjector(new IActivityManagerProxy());
+             addInjector(new IPackageManagerProxy());
++            if (android.os.Build.VERSION.SDK_INT >= 33)
++                addInjector(new top.niunaijun.blackbox.fake.service.ILocaleManagerProxy());
+             addInjector(new ITelephonyManagerProxy());
+             addInjector(new HCallbackProxy());
+             addInjector(new IAppOpsManagerProxy());

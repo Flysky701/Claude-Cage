@@ -1,0 +1,77 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/accounts/BAccountManagerService.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/accounts/BAccountManagerService.java
+@@ -240,15 +240,19 @@
+     @Override
+     public Account[] getAccountsAsUser(String accountType, int userId) throws RemoteException {
+         BUserAccounts userAccounts = getUserAccounts(userId);
++        String caller = getCallingPackageName();
+         List<Account> accounts = new ArrayList<>();
+         synchronized (userAccounts.lock) {
+             for (BAccount account : userAccounts.accounts) {
+-                if (account.account.type.equals(accountType)) {
+-                    accounts.add(account.account);
+-                }
+-            }
+-        }
+-        return accounts.toArray(new Account[]{});
++                if (accountType != null && !account.account.type.equals(accountType)) continue;
++                AuthenticatorInfo owner = mAuthenticatorCache.authenticators.get(account.account.type);
++                int visibility = resolveAccountVisibility(account.account, caller, userAccounts);
++                if ((owner != null && caller.equals(owner.desc.packageName))
++                        || visibility == AccountManager.VISIBILITY_VISIBLE
++                        || visibility == AccountManager.VISIBILITY_USER_MANAGED_VISIBLE) accounts.add(account.account);
++            }
++        }
++        return accounts.toArray(new Account[0]);
+     }
+ 
+     @Override
+@@ -1554,7 +1558,7 @@
+ 
+         @Override
+         public void onServiceConnected(ComponentName name, IBinder service) {
+-            mAuthenticator = IAccountAuthenticator.Stub.asInterface(service);
++            mAuthenticator = IAccountAuthenticator.Stub.asInterface(io.github.leexeo.cage.space.AccountTransport.wrap(name, service));
+             try {
+                 run();
+             } catch (RemoteException e) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/SystemCallProvider.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/SystemCallProvider.java
+@@ -45,6 +45,8 @@
+     public Bundle call(@NonNull String method, @Nullable String arg, @Nullable Bundle extras) {
+         try {
+             Slog.d(TAG, "call: " + method + ", " + extras);
++            if (io.github.flysky701.cage.open.GuestAccountBridge.METHOD.equals(method))
++                return io.github.flysky701.cage.open.GuestAccountBridge.identify(this, arg, extras);
+             if ("VM".equals(method)) {
+                 Bundle bundle = new Bundle();
+                 if (extras != null) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
+@@ -244,6 +244,7 @@
+             );
+             ContextCompat.fix(context);
+             service.onCreate();
++            io.github.flysky701.cage.open.GuestAccountBridge.serviceCreated(service);
+             return service;
+         } catch (Exception e) {
+             
+@@ -299,6 +300,7 @@
+             );
+             ContextCompat.fix(context);
+             service.onCreate();
++            io.github.flysky701.cage.open.GuestAccountBridge.serviceCreated(service);
+             service.onBind(null);
+             return service;
+         } catch (Exception e) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/NativeCore.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/NativeCore.java
+@@ -99,6 +99,8 @@
+ 
+     @Keep
+     public static int getCallingUid(int origCallingUid) {
++        if (io.github.flysky701.cage.open.GuestAccountBridge.isServerCaller(android.os.Binder.getCallingPid(), origCallingUid))
++            return origCallingUid;
+         // Fix 6 (API 37): Android 17 changed PropertyInvalidatedCache to call
+         // Binder.getCallingUid() from inside cache queries. Since we hook
+         // getCallingUid() and call back into getPackageInfo() (which uses the
