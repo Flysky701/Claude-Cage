@@ -108,6 +108,8 @@ macOS 和已签名 Windows 版本支持通过所选代理更新；Windows 未签
 
 ## 文档与贡献
 
+[本 Fork 开发进度](docs/PROGRESS.md)：Windows 修复、Android 实验、验证范围与待办。
+
 面向用户的[官网使用文档](https://claude-cage.com/docs/)支持按功能浏览、搜索与章节直达。各项操作见[使用文档导航](docs/README.md)。
 
 | 你要做什么 | 从这里开始 |
