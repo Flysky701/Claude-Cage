@@ -2,6 +2,11 @@
 
 No login or UI action, debugger attachment, data mutation, or network request.
 Raw log lines and proof material are never saved or printed.
+
+Historical 2026-11-16 success/failure metadata retained total token length and
+segment count only; the original two JWE structures cannot be reconstructed.
+New JWE fields describe shape, not decrypted verdicts or certificate chains.
+Format reference: https://www.rfc-editor.org/rfc/rfc7516#section-3.1
 """
 import argparse
 import base64
@@ -28,6 +33,8 @@ EVENTS = {
     "privacy_selection_disabled": r"CagePrivacyControl.*Guest privacy selection disabled",
     "upstream_android13_profile_loaded": r"ProfileManager.*Overwrite from profile: Build\.PRODUCT = sdk_gphone64_arm64$",
     "hardware_attestation_blocking_enabled": r"Hardware attestation blocking enabled",
+    "hardware_attestation_blocking_disabled": r"DroidGuard\s*: Hardware attestation blocking disabled$",
+    "hardware_attestation_provider_replace_failed": r"DroidGuard\s*: Failed replacing the security provider$",
     "companion_certificate_policy_installed": r"CageCompanionKeyStore.*Upstream certificate policy installed",
     "companion_certificate_policy_unavailable": r"CageCompanionKeyStore.*Certificate policy unavailable",
     "droidguard_init_failed": r"Error during handle init|init failed",
@@ -36,7 +43,76 @@ EVENTS = {
     "google_credential_returned": r"loginResult:.*GoogleSignInAccount",
     "verify_google_http400": r"HTTP 400 /auth/verify_google_mobile",
     "fatal_exception": r"AndroidRuntime.*FATAL EXCEPTION|Fatal signal 11",
+    "cross_mgc_routed": r"CageCrossRoute.*Integrity routed to installed MGC",
+    "cross_apache_dependency_resolved": r"CageCrossRoute.*Platform Apache dependency resolved",
+    "cross_apache_dependency_unavailable": r"CageCrossRoute.*Platform Apache dependency unavailable",
 }
+
+
+JWE_HEADER_VALUES = {
+    "alg": {"RSA1_5", "RSA-OAEP", "RSA-OAEP-256", "dir", "A128KW", "A192KW", "A256KW",
+            "ECDH-ES", "ECDH-ES+A128KW", "ECDH-ES+A192KW", "ECDH-ES+A256KW",
+            "A128GCMKW", "A192GCMKW", "A256GCMKW", "PBES2-HS256+A128KW",
+            "PBES2-HS384+A192KW", "PBES2-HS512+A256KW"},
+    "enc": {"A128CBC-HS256", "A192CBC-HS384", "A256CBC-HS512", "A128GCM", "A192GCM", "A256GCM"},
+    "typ": {"JWT", "JOSE", "JOSE+JSON", "application/jwt", "application/jose", "application/jose+json"},
+    "cty": {"JWT", "application/jwt", "application/json"},
+}
+JWE_SEGMENT_NAMES = ("protectedHeader", "encryptedKey", "initializationVector", "ciphertext", "authenticationTag")
+BASE64URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+
+def jwe_metadata(token):
+    """JWE shape only: never retain proof bytes or unknown header names/values.
+
+    Byte lengths follow unpadded base64url. Only the bounded protected header
+    is decoded, and its authenticity is not verified by this observer.
+    """
+    parts = token.split(".")
+    if len(parts) != 5:
+        return {}
+    segments = {}
+    for name, part in zip(JWE_SEGMENT_NAMES, parts):
+        remainder = len(part) % 4
+        valid = re.fullmatch(r"[A-Za-z0-9_-]*", part) is not None and remainder != 1
+        if valid and remainder:
+            unused_bits = 15 if remainder == 2 else 3
+            valid = (BASE64URL_ALPHABET.index(part[-1]) & unused_bits) == 0
+        segments[name] = dict(encodedChars=len(part), decodedBytes=len(part) * 3 // 4 if valid else None,
+                              canonicalBase64url=valid)
+    header = dict(status="unavailable", authenticationChecked=False)
+    result = dict(jweSegments=segments, jweProtectedHeader=header)
+    if not segments["protectedHeader"]["canonicalBase64url"]:
+        header["status"] = "invalid_base64url"
+        return result
+    if len(parts[0]) > 4096:
+        header["status"] = "too_large"
+        return result
+    try:
+        decoded = base64.urlsafe_b64decode(parts[0] + "=" * (-len(parts[0]) % 4))
+        values = json.loads(decoded.decode("utf-8"))
+    except (ValueError, UnicodeError, RecursionError):
+        header["status"] = "invalid_json"
+        return result
+    if not isinstance(values, dict):
+        header["status"] = "not_object"
+        return result
+    header["status"] = "parsed"
+    header["unknownFieldCount"] = len(set(values) - JWE_HEADER_VALUES.keys())
+    header["fields"] = {}
+    for name, allowed in JWE_HEADER_VALUES.items():
+        if name not in values:
+            continue
+        value = values[name]
+        kind = ("null" if value is None else "boolean" if isinstance(value, bool)
+                else "number" if isinstance(value, (int, float)) else "string" if isinstance(value, str)
+                else "array" if isinstance(value, list) else "object")
+        field = dict(type=kind, allowlisted=isinstance(value, str) and value in allowed)
+        if field["allowlisted"]:
+            field["value"] = value
+        header["fields"][name] = field
+    return result
+
 
 def metadata(line, expected_cert=None):
     match = LINE.match(line.rstrip("\r\n"))
@@ -49,6 +125,33 @@ def metadata(line, expected_cert=None):
     for event, expression in EVENTS.items():
         if re.search(expression, tag + ": " + message):
             emit(event)
+    if tag.strip() == "CageCrossRoute":
+        verified = re.fullmatch(r"Declared service identity verified: (com\.google\.android\.gms|com\.android\.vending(?:\.mgc)?)", message)
+        if verified:
+            emit("cross_declared_service_identity", package=verified[1])
+    if tag.strip() == "CageSeccompControl":
+        installed = re.fullmatch(r"allowAllInstalled=(true|false)", message)
+        if installed:
+            emit("seccomp_allow_all_control", installed=installed[1] == "true")
+    if tag.strip() == "CageNativeIOControl":
+        installed = re.fullmatch(r"nativeIoInstalled=(true|false)", message)
+        if installed:
+            emit("native_io_control", installed=installed[1] == "true")
+        counts = re.fullmatch(r"openCalls=(\d+) mappedCalls=(\d+)", message)
+        if counts:
+            emit("native_io_counts", openCalls=int(counts[1]), mappedCalls=int(counts[2]))
+    if tag.strip() == "CageMicrogBinder":
+        adapted = re.fullmatch(r"Adapted native service calls: (\d+)", message)
+        if adapted:
+            emit("native_service_adapted", count=int(adapted[1]))
+    if tag.strip() == "CageCrossProviderControl":
+        category = r"(android_platform|vlite_wrapper|microg_blocker|other|missing)"
+        state = re.fullmatch(r"provider=" + category + r" ecService=(true|false) rsaService=(true|false) keyStoreService=" + category, message)
+        if state:
+            emit("cross_provider_state", provider=state[1], ecService=state[2] == "true",
+                 rsaService=state[3] == "true", keyStoreService=state[4])
+        elif message == "observation=unavailable":
+            emit("cross_provider_state_unavailable")
     if tag.strip() == "CageProfileControl":
         counts = re.fullmatch(r"Upstream profile strings aligned: matched=(\d+) changed=(\d+) failed=(\d+) sdkUnchanged=(true|false)", message)
         if counts:
@@ -96,6 +199,11 @@ def metadata(line, expected_cert=None):
         nonce = re.search(r"\bnonce=([A-Za-z0-9_+/=-]+)", message)
         certs = re.search(r"certificateSha256Digests=\[([^]]*)\]", message)
         values = dict(claudePackage="PackageNameWrapper{value_=com.anthropic.claude}" in message)
+        # ByteString's explicit size survives logcat truncation of proof bytes.
+        # Do not infer VM output size from a possibly truncated Base64 string.
+        guard_size = re.search(r"droidGuardTokenRaw=\[size=(\d+)\b", message)
+        if guard_size:
+            values["droidGuardRawBytes"] = int(guard_size[1])
         if version:
             values["versionCode"] = int(version[1])
         if nonce:
@@ -112,7 +220,8 @@ def metadata(line, expected_cert=None):
     if tag.strip() == "IntegrityService":
         token = re.search(r"requestIntegrityToken integrityToken: (\S+)\s*$", message)
         if token:
-            emit("classic_token_returned", tokenChars=len(token[1]), dotSegments=len(token[1].split(".")))
+            emit("classic_token_returned", tokenChars=len(token[1]), dotSegments=len(token[1].split(".")),
+                 **jwe_metadata(token[1]))
         guard = re.search(r"droidGuardToken: ([A-Za-z0-9_+/=-]+)\)", message)
         if guard:
             emit("droidguard_result", encodedChars=len(guard[1]))

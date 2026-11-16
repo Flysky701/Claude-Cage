@@ -12,35 +12,38 @@ Android 远程客户端、Cage Open、GBox 定向修改和其他 Android 实验�
 | --- | --- | --- |
 | Android 远程客户端 | 已合入上游 v0.1.8 同步记录，保留本地客户端的应用更新实现 | 本次仅整理分支与文档，没有新增客户端运行验证 |
 | Cage Open `0.0.6-login-preview` | Android 16 真机 Google 测试账号登录及应用冷启动保留通过；原版商店下载并安装 Claude 的原签名分包通过；Google 登录结果回传已修复 | Claude `26111319` 仍返回 Play 验证失败、HTTP 400；尚未登录或发送消息 |
+| Cross：GBox MG/MGC + BlackBox | 独立空间完成同款 MG/MGC、原版 Claude、DroidGuard 和 Google 凭据链路；本轮完成关闭证明屏蔽、原生路径计数及撤销算法注册补齐 | 交叉移植仍 1443 / HTTP 400；关闭屏蔽仍失败；三条 GMS 数据路径未命中，尚未定位具体拒绝信号 |
 | Cage Open 隐私补丁 | 0.0.5 的 SIM、VPN 可见性、隧道元数据和东京时区在所测探针路径通过；0.0.6 保留策略代码，并观察到 Claude 进程内策略启用 | 0.0.6 未重跑整套探针；原生属性部分对照无有效读数；WebView 首脚本跨进程保证、断线保护、raw syscall/netlink、显式子进程环境仍未验证 |
 | GBox 真机路线 | Checks02 保留原登录态与测试标记；SIM/VPN 及隧道元数据的所测路径通过；11-16 独立对照以同版 Claude 新登录成功 | Checks02 的 WebView 首脚本时区未通过；非隧道信息隔离部分完成；真机断线保护未验证。独立登录对照不替代 Checks02 的隐私验收 |
 | MuMu / 官方 Android 模拟器 | 已保存诊断、失败对照和源码 | MuMu GBox 路线暂停；已测完整性组合及 Claude 登录未达标，不继续重试 |
 
 ## 当前阻塞与证据
 
-- **Cage Open 登录仍未修通。** 同版 Claude 的独立 GBox 无调试新登录成功，Cage 同期对照仍失败。
-  最新 GBox 成功路径采到本地 Embedded DroidGuard 初始化、Classic 令牌返回及 Google 凭据交付。
-  令牌长度差异不是解码判定；尚未隔离具体失败原因，也没有 Claude 项目的令牌解码结果。
-- **失败候选已恢复。** 算法注册、隐私模块开关、配置字段和服务上下文等定向对照均未修通登录；
-  不能把配置生效、取得令牌或 Google 账号登录记作 Claude 登录通过。
-- **隐私验收未完成。** 已确认范围包括 SIM/运营商、双卡/eSIM、驻留网络/基站、VPN/本机地址、
-  系统/应用标识、首次读取/传出字段、WebView 时区、实际出口/断线保护。
-  具体范围与通过条件见[补丁验收范围](sandbox/gbox-mod/PRIVACY-REVIEW-2026-11-15.md#补丁验收范围)。
-  Cage Open 已接入其中部分能力，其结果按上表单独归属；GBox 的剩余项继续保留。
+- **优先继续容器及其 Google 服务集成。** 19:06 的独立 Cross 已换成 GBox 原版 MG/MGC，完成真实 Claude 登录请求，仍为 1443 字符 / HTTP 400。单独替换这组组件不足以修通；此前只完成组件安装、连接的 11-14 结果不再作为当前验证范围。
+- **本样本配置没有选中 bit 2 证书重签分支。** 读取成功 GBox 的规则白名单，结合默认集合和唯一静态掩码写入路径，推导 GMS=1、Play=0、MGC=0。继续开源容器路线；不将静态存在的 keybox 分支当作本次成功所必需。掩码来自配置与源码推导，未读取成功请求当时的进程字段。
+- **关闭证明屏蔽已在同款 MG 的 Cross 上重测。** 20:06–20:07 仅将该偏好改为 false 后冷启动，VM 输出为 38,085 字节（此前同款 MG 基线为 34,906），令牌仍 1443 / HTTP 400；原偏好缺省已恢复。这是本轮新实验，不沿用 0.0.4 的结果。单独关闭屏蔽不再作为修复候选。
+- **三条数据路径重定向没有命中。** 20:09 的实际 Claude 请求中，原生 openat 计数在 15/30/45 秒为 190/192/196，映射计数均为 0。令牌为 1446 / HTTP 400；已记录其密文比关闭屏蔽那轮多 2 字节，但没有对应的路径修复或登录改善。停止扩展这三条路径，下一步只针对实际查询过的路径和操作。
+- **撤销算法注册补齐也已结束。** 20:21 的同款 MG Cross 实测 Provider 和 KeyStore 实现均为 microG blocker，EC/RSA 服务均不存在，证明候选生效；VM 输出 33,502 字节，令牌 1446 / HTTP 400。单独撤销这项容器兼容处理没有修通登录；integration2 与原偏好均已恢复。
+- **VM 观测有明确覆盖缺口。** 新采样已保存 JWE 各段长度、有限头字段及 DroidGuard 输出字节数；旧成功令牌只留总长度，不能补回历史结构。现有 SignalTrace 在 Android 16 上部分参数不可读，且不覆盖直接系统调用，尚未得到成功 GBox 与失败 Cross 的完整查询集合。
+- **隐私验收仍未完成。** 本轮未扩大 SIM、VPN、WebView 时区及断线保护的通过范围。继续以[补丁验收范围](sandbox/gbox-mod/PRIVACY-REVIEW-2026-11-15.md#补丁验收范围)和上表的对应产物为准。
 
 ## 下一步
 
-1. 在独立测试副本内做 Google 服务组件交叉对照，区分服务实现和容器行为；保留现有 GBox 登录会话与来宾数据。
-2. 按已确认的补丁验收范围补齐剩余项，逐项记录通过、未通过和未验证；保留原签名、登录与数据。
-3. 取得新证据后直接更新本文件，并链接对应报告；日期报告不再承载未来安排。
+1. **先取实际查询集合。** 并行分析成功 GBox 与失败 Cross 的 DroidGuard 文件/属性查询：原生观察从三个预设前缀扩为实际 openat/stat/access/readlink 路径类别与返回码，同时记录 Provider 状态。先确认观察覆盖，再运行对应请求；所有手机操作仍由同一 Terra 执行。
+2. **再改一个已命中的差异。** 只选两边实际访问且返回不同的项目，在 Cross 做最小修复后运行一次登录；记录令牌结构、Google 判定（如可得）和真实登录结果。无改善就结束该候选，不直接铺开 maps 隐藏或整套原生层改造。
+3. 自有项目解码配置已存在；只有需要检验具体判定变化时再做有界对照，不重复账户配置，不用自有探针的 DEVICE 结果替代 Claude 的服务端判定。
+4. 本轮结束组件替换、配置字段对齐、单独关闭屏蔽、撤销算法注册补齐和未命中的三路径映射。保留记录，不重复无新信息的请求。
 
-手机全局网络设置限制和 MuMu 暂停状态继续有效。本次整理没有操作设备、重新登录、构建 APK 或发版。
+手机交互统一由一个 GPT-6.1 Terra 操作员执行，其他并行任务只做本地源码、构建和结果分析。
+手机全局网络设置限制和 MuMu 暂停状态继续有效；既有 GBox 会话及正式 Cage Open 数据保留。
+本轮三次新登录实验均由独立 Cross 完成，最终恢复 integration2 和原偏好；Claude 登录尚未修通。诊断候选未作为开源发布产物；未向飞书写入。
 
 ## 证据入口
 
 - Cage Open：[构建说明](open-cage/README.md)、[最新定向对照](open-cage/BUNDLED-TESTING.md)、
   [登录记录](open-cage/validation-login-2026-11-16.json)、[成功路径对照](open-cage/validation-success-path-2026-11-16.json)、
   [0.0.5 隐私结果](open-cage/validation-privacy-2026-11-16.json)、[商店与完整性结果](open-cage/validation-store-2026-11-16.json)。
+- 本轮交叉与根因筛选：[组件交叉及原生计数](open-cage/validation-cross-2026-11-16.json)、[分流配置及关闭屏蔽实验](open-cage/validation-keystore-2026-11-16.json)、[Provider 安装顺序](open-cage/validation-provider-order-2026-11-16.json)。
 - GBox：[真机阶段记录](PHONE-GBOX-VALIDATION-2026-11-15.md)、[隐私风险与验收条件](sandbox/gbox-mod/PRIVACY-REVIEW-2026-11-15.md)。
 - 历史：[11-15 GBox / MuMu 交接归档](HANDOFF-2026-11-15.md)、[模拟器对照](EMULATOR-VALIDATION-2026-11-15.md)、
   [11-14 microG 分析](ANDROID-ANALYSIS-2026-11-14.md)、[GBox 架构分析](GBOX-REA-ANALYSIS-2026-11-15.md)。

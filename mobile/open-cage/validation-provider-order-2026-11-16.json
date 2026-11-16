@@ -1,0 +1,278 @@
+{
+  "date": "2026-11-16",
+  "scope": "Static MG/GBox provider-order inspection plus the final Cross single-variable device experiment; static and runtime observations are identified separately.",
+  "sourcePointers": {
+    "mgManifest": {
+      "path": "mobile/.build/gbox-components/presets/MG-250952077.manifest.txt",
+      "lines": [
+        1810,
+        1813
+      ]
+    },
+    "gboxApplicationBind": {
+      "path": "mobile/.build/gbox-mod/decoded-original/smali_classes4/com/vlite/sdk/client/k.smali",
+      "lines": [
+        14312,
+        14380,
+        15382
+      ]
+    },
+    "gboxProviderInstall": {
+      "path": "mobile/.build/gbox-mod/decoded-original/smali_classes4/com/vlite/sdk/ІӀӏ/b4.smali",
+      "lines": [
+        63,
+        139,
+        171,
+        183,
+        186
+      ]
+    },
+    "gboxProviderConstructor": {
+      "path": "mobile/.build/gbox-mod/decoded-original/smali_classes4/com/vlite/sdk/ІӀӏ/a4.smali",
+      "lines": [
+        26,
+        35,
+        41,
+        52
+      ]
+    },
+    "mgService": {
+      "path": "mobile/.build/gbox-components/mg-decoded/smali/com/google/android/gms/droidguard/DroidGuardChimeraService.smali",
+      "lines": [
+        386,
+        418,
+        441,
+        452
+      ]
+    },
+    "mgProviderInstall": {
+      "path": "mobile/.build/gbox-components/mg-decoded/smali_classes6/org/microg/gms/droidguard/core/HardwareAttestationBlockingProvider$Companion.smali",
+      "lines": [
+        319,
+        329,
+        347,
+        364,
+        374,
+        383,
+        402,
+        407,
+        415,
+        421,
+        438,
+        452
+      ]
+    },
+    "mgProviderConstructor": {
+      "path": "mobile/.build/gbox-components/mg-decoded/smali/org/microg/gms/droidguard/core/HardwareAttestationBlockingProvider.smali",
+      "lines": [
+        64,
+        93,
+        106,
+        108
+      ]
+    },
+    "mgKeyStore": {
+      "path": "mobile/.build/gbox-components/mg-decoded/smali_classes6/org/microg/gms/droidguard/core/HardwareAttestationBlockingKeyStore.smali",
+      "lines": [
+        77,
+        81,
+        223,
+        292
+      ]
+    },
+    "gboxKeyStore": {
+      "path": "mobile/.build/gbox-mod/decoded-original/smali_classes4/com/vlite/sdk/ІӀӏ/o7.smali",
+      "lines": [
+        580,
+        592,
+        673,
+        746
+      ]
+    }
+  },
+  "establishedFacts": [
+    {
+      "fact": "DroidGuardService declares process com.google.android.gms.unstable, not :droidguard.",
+      "sources": [
+        "mgManifest"
+      ]
+    },
+    {
+      "fact": "GBox installs b4/a4 before guest Application.onCreate. b4 captures the original KeyStore SPI in o7.a; a4 copies provider registrations and changes KeyStore.AndroidKeyStore to o7.",
+      "sources": [
+        "gboxApplicationBind",
+        "gboxProviderInstall",
+        "gboxProviderConstructor"
+      ]
+    },
+    {
+      "fact": "MG calls ensureEnabled from DroidGuardChimeraService.onCreate and onBind. Successful enable captures the active provider and active KeyStore SPI before replacing the provider.",
+      "sources": [
+        "mgService",
+        "mgProviderInstall"
+      ]
+    },
+    {
+      "fact": "MG's replacement provider constructor registers only KeyStore.AndroidKeyStore. It does not copy EC/RSA registrations from its original provider.",
+      "sources": [
+        "mgProviderConstructor"
+      ]
+    },
+    {
+      "fact": "The enabled log is emitted before reflection and provider replacement. The disabled log is likewise emitted before restoration. A matching current flag returns early without either log; replacement exceptions log Failed replacing the security provider.",
+      "sources": [
+        "mgProviderInstall"
+      ]
+    }
+  ],
+  "conditionalProviderChain": {
+    "condition": "Both installations complete successfully in the inspected order, with no later replacement.",
+    "originalProviderClass": "com.vlite.sdk.ІӀӏ.a4",
+    "keyStoreDelegation": [
+      "org.microg.gms.droidguard.core.HardwareAttestationBlockingKeyStore",
+      "com.vlite.sdk.ІӀӏ.o7",
+      "android.security.keystore2.AndroidKeyStoreSpi"
+    ],
+    "implication": "microG is the outer blocker. GBox's o7 wrapper does not by itself bypass the microG blocker.",
+    "algorithmRegistration": "The active microG provider lacks EC/RSA services unless another step adds them. Cross restoreAlgorithms adds those registrations; the inspected GBox installation path does not."
+  },
+  "interpretation": {
+    "noBlockerLogDoesNotProveCertificateAccess": true,
+    "concreteAlternatives": [
+      "Key generation can fail before getCertificateChain is reached when algorithm registrations are absent.",
+      "Provider installation can fail after the enabled log, leaving another SPI active."
+    ],
+    "runtimeStatus": "These alternatives require the actual provider/algorithm observation; neither is established as the login failure cause."
+  },
+  "shortestRuntimeObservation": {
+    "point": "Existing Cross afterBind for the actual GMS DroidGuard START request.",
+    "fields": [
+      "provider category",
+      "EC KeyPairGenerator service present",
+      "RSA KeyPairGenerator service present",
+      "KeyStore.AndroidKeyStore service implementation category"
+    ],
+    "method": "Read provider metadata and getService results only. Do not instantiate a KeyStore or generator, read aliases, generate keys, or read certificate material.",
+    "allowlist": {
+      "provider": {
+        "android.security.keystore2.AndroidKeyStoreProvider": "android_platform",
+        "org.microg.gms.droidguard.core.HardwareAttestationBlockingProvider": "microg_blocker",
+        "com.vlite.sdk.ІӀӏ.a4": "vlite_wrapper"
+      },
+      "keyStoreService": {
+        "android.security.keystore2.AndroidKeyStoreSpi": "android_platform",
+        "org.microg.gms.droidguard.core.HardwareAttestationBlockingKeyStore": "microg_blocker",
+        "com.vlite.sdk.ІӀӏ.o7": "vlite_wrapper"
+      },
+      "unmatched": "other",
+      "absent": "missing"
+    },
+    "decision": "microg_blocker plus EC/RSA absent confirms the intended no-registration candidate. Keep its real login/token result separate from the metadata snapshot."
+  },
+  "crossWithoutAlgorithmRestoration": {
+    "source": "mobile/.build/open-cage-cross-control/provider-no-algorithms-result.json",
+    "routeSource": "mobile/.build/open-cage-cross-control/provider-no-algorithms-route.jsonl",
+    "buildEvidence": "mobile/.build/open-cage-cross-control/provider-observation/build-result.json",
+    "sourceDiff": "mobile/.build/open-cage-cross-control/provider-observation/candidate.diff",
+    "window": "2026-11-16 20:21 Asia/Shanghai",
+    "singleChange": "In the same-MG integration2 host, replace restoreAlgorithms with read-only provider registration observations. Bundled APKs and native libraries match integration2.",
+    "observations": {
+      "candidate": "Cage-cross-MG-MGC-provider-observe.apk",
+      "candidateInstalledMatches": true,
+      "sameSignerBaseline": true,
+      "nativeLibrariesAndBundleMatchBaseline": true,
+      "blockerPreference": "absent, provider default true",
+      "debuggerAttached": false,
+      "ui": "play_verification_failed",
+      "baselineRestoredMatches": true,
+      "preferenceRestoredAbsent": true,
+      "events": [
+        {
+          "time": "11-16 20:21:45.754",
+          "event": "hardware_attestation_blocking_enabled"
+        },
+        {
+          "time": "11-16 20:21:45.768",
+          "event": "cross_provider_state",
+          "provider": "microg_blocker",
+          "ecService": false,
+          "rsaService": false,
+          "keyStoreService": "microg_blocker"
+        },
+        {
+          "time": "11-16 20:21:46.781",
+          "event": "droidguard_embedded_initialized"
+        },
+        {
+          "time": "11-16 20:21:46.904",
+          "event": "integrity_request_metadata",
+          "claudePackage": true,
+          "droidGuardRawBytes": 33502,
+          "versionCode": 26111319,
+          "nonceBytes": 32,
+          "certificateCount": 1
+        },
+        {
+          "time": "11-16 20:21:47.576",
+          "event": "classic_token_returned",
+          "tokenChars": 1446,
+          "dotSegments": 5,
+          "jweSegments": {
+            "protectedHeader": {
+              "encodedChars": 43,
+              "decodedBytes": 32,
+              "canonicalBase64url": true
+            },
+            "encryptedKey": {
+              "encodedChars": 54,
+              "decodedBytes": 40,
+              "canonicalBase64url": true
+            },
+            "initializationVector": {
+              "encodedChars": 16,
+              "decodedBytes": 12,
+              "canonicalBase64url": true
+            },
+            "ciphertext": {
+              "encodedChars": 1307,
+              "decodedBytes": 980,
+              "canonicalBase64url": true
+            },
+            "authenticationTag": {
+              "encodedChars": 22,
+              "decodedBytes": 16,
+              "canonicalBase64url": true
+            }
+          },
+          "jweProtectedHeader": {
+            "status": "parsed",
+            "authenticationChecked": false,
+            "unknownFieldCount": 0,
+            "fields": {
+              "alg": {
+                "type": "string",
+                "allowlisted": true,
+                "value": "A256KW"
+              },
+              "enc": {
+                "type": "string",
+                "allowlisted": true,
+                "value": "A256GCM"
+              }
+            }
+          }
+        },
+        {
+          "time": "11-16 20:21:54.589",
+          "event": "google_credential_returned"
+        },
+        {
+          "time": "11-16 20:21:55.267",
+          "event": "verify_google_http400"
+        }
+      ]
+    },
+    "decision": "The intended provider state was observed (microG blocker, no EC/RSA services), but the login still returned HTTP 400 with a 1446-character token. Stop algorithm-registration removal as a standalone repair candidate.",
+    "limits": "This establishes the Cross state only. The successful GBox request provider was not inspected dynamically, and no Claude token was decrypted."
+  }
+}
