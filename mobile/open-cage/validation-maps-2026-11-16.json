@@ -1,0 +1,90 @@
+{
+  "date": "2026-11-16",
+  "experiment": "C3: remove the exact host APK pathname from the DroidGuard process's own maps",
+  "status": "COMPLETED_NO_LOGIN_IMPROVEMENT",
+  "deviceOperator": "single designated GPT-6.1 Terra agent",
+  "artifact": {
+    "candidate": "Cage-cross-MG-MGC-maps-control-hostapk.apk",
+    "baseline": "Cage-cross-MG-MGC-integration2.apk",
+    "sourceBaseline": "native-io-counts-control-source",
+    "package": "io.github.flysky701.cage.cross",
+    "versionCode": 6,
+    "sameSignerAsBaseline": true,
+    "embeddedMgMgcAndClaudeUnchanged": true,
+    "claudeVersionCode": 26111319,
+    "restoreAlgorithmsPreserved": true,
+    "priorNativePathRulesUnchanged": true,
+    "build": "PASS",
+    "targetedCodeReview": "PASS",
+    "installedCandidateMatched": true,
+    "releaseArtifact": false
+  },
+  "change": {
+    "target": "Exact host ApplicationInfo.sourceDir; optional deleted suffix accepted",
+    "operation": "On successful read-only openat for /proc/self/maps or /proc/<own-pid>/maps, remove the matched pathname field while preserving address, permissions, offset, device and inode fields.",
+    "replacement": "Independent read-only memfd snapshot per open; original fd remains untouched on failure",
+    "guestPathsChanged": false,
+    "keyStoreOrProofCodeChanged": false,
+    "preflight": {
+      "libblackboxSoPathRows": 0,
+      "hostInstalledApkPathRows": 27,
+      "initialLibraryNameCandidateInstalled": false,
+      "initialLibraryNameCandidateLoginRequests": 0
+    }
+  },
+  "execution": {
+    "timeLocal": "2026-11-16T22:02:15+08:00",
+    "actualClaudeLoginAttempts": 1,
+    "debuggerAttached": false,
+    "straceAttached": false,
+    "hardwareAttestationBlocking": "original enabled state observed",
+    "nativeControlInstalled": true,
+    "firstCounterSampleLocal": "2026-11-16T22:02:22+08:00",
+    "mapsHits": 3,
+    "mapsRewritten": 3,
+    "rewrittenLines": 72,
+    "rewrittenBytes": 7272,
+    "mapsFallbacks": 0,
+    "mapsUnsupported": 0,
+    "effectiveRewriteObserved": true,
+    "droidGuardRawBytes": 34774,
+    "tokenChars": 1446,
+    "jweEncodedSegmentChars": [43, 54, 16, 1307, 22],
+    "jweCiphertextBytes": 980,
+    "nonceBytes": 32,
+    "certificateCount": 1,
+    "googleCredentialReturned": true,
+    "httpStatus": 400,
+    "ui": "play_verification_failed",
+    "loginSucceeded": false
+  },
+  "comparison": {
+    "baseline": "validation-credential-attestation-2026-11-16.json#baselineC1",
+    "baselineTokenChars": 1446,
+    "baselineCiphertextBytes": 980,
+    "baselineDroidGuardRawBytes": 34813,
+    "sameJweSegmentSizes": true,
+    "sameHttpStatus": true,
+    "googleVerdictDecoded": false
+  },
+  "decision": "End this standalone host-APK maps-path candidate: the transformation ran, but the actual login and JWE sizes did not improve. Do not treat the raw VM output length difference as proof of a changed Google verdict.",
+  "limits": [
+    "Counts cover the GMS DroidGuard process window, not individually attributed VM threads.",
+    "The replacement is a memfd snapshot with different fd metadata; only the host pathname was removed from its text.",
+    "This result does not rule out other container differences or identify the contents of the successful GBox token."
+  ],
+  "restoration": {
+    "integration2Reinstalled": true,
+    "installedBaselineIdentityMatched": true,
+    "additionalLoginAfterExperiment": false,
+    "source": "designated phone operator's completed restoration report",
+    "formalCageOpenChanged": false,
+    "gboxSessionChanged": false
+  },
+  "evidence": [
+    "mobile/.build/open-cage-cross-control/maps-control-hostapk/build-result.json",
+    "mobile/.build/open-cage-cross-control/maps-control-hostapk/candidate.diff",
+    "mobile/.build/open-cage-cross-control/maps-hostapk-result.json",
+    "mobile/.build/open-cage-cross-control/maps-hostapk-route.jsonl"
+  ]
+}

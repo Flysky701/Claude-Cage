@@ -1,0 +1,547 @@
+{
+  "schemaVersion": 1,
+  "scope": "paired self-owned Classic probe, actual DroidGuard process windows; offline analysis only",
+  "sources": [
+    "mobile/.build/open-cage-cross-control/native-query-gbox.json",
+    "mobile/.build/open-cage-cross-control/native-query-cross.json",
+    "mobile/.build/open-cage-cross-control/decode-gbox/summary.json",
+    "mobile/.build/open-cage-cross-control/decode-cross/summary.json"
+  ],
+  "conditions": {
+    "sameProbeApk": true,
+    "warmupClassicRequestsEach": 1,
+    "tracedClassicRequestsEach": 1,
+    "actualDroidGuardProcessAttached": true,
+    "jdwpUsed": false,
+    "dgHandleAndCacheStateEquivalence": "not measured",
+    "source": "phone_operator observation, 2026-11-16"
+  },
+  "normalization": {
+    "containerCategories": "All container_* categories coarsened to container_private for comparison. GBox uses _root and Cross uses blackbox; their fine categories are not symmetric.",
+    "counts": "Raw observed syscall events, not deduplicated logical accesses or VM instruction counts."
+  },
+  "samples": {
+    "gbox": {
+      "collectedUtc": "2026-11-16T12:56:06.304585+00:00",
+      "coverage": {
+        "inputLines": 279,
+        "parsedCalls": 128,
+        "unfinishedCalls": 0,
+        "reassembledCalls": 0,
+        "unmatchedResumed": 0,
+        "abandonedUnfinished": 0,
+        "unparsedLines": 0,
+        "oversizedLines": 0,
+        "truncatedPaths": 0,
+        "missingPaths": 0,
+        "relativeResolved": 0,
+        "nonQueryLines": 151,
+        "attachDenied": 0,
+        "unfinishedAtEnd": 0
+      },
+      "categories": {
+        "container_private": 17,
+        "device_other": 2,
+        "dg_cache_artifact": 10,
+        "dg_cache_database": 30,
+        "gms_logical_ce": 15,
+        "other": 10,
+        "proc_other": 37,
+        "proc_status": 3,
+        "sys_other": 4
+      },
+      "syscalls": {
+        "faccessat": 10,
+        "newfstatat": 55,
+        "openat": 26,
+        "readlinkat": 37
+      },
+      "outcomes": {
+        "error:EACCES": 2,
+        "error:ENOENT": 5,
+        "error:OTHER": 10,
+        "ok": 111
+      },
+      "decodedSummary": {
+        "validation": "passed",
+        "device": [],
+        "app": "UNEVALUATED",
+        "licensing": "UNEVALUATED"
+      },
+      "firstTraceTimestamp": "1794833720.126545",
+      "lastTraceTimestamp": "1794833747.071783",
+      "observedEventSpanSeconds": 26.945,
+      "queryCountsCoarsened": [
+        {
+          "syscall": "faccessat",
+          "pathCategory": "container_private",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 3
+        },
+        {
+          "syscall": "faccessat",
+          "pathCategory": "dg_cache_artifact",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 4
+        },
+        {
+          "syscall": "faccessat",
+          "pathCategory": "gms_logical_ce",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 3
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "container_private",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 7
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "dg_cache_artifact",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 4
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "dg_cache_database",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 5,
+          "observedErrno": "ENOENT"
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "dg_cache_database",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 23
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "gms_logical_ce",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 7
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 6
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "proc_status",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1,
+          "standardPath": "/proc/<pid>/status"
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "sys_other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 2,
+          "standardPath": "/sys/fs/selinux/enforce"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "container_private",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 7
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "device_other",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 1,
+          "observedErrno": "OTHER"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "device_other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "dg_cache_artifact",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 1,
+          "observedErrno": "OTHER"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "dg_cache_artifact",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "dg_cache_database",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 1,
+          "observedErrno": "OTHER"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "dg_cache_database",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "gms_logical_ce",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 5,
+          "observedErrno": "OTHER"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "other",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 1,
+          "observedErrno": "EACCES"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "other",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 2,
+          "observedErrno": "OTHER"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "proc_status",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 2,
+          "standardPath": "/proc/self/status"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "sys_other",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 1,
+          "standardPath": "/sys/fs/selinux/enforce",
+          "observedErrno": "EACCES"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "sys_other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1,
+          "standardPath": "/sys/fs/selinux/enforce"
+        },
+        {
+          "syscall": "readlinkat",
+          "pathCategory": "proc_other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 37
+        }
+      ]
+    },
+    "cross": {
+      "collectedUtc": "2026-11-16T12:58:29.602229+00:00",
+      "coverage": {
+        "inputLines": 89,
+        "parsedCalls": 54,
+        "unfinishedCalls": 0,
+        "reassembledCalls": 0,
+        "unmatchedResumed": 0,
+        "abandonedUnfinished": 0,
+        "unparsedLines": 0,
+        "oversizedLines": 0,
+        "truncatedPaths": 0,
+        "missingPaths": 0,
+        "relativeResolved": 0,
+        "nonQueryLines": 35,
+        "attachDenied": 0,
+        "unfinishedAtEnd": 0
+      },
+      "categories": {
+        "app_private": 1,
+        "container_private": 22,
+        "device_other": 1,
+        "dg_cache_artifact": 5,
+        "dg_cache_database": 15,
+        "other": 5,
+        "proc_other": 1,
+        "proc_status": 2,
+        "sys_other": 2
+      },
+      "syscalls": {
+        "faccessat": 5,
+        "newfstatat": 34,
+        "openat": 15
+      },
+      "outcomes": {
+        "error:EACCES": 2,
+        "error:ENOENT": 5,
+        "ok": 47
+      },
+      "decodedSummary": {
+        "validation": "passed",
+        "device": [],
+        "app": "UNEVALUATED",
+        "licensing": "UNEVALUATED"
+      },
+      "firstTraceTimestamp": "1794833865.983854",
+      "lastTraceTimestamp": "1794833889.359541",
+      "observedEventSpanSeconds": 23.376,
+      "queryCountsCoarsened": [
+        {
+          "syscall": "faccessat",
+          "pathCategory": "container_private",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 3
+        },
+        {
+          "syscall": "faccessat",
+          "pathCategory": "dg_cache_artifact",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 2
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "app_private",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "container_private",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 13
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "dg_cache_artifact",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 2
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "dg_cache_database",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 5,
+          "observedErrno": "ENOENT"
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "dg_cache_database",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 9
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 3
+        },
+        {
+          "syscall": "newfstatat",
+          "pathCategory": "sys_other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1,
+          "standardPath": "/sys/fs/selinux/enforce"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "container_private",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 6
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "device_other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "dg_cache_artifact",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "dg_cache_database",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "other",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 1,
+          "observedErrno": "EACCES"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "proc_other",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 1
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "proc_status",
+          "fileKind": "other",
+          "observedResult": "ok",
+          "count": 2,
+          "standardPath": "/proc/self/status"
+        },
+        {
+          "syscall": "openat",
+          "pathCategory": "sys_other",
+          "fileKind": "other",
+          "observedResult": "error",
+          "count": 1,
+          "standardPath": "/sys/fs/selinux/enforce",
+          "observedErrno": "EACCES"
+        }
+      ]
+    }
+  },
+  "standardPathFindings": [
+    {
+      "path": "/proc/self/status",
+      "syscall": "openat",
+      "gbox": {
+        "ok": 2
+      },
+      "cross": {
+        "ok": 2
+      },
+      "interpretation": "same observed outcomes"
+    },
+    {
+      "path": "/proc/<pid>/status",
+      "syscall": "newfstatat",
+      "gbox": {
+        "ok": 1
+      },
+      "cross": {},
+      "interpretation": "only observed in GBox window; target identity and VM origin unavailable"
+    },
+    {
+      "path": "/sys/fs/selinux/enforce",
+      "syscall": "openat",
+      "gbox": {
+        "ok": 1,
+        "EACCES": 1
+      },
+      "cross": {
+        "EACCES": 1
+      },
+      "interpretation": "GBox has one additional event recorded as ok; both have EACCES. A seccomp-trapped syscall can expose a placeholder return, so this is not evidence that GBox actually read this file successfully or that its effective visibility differs."
+    },
+    {
+      "path": "/sys/fs/selinux/enforce",
+      "syscall": "newfstatat",
+      "gbox": {
+        "ok": 2
+      },
+      "cross": {
+        "ok": 1
+      },
+      "interpretation": "same result class, different observed event count"
+    }
+  ],
+  "limits": [
+    "Trace-readiness and request-trigger timestamps were not separately recorded. The first/last event span is not the exact request duration or proof that tracing was ready before the request.",
+    "Both decoded verdict summaries are identical: empty deviceRecognitionVerdict, app/licensing UNEVALUATED. These traces are not a Claude success/failure pair.",
+    "All calls in a process window are not automatically attributable to DroidGuard VM instructions.",
+    "GBox has 10 openat error/OTHER events. Exact errno and seccomp signal metadata were discarded; do not interpret OTHER as EACCES or final logical-call failure.",
+    "GBox seccomp/SIGSYS interception may expose both trapped and reissued calls to strace; original-versus-handler events cannot be paired from these summaries.",
+    "GBox 37 proc_other/readlinkat events versus Cross one proc_other/openat event are not equivalent path operations. Exact subpaths and returned content were not retained.",
+    "Absence of maps, cmdline, DE, property, APK or library categories from these warm windows does not show those paths were never read earlier, through another process, or without a captured file syscall.",
+    "No path/content/property/token/identifier was retained by this analysis."
+  ],
+  "nextStepAssessment": "S2 canceled before execution after scope was narrowed to actual Claude login. No further cold-process tracing, property instrumentation, self-owned probe requests or runtime hook changes are scheduled from S1.",
+  "date": "2026-11-16",
+  "batch": "S1",
+  "conclusion": "A same-probe warm-process pair was collected and decoded. Both verdict summaries match. Observed syscall events differ, but startup coverage and seccomp event semantics are unresolved; no container-detection root cause is established.",
+  "method": {
+    "deviceOperator": "single designated device agent",
+    "sequence": [
+      "One Classic warm-up request per host using the same self-owned probe APK.",
+      "Attach strace to the live GMS unstable/DroidGuard process.",
+      "After a short wait, trigger a second Classic request.",
+      "Stream stdout/stderr directly to the bounded metadata parser. Decode this request using the probe project."
+    ],
+    "commandTemplate": "run-as <host-package> timeout -s INT 45 strace -f -qq -ttt -y -e trace=openat,newfstatat,faccessat,readlinkat -p <actual-droidguard-pid>",
+    "straceVersion": "4.25",
+    "parserAtCollection": "mobile/open-cage/diagnostics/attestation/capture_native_queries.py",
+    "stoppedPrototypeRetainedLocally": "mobile/.build/open-cage-cross-control/capture_native_queries-stopped-v2.py",
+    "prototypeUsedForTheseResults": false,
+    "parserSchemaVersion": 1,
+    "classificationChangedBetweenHosts": false,
+    "durationLimitSeconds": 45,
+    "traceReadinessTimestampRecorded": false,
+    "requestTriggerTimestampRecorded": false,
+    "initializationCaptured": false,
+    "rawStreamRetained": false,
+    "privateRoots": "host data roots supplied to parser; host package and process identifiers omitted"
+  },
+  "detachVerification": {
+    "gbox": "Main-thread TracerPid was zero after collection; process later exited before per-thread status could be read.",
+    "cross": "All 27 extant threads had TracerPid zero after collection."
+  },
+  "propertyKeyCoverage": {
+    "observed": false,
+    "reason": "File syscalls can expose a property-area file path but not property names looked up through already mapped shared memory.",
+    "nextRequirement": "Not pursued: property-key instrumentation is outside the remaining actual Claude login experiment."
+  },
+  "runtimeCodeChanged": false
+}
