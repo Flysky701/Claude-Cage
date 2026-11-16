@@ -7,7 +7,7 @@ Android 的逐项状态与下一步统一维护在 [mobile/STATUS.md](../mobile/
 
 - Windows 及共享功能：五项独立修复已推送并提交上游 Contribution Issue，均为待审核状态，尚未创建对应 PR。
 - Android：Cage Open 已完成 Google 测试账号登录、冷启动保留，以及原版商店下载并安装 Claude；Claude 登录仍未通过。
-- Android 已补齐 GBox 实际 KeyStore 注册链、零命中原因及后续失败对照；Cross 保留 integration2，尚未定位登录拒绝的具体原因。隐私与断线保护的验收范围没有扩大。
+- Cross 已修复账号可见性解析，并打通真实 Play OAuth 委托授权；11-17 01:42 取得授权后，原版 Claude 登录仍为 HTTP 400。请求携带非零、非默认设备 ID，与 microG check-in 的一致性待比对。隐私与断线保护的验收范围没有扩大。
 
 ## Windows 与共享功能
 
@@ -40,7 +40,7 @@ Windows Lite 的既有定向结果与使用限制见 [README](../tools/windows-l
 | --- | --- | --- |
 | Android 远程客户端 | 已同步上游 v0.1.8，保留本地客户端更新实现 | 本次未新增客户端运行验证 |
 | Cage Open `0.0.6-login-preview`，Android 16 arm64 真机 | Google 测试账号登录及冷启动保留通过；商店下载、安装 Claude 原签名分包通过；Google 登录结果回传已修复 | Claude `26111319` 仍为 Play 验证失败、HTTP 400；尚未登录或发送消息 |
-| 独立 Cross 组件对照 | 同款 MG/MGC、原版 Claude、本地 DroidGuard 及 Google 凭据回传链路已完成；maps 与平台 KeyStore 预探测等候选已结束 | 11-17 00:13 仍为 1446 字符令牌、HTTP 400；请求鉴权与 GSF ID 的运行时状态未知 |
+| 独立 Cross 组件对照 | 修复账号可见性；定位 Play OAuth 注册错误；真实 microG 委托授权页获准后，原始重试返回真实 Play OAuth 令牌 | 11-17 01:42 授权后登录仍为 1446 字符令牌、HTTP 400；设备 ID 已确认非零且非默认值，尚待与 check-in 比对 |
 | 隐私补丁 | 0.0.5 的 SIM、VPN 可见性、隧道元数据和东京时区在所测路径通过；0.0.6 保留策略代码，并观察到 Claude 进程内启用 | 0.0.6 未重跑整套探针；WebView 首脚本跨进程保证、断线保护等仍未验证 |
 | GBox 真机对照 | 所测 SIM/VPN 和隧道元数据通过；11-16 22:21 同版 Claude 无调试登录成功；后续原数据已归位并恢复已登录主页 | Checks02 的 WebView 首脚本时区未通过；非隧道信息隔离部分完成，真机断线保护未验证；独立登录对照不替代这些验收 |
 | MuMu / 官方 Android 模拟器 | 已保存失败对照和诊断记录 | MuMu GBox 路线暂停；已测组合未达到 Claude 登录目标 |
@@ -51,14 +51,15 @@ Windows Lite 的既有定向结果与使用限制见 [README](../tools/windows-l
 - 11-16 22:02 的宿主 APK maps 路径对照确实生效：3 次读取、72 行处理、0 次回退；实际 Claude 登录仍失败，令牌各段尺寸与基线一致。候选已结束并恢复 integration2，详见 [记录](../mobile/open-cage/validation-maps-2026-11-16.json)。
 - **KeyStore 零命中原因已确认。** 11-16 22:21 无调试登录成功后，只读快照确认 GBox 注册链为 microG blocker → GBox `o7` → 系统 `AndroidKeyStoreSpi`，GMS 掩码为 1、未设 bit 2。另一次诊断请求在 EC 生成器查找处抛出 `NoSuchAlgorithmException`，尚未进入密钥生成或证书读取。该结论解释了本次零命中，不能推出 Cross 登录失败的根因，详见 [记录](../mobile/open-cage/validation-gbox-keystore-live-2026-11-16.json)。
 - **平台 KeyStore 预探测未修通，已撤回。** 11-16 23:47 的候选完成平台 EC 探测及临时密钥清理，仍为 1446 / HTTP 400；它未完整复现 GBox 更早的初始化时序。本轮不追加时序变体，已恢复 integration2。GBox 原数据已归位，普通无调试登录已恢复主页；没有合入新的运行时补丁，详见 [同一记录](../mobile/open-cage/validation-gbox-keystore-live-2026-11-16.json)。
-- **Classic 请求输入仍未知。** 11-17 00:10、00:13 两次观察均未捕获目标 POST，不能判断 Play OAuth 鉴权或 GSF 设备 ID 是否缺失；两次实际登录仍为 1446 / HTTP 400。观察已结束并完成清理，没有据此改动账号或设备登记，详见 [记录](../mobile/open-cage/validation-classic-request-inputs-2026-11-17.json)。
+- **较早的请求头观察未取得证据。** 11-17 00:10、00:13 两次观察均未捕获目标 POST，当时无法判断 Play OAuth 或设备 ID 状态；该观察方式已结束。后续 OAuth 与实际设备 ID 的新证据见下一项，早期未知结论保留在 [历史记录](../mobile/open-cage/validation-classic-request-inputs-2026-11-17.json)。
+- **Play OAuth 链路已修复，Claude 登录仍失败。** 账号可见性修复后，00:58 仍观察到空 Play OAuth；01:15 取得 `UNREGISTERED_ON_API_CONSOLE`，请求组合为 MGC 包名与 Play 商店签名。后续通过 microG 原生委托授权，实际授权页获准，原始重试返回真实 OAuth 令牌。01:42 授权后的原版 Claude 登录仍为 1446 / HTTP 400；同次完整性请求携带非零、非默认设备 ID，与 microG check-in 的一致性待比对。原账号数据、GBox 会话与网络设置保留，详见 [最新记录](../mobile/open-cage/validation-google-oauth-2026-11-17.json)。
 - 自有探针对照的两边判定相同，不能替代真实 Claude 的成功与失败对照；采样覆盖与 seccomp 语义仍有限制，详见 [记录](../mobile/open-cage/validation-native-queries-2026-11-16.json)。
-- Claude 令牌的服务端判定仍未解码；现有证据尚未支持新的具体修复点。令牌总长度、VM 输出长度和 Google 账号登录均不能单独证明 Claude 登录或完整性验收通过。
+- Claude 令牌的服务端判定仍未解码；Play OAuth 集成缺陷的修复没有单独解决 Claude 登录。令牌总长度、VM 输出长度和 Google 账号登录均不能单独证明 Claude 登录或完整性验收通过。
 
 ## 接续安排
 
 1. Windows：等待五项贡献方案审核；按维护者意见补充对应验证，再进入 PR 流程。
-2. Android：保留 integration2、GBox 已恢复的会话及原数据。KeyStore 零命中问题已解释，平台预探测与请求头观察已结束；只有新的实际请求证据支持具体差异时才进入下一次修改。主线验收仍为原版 Claude 实际登录成功，当前未达到。
+2. Android：保留当前 `mgc-consent-new-task` 候选、GBox 会话及原数据。下一步仅用现有数据比对实际请求设备 ID 与同一 microG check-in 记录；当前请求已有非默认 ID，不据此新增缺失 ID 修复。主线验收仍为原版 Claude 实际登录成功，当前未达到。
 3. 隐私补丁继续按 [验收范围](../mobile/sandbox/gbox-mod/PRIVACY-REVIEW-2026-11-15.md#补丁验收范围)逐项记录产物、环境、路径和结论；Google/Claude 登录与隐私验收分别判定。
 
-本次同步范围为进度文档与脱敏结构化记录，不包含 APK、签名密钥、账号凭据、代理配置或设备原始日志。
+本次同步范围为进度文档与脱敏结构化记录；候选源码补丁仍在本地开发，不纳入本次文档提交。不包含 APK、签名密钥、账号凭据、代理配置或设备原始日志。
