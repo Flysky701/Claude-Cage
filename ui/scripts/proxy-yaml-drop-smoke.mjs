@@ -26,12 +26,12 @@ try {
     await page.getByRole("button", { name: "网络与代理", exact: true }).click();
     await page.getByRole("tab", { name: "订阅", exact: true }).click();
     await page.getByRole("button", { name: "添加来源", exact: true }).click();
-    await page.getByRole("button", { name: "本地 YAML", exact: true }).click();
+    await page.getByRole("button", { name: "本地配置", exact: true }).click();
   };
   await open();
   const region = page.locator(".proxy-yaml-input");
   const dropzone = page.locator(".proxy-yaml-dropzone");
-  const editor = page.getByRole("textbox", { name: "节点 YAML", exact: true });
+  const editor = page.getByRole("textbox", { name: "节点配置或 Trojan 分享链接", exact: true });
   const name = page.getByLabel("来源名称", { exact: true });
   const submit = page.getByRole("button", { name: "导入并验证", exact: true });
   const expectText = async (locator, value) => {
@@ -70,7 +70,7 @@ try {
   const secondChooser = page.waitForEvent("filechooser");
   await dropzone.press("Space");
   await (await secondChooser).setFiles(payload());
-  await page.waitForFunction((expected) => document.querySelector('[aria-label="节点 YAML"]').value === expected, yaml);
+  await page.waitForFunction((expected) => document.querySelector('[aria-label="节点配置或 Trojan 分享链接"]').value === expected, yaml);
   await name.fill("我的来源");
 
   // Nested drag events must keep the highlight until the pointer leaves the region.
@@ -89,8 +89,14 @@ try {
   assert.doesNotMatch(await region.getAttribute("class"), /is-dragging/);
 
   const preserved = await editor.inputValue();
+  const subscription = Buffer.from("trojan://fixture@example.com:443#Trojan").toString("base64");
+  await fileInput.setInputFiles(payload("订阅.txt", subscription));
+  await expectText(dropzone, "订阅.txt");
+  assert.equal(await editor.inputValue(), subscription);
+  await fileInput.setInputFiles(payload("替换.YML", preserved));
+  await expectText(dropzone, "替换.YML");
   for (const [files, message] of [
-    [[{ name: "image.png", content: "image" }], ".yaml、.yml 或 .json"],
+    [[{ name: "image.png", content: "image" }], ".yaml、.yml、.json 或 .txt"],
     [[{ name: "a.yaml", content: yaml }, { name: "b.yml", content: yaml }], "一次只能导入一个"],
     [[{ name: "empty.yaml", content: "  " }], "文件内容为空"],
   ]) {
@@ -129,7 +135,7 @@ try {
   await expectText(region.getByRole("status"), "正在读取");
   await page.getByRole("button", { name: "订阅链接", exact: true }).click();
   await page.evaluate(() => window.finishSlowRead("stale content"));
-  await page.getByRole("button", { name: "本地 YAML", exact: true }).click();
+  await page.getByRole("button", { name: "本地配置", exact: true }).click();
   assert.equal(await editor.inputValue(), "");
   await page.evaluate(() => { File.prototype.text = window.originalFileText; });
 

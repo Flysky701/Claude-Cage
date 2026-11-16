@@ -251,7 +251,7 @@ function Initialization({ initial, onComplete }) {
     if (proxyDraft === "source") return "在“订阅”页完成来源编辑，或点击“取消”。";
     if (proxyDraft || needsProxySetup(null, status, proxy)) {
       if (proxy.core_available === false) return "请安装带有代理核心的完整 Cage 应用。";
-      if (!proxy.sources?.some(source => source.nodes.length)) return "点击“添加来源”，导入订阅、本地 YAML 或手动节点。";
+      if (!proxy.sources?.some(source => source.nodes.length)) return "点击“添加来源”，导入订阅、本地配置 或手动节点。";
       if (proxyDraft === "incomplete-route") return "在“节点”页为每一跳选择不同的节点，再点击“应用代理”。";
       if (proxyDraft === "route" || proxy.selected) return "在“节点”页点击“应用代理”，启用所选出口。";
       return "在“节点”页选择最终出口，再点击“应用代理”。";

@@ -84,7 +84,7 @@ cage agent call account.unlock --input -
 
 ### 导入代理并确认出口
 
-先读 `proxy.status`。已有可用来源时复用，避免重复导入。首次导入可用用户提供的 HTTPS Clash/Mihomo 节点订阅，或私有文件中的 Clash/Mihomo YAML；内容必须包含 `proxies` 或 `payload` 节点。Base64 列表、单个 `vless://` 等分享链接、Xray/v2rayN 原生 JSON 和仅引用远程 provider 的配置不能直接导入，改文件后缀也不能完成转换。只有分享链接时，先从原客户端导出兼容 YAML；协议或握手不兼容时，可按[通过本机代理客户端转发](network.md#通过本机代理客户端转发)配置 SOCKS5 上游，再验证预期出口。
+先读 `proxy.status`。已有可用来源时复用，避免重复导入。首次导入可用用户提供的 HTTPS 节点订阅或私有文件：支持含 `proxies` 或 `payload` 的 Clash/Mihomo YAML，以及 Trojan 分享链接列表（含 Base64）。其他分享协议、Xray/v2rayN 原生 JSON 和仅引用远程 provider 的配置不能直接导入，改文件后缀也不能完成转换。无法转换的分享链接应从原客户端导出兼容 YAML，并检查跳过节点的原因；协议或握手不兼容时，可按[通过本机代理客户端转发](network.md#通过本机代理客户端转发)配置 SOCKS5 上游，再验证预期出口。
 
 ```json
 {"name":"我的代理","url":"https://用户自己的订阅地址","interval_hours":0,"host_download":true}

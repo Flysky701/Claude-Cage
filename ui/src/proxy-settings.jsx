@@ -388,13 +388,11 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
               <p>打开「订阅」→「添加来源」，填写来源名称，再选择一种方式：</p>
               <ul>
                 <li>
-                  <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
-                  格式的 HTTPS
+                  <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo YAML 或 Trojan 分享链接列表的 HTTPS
                   订阅地址，粘贴后点击「导入并验证」。首次还没有可用节点时，勾选「通过主机网络下载这份订阅」；主机需要能访问该地址。
                 </li>
                 <li>
-                  <strong>本地 YAML：</strong>拖入或选择配置文件，或粘贴含节点的
-                  YAML 配置，再点击「导入并验证」。可从已有代理客户端导出配置。
+                  <strong>本地配置：</strong>拖入或选择配置文件，或粘贴 YAML、Trojan 分享链接列表（支持 Base64），再点击「导入并验证」。可从已有代理客户端导出配置。
                 </li>
                 <li>
                   <strong>手动节点：</strong>支持 HTTP CONNECT、SOCKS5 和 SSH。填写节点名称、服务器地址、端口及认证信息；SSH 可选择密码或私钥认证，再点击「导入并验证」。
@@ -418,9 +416,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
           <div className="proxy-help-notes">
             <strong>导入失败或无法联网？</strong>
             <p>
-              确认复制的是订阅地址，而非服务商登录页或管理页。暂不支持单条分享链接、Base64
-              节点列表，以及只引用远程节点列表的配置；请向服务商获取含节点的
-              Clash/Mihomo YAML。
+              确认复制的是订阅地址，而非服务商登录页或管理页。支持 Trojan 分享链接及其 Base64 列表；其他分享协议、暂不支持的参数或只引用远程节点列表的配置，请改用含节点的 Clash/Mihomo YAML。部分节点跳过时，可在来源中查看原因。
             </p>
             <p>
               订阅下载失败时，可检查主机是否能访问订阅地址，或改用本地
@@ -715,7 +711,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
             <div className="proxy-empty">
               <Download size={26} />
               <strong>添加第一份节点来源</strong>
-              <p>支持 Clash/Mihomo YAML 订阅、本地配置或手动节点。</p>
+              <p>支持 Clash/Mihomo YAML、Trojan 分享链接订阅（含 Base64）、本地配置或手动节点。</p>
               <button
                 onClick={() => {
                   setTab("sources");
@@ -907,7 +903,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                 <div className="proxy-tabs">
                   {[
                     ["url", "订阅链接"],
-                    ["file", "本地 YAML"],
+                    ["file", "本地配置"],
                     ["manual", "手动节点"],
                   ].map(([id, label]) => (
                     <button
