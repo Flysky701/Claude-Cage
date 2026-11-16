@@ -244,12 +244,34 @@ class CacheMaintenanceTests(unittest.TestCase):
         finally:
             link.rmdir()
         care.private_directory(self.service.recovery)
+        self.write(self.service.recovery / "nested/receipt.json", "fixture")
         env["FIXTURE_TARGET"] = str(self.service.recovery)
-        script = "$a=Get-Acl -LiteralPath $env:FIXTURE_TARGET; @{protected=$a.AreAccessRulesProtected; sids=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | ForEach-Object {$_.IdentityReference.Value}); user=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value} | ConvertTo-Json -Compress"
+        script = """
+$ErrorActionPreference='Stop'
+$a=Get-Acl -LiteralPath $env:FIXTURE_TARGET
+$child=Get-Acl -LiteralPath (Join-Path $env:FIXTURE_TARGET 'nested/receipt.json')
+@{
+    protected=$a.AreAccessRulesProtected
+    owner=$a.GetOwner([Security.Principal.SecurityIdentifier]).Value
+    user=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    rules=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | ForEach-Object {
+        @{sid=$_.IdentityReference.Value; full=($_.FileSystemRights -eq 'FullControl');
+          allow=($_.AccessControlType -eq 'Allow'); inheritance=[int]$_.InheritanceFlags}
+    })
+    children=@($child.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | ForEach-Object {
+        @{sid=$_.IdentityReference.Value; inherited=$_.IsInherited; full=($_.FileSystemRights -eq 'FullControl')}
+    })
+} | ConvertTo-Json -Depth 3 -Compress
+"""
         output = care.subprocess.check_output([str(executable), "-NoProfile", "-NonInteractive", "-Command", script], env=env, text=True)
         acl = json.loads(output)
         self.assertTrue(acl["protected"])
-        self.assertEqual(set(acl["sids"]), {acl["user"], "S-1-5-18"})
+        self.assertEqual(acl["owner"], acl["user"])
+        expected = {acl["user"], "S-1-5-18"}
+        self.assertEqual({rule["sid"] for rule in acl["rules"]}, expected)
+        self.assertTrue(all(rule["allow"] and rule["full"] and rule["inheritance"] == 3 for rule in acl["rules"]))
+        self.assertEqual({rule["sid"] for rule in acl["children"]}, expected)
+        self.assertTrue(all(rule["inherited"] and rule["full"] for rule in acl["children"]))
 
 
 if __name__ == "__main__":
