@@ -40,6 +40,8 @@ jobs:
           pwsh -NoProfile -File scripts/test-windows-signing.ps1
       - name: Validate workflow syntax
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -color
+      - name: Cloud deployment dependency downloads
+        run: node --test scripts/fetch-cloud-core.test.mjs
       - name: Guest creation preference contracts
         run: |
           node scripts/guest-os/tests/browser-profile.test.mjs

@@ -11,3 +11,7 @@ foreach ($name in @('mihomo', 'mihomoSource', 'openssh', 'qemu', 'webview2', 'qe
     $path = Get-VerifiedDependency $dependencies.$name $DependencyCache
     Write-Host "Verified $name at $path"
 }
+if (-not $env:CAGE_CLOUD_KIT) {
+    $node = Get-BuildCommand @('node.exe', 'node')
+    Invoke-BuildTool $node @((Join-Path $PSScriptRoot 'fetch-cloud-core.mjs'))
+}

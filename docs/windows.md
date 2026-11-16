@@ -82,3 +82,9 @@ Windows 开发包将创建脚本放在安装目录的 `resources\guest-os\new-wi
 ## 静默安装选项
 
 静默安装可传入 `/DESKTOPSHORTCUT=0|1` 和 `/STARTMENUSHORTCUT=0|1`，参数放在最后的 `/D=` 安装目录之前。未提供参数的静默更新沿用已保存的快捷方式选择。
+
+## 源码构建的云部署依赖缓存
+
+Windows 构建中的 SSH 云部署包还需要 Linux 版 Mihomo。`scripts/fetch-windows-dependencies.ps1` 会提前下载并校验它；也可在仓库根目录单独运行 `node scripts/fetch-cloud-core.mjs`。下载来源、文件名和 SHA-256 以 `packaging/linux/dependencies.json` 为准，校验通过后保存到 `_output/linux-deps/`，后续打包直接复用。
+
+下载持续取得进展时不限制总时长；连接建立超时或连续 60 秒低于每秒 1 字节时重试，每次运行最多尝试四次。中断的 `.part` 文件保留，下次继续下载；服务器不支持续传或分片校验失败时重新下载，完整校验通过前不会写入正式缓存。已有正式缓存校验失败时会报错，删除报错中指定的缓存文件后重试。指定 `CAGE_CLOUD_KIT` 使用离线云部署包时，跳过这项下载。

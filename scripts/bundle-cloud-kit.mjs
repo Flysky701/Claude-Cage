@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createGzip } from "node:zlib";
 import { pipeline } from "node:stream/promises";
+import { fetchCloudCore } from "./fetch-cloud-core.mjs";
 
 const target = path.resolve(process.argv[2], "cloud-linux-amd64.tar");
 const digest = async file => {
@@ -32,12 +33,9 @@ if (offline) {
     });
     await pipeline(fs.createReadStream(binary), createGzip(), fs.createWriteStream(binary + ".gz"));
     fs.unlinkSync(binary);
-    const {mihomo} = JSON.parse(fs.readFileSync("packaging/linux/dependencies.json"));
-    const cache = path.resolve("_output/linux-deps", mihomo.file);
+    const cache = await fetchCloudCore();
     const core = path.join(stage, "mihomo.gz");
-    if (fs.existsSync(cache)) fs.copyFileSync(cache, core);
-    else execFileSync("curl", ["--fail","--location","--retry","3","--max-time","300","--output",core,mihomo.url],{stdio:"inherit"});
-    if (await digest(core) !== mihomo.sha256) throw Error("Linux Mihomo checksum mismatch");
+    fs.copyFileSync(cache, core);
     const recipe = path.join(stage, "deploy/cloud");
     fs.mkdirSync(recipe, {recursive:true});
     for (const name of ["Dockerfile.guest","restore-apt-sources.sh","build-guest.sh"])
