@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "date": "2026-11-18",
+  "candidate": "official Claude Desktop 5.11492.5 / Electron 45.2.1, unpacked without package registration",
+  "conditions": {
+    "mode": "AppContainer",
+    "capabilityCount": 0,
+    "isolatedProfile": true,
+    "accountUsed": false,
+    "coworkServiceStarted": false,
+    "noSandboxFlagUsed": false,
+    "hostWindowStationAclChanged": false
+  },
+  "diagnosis": {
+    "mainTokenVerified": true,
+    "childProcessCreatedBeforeFailure": false,
+    "exitHex": "0x80000003",
+    "exceptionRva": "0x345c8da",
+    "matchingPublicSymbol": "sandbox::policy::Sandbox::Initialize+0x7a",
+    "pdb": "electron.exe.pdb",
+    "pdbGuidAge": "BDB6679E6E9E26F34C4C44205044422E1",
+    "pdbIdentityMatchedToPe": true,
+    "publicSymbolBytesDownloaded": 24027136,
+    "brokerResultAtFailure": 12,
+    "lastWin32ErrorAtFailure": 5,
+    "failure": "CreateAlternateDesktop(kAlternateWinstation) returns SBOX_ERROR_CANNOT_CREATE_WINSTATION; Sandbox::Initialize CHECK terminates before renderer startup",
+    "sourceCorrelation": "official public symbols plus machine-code branch and Win32 return values; current Chromium source agrees"
+  },
+  "minimalApiProbe": {
+    "currentWindowStationDaclReadable": true,
+    "appContainerUnnamedStationGenericReadAndCreate": "ERROR_ACCESS_DENIED",
+    "appContainerUnnamedStationReadAttributesAndCreate": "ERROR_ACCESS_DENIED",
+    "ordinaryHostExplicitRandomStationName": "ERROR_ACCESS_DENIED; named creation requires administrator according to Microsoft documentation",
+    "ordinaryHostCreateOnlyUnnamedStation": "ERROR_ALREADY_EXISTS; existing session station must not be reused or have its ACL changed",
+    "temporaryProfilesDeleted": true
+  },
+  "preparedNextProbe": {
+    "status": "both named-open and exact-handle follow-ups completed; route paused before application shim implementation",
+    "commandMode": "verify-desktop-compat.ps1 -Mode station-chain",
+    "elevationScope": "one temporary helper creates random named station and desktop with exact test-package ACLs; no application runs with its elevated token",
+    "stationCreation": "CWF_CREATE_ONLY, no existing-object fallback",
+    "stationPackageAccess": "READ_CONTROL | WINSTA_READATTRIBUTES | WINSTA_CREATEDESKTOP",
+    "desktopPackageAccess": "READ_CONTROL | WRITE_DAC | WRITE_OWNER | DESKTOP_READOBJECTS | DESKTOP_CREATEWINDOW",
+    "desktopRestrictedSidDenyRetained": true,
+    "objectIntegrity": "low",
+    "helperLifetimeSecondsMaximum": 90,
+    "apiChain": "OpenWindowStation, SetProcessWindowStation, OpenDesktop/CreateDesktop, restore original station, close owned handles",
+    "observedNamedOpenResult": "ERROR_ACCESS_DENIED despite explicit package ACE and low integrity label",
+    "newObjectsRemovedAfterTest": true,
+    "profileDeletedAfterTest": true,
+    "followUpMode": "verify-desktop-compat.ps1 -Mode station-duplicate",
+    "followUpRestriction": "helper verifies the suspended target's exact package SID, zero capabilities and fixture executable; duplicates only station access 0xA; startup handle data is package-read-only"
+  },
+  "exactHandleObservation": {
+    "targetTokenVerified": true,
+    "capabilityCount": 0,
+    "duplicatedStationAccess": 10,
+    "queryExactNewStation": true,
+    "selectNewStation": true,
+    "openPrecreatedDesktop": false,
+    "openPrecreatedDesktopError": 5,
+    "createNewChildDesktopWithChromiumRights": true,
+    "restoreOriginalStation": true,
+    "newStationRemoved": true,
+    "profileDeleteResult": 0,
+    "applicationShimImplemented": false,
+    "evidence": "tmp/windows-appcontainer/desktop-station-duplicate-01"
+  },
+  "windowVerified": false,
+  "applicationCompatibility": "not yet passed",
+  "references": [
+    "https://raw.githubusercontent.com/chromium/chromium/main/sandbox/policy/sandbox.cc",
+    "https://raw.githubusercontent.com/chromium/chromium/main/sandbox/win/src/window.cc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowstationw",
+    "https://raw.githubusercontent.com/llvm/llvm-project/main/llvm/include/llvm/DebugInfo/PDB/Native/RawTypes.h"
+  ]
+}

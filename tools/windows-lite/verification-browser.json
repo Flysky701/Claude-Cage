@@ -1,0 +1,30 @@
+{
+  "environment": {
+    "windows": "10.0.26300",
+    "python": "3.13.15",
+    "edge": "157.0.4341.60",
+    "sandboxieStart": "5.73.8"
+  },
+  "transport": "local-only SOCKS maps a public fixture identifier to loopback TLS",
+  "credentials": "generated fixture credentials only",
+  "status": "passed-with-limited-negative-evidence",
+  "wfpConfigured": false,
+  "outsiderDenied": true,
+  "outsiderOpenedUpstream": false,
+  "online": {
+    "tlsRequests": 1,
+    "socksSessions": 2,
+    "screenshotWritten": true,
+    "expectedMarker": "CAGE_LOCAL_TLS_ba10fcaff76a92d1",
+    "launcherExitCode": 0,
+    "imageReview": "served marker visibly matches expectedMarker in online.png"
+  },
+  "proxyStopped": {
+    "newTlsRequests": 0,
+    "screenshotWritten": false,
+    "launcherExitCode": 0,
+    "scope": "no successful fixture fetch; direct sockets were not independently traced"
+  },
+  "temporaryBoxRemoved": true,
+  "globalWfpUnchanged": true
+}

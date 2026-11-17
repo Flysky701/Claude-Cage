@@ -1,0 +1,112 @@
+{
+  "mode": "ac",
+  "scope": "temporary packages; fixed-name HTTP proxy to local fake origin; no system DNS or external upstream",
+  "passed": true,
+  "revocationObservation": {
+    "scenario": "revoke-permit-only",
+    "mode": "ac",
+    "passed": true,
+    "verifiedFilters": 7,
+    "firstResponseAcknowledged": true,
+    "permitRevoked": true,
+    "proxyForwardedAfterRevocation": false,
+    "postRevocationReadError": "SocketException",
+    "launch": {
+      "tokenLpacClass46Supported": false,
+      "lpacVerification": "synthetic AccessCheck: exact package and ALL APPLICATION PACKAGES",
+      "tokenVerified": true,
+      "isAppContainer": true,
+      "capabilityCount": 0,
+      "isLPAC": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "mode": "ac",
+      "label": "proxy-workload"
+    },
+    "worker": {
+      "tokenVerifiedInsideWorker": true,
+      "firstRoundTrip": true,
+      "sameConnectionResponseAfterCut": false,
+      "afterCutError": "SocketException",
+      "afterCutSocketError": 10053,
+      "afterCutElapsedMilliseconds": 0,
+      "newProxyConnection": {
+        "connected": false,
+        "socketError": 10013
+      },
+      "directOtherHostConnection": {
+        "connected": false,
+        "socketError": 10013
+      }
+    },
+    "localOriginRequests": 1,
+    "otherHostPortReached": false,
+    "originError": null,
+    "existingExchangeStopped": true,
+    "loopbackExceptionRemoved": true,
+    "dynamicEngineClosed": true,
+    "profileDeleteResult": 0
+  },
+  "activeProxyShutdown": {
+    "scenario": "stop-proxy-and-close-active-connections",
+    "mode": "ac",
+    "passed": true,
+    "verifiedFilters": 7,
+    "firstResponseAcknowledged": true,
+    "acceptedConnectionsActivelyClosed": 1,
+    "listenerClosed": true,
+    "permitPresentDuringActiveClose": true,
+    "launch": {
+      "tokenLpacClass46Supported": false,
+      "lpacVerification": "synthetic AccessCheck: exact package and ALL APPLICATION PACKAGES",
+      "tokenVerified": true,
+      "isAppContainer": true,
+      "capabilityCount": 0,
+      "isLPAC": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "mode": "ac",
+      "label": "proxy-workload"
+    },
+    "worker": {
+      "tokenVerifiedInsideWorker": true,
+      "firstRoundTrip": true,
+      "sameConnectionResponseAfterCut": false,
+      "afterCutError": "SocketException",
+      "afterCutSocketError": 10053,
+      "afterCutElapsedMilliseconds": 0,
+      "newProxyConnection": {
+        "connected": false,
+        "socketError": 10060
+      },
+      "directOtherHostConnection": {
+        "connected": false,
+        "socketError": 10013
+      }
+    },
+    "localOriginRequests": 1,
+    "otherHostPortReached": false,
+    "originError": null,
+    "existingExchangeStopped": true,
+    "loopbackExceptionRemoved": true,
+    "dynamicEngineClosed": true,
+    "profileDeleteResult": 0
+  },
+  "date": "2026-11-18",
+  "timezone": "Asia/Shanghai",
+  "implementation": "BoundaryNetwork.cs: NetworkProxySuite, NetworkProxyCase, NetworkProxyWorker",
+  "reproduction": "BoundaryProbe.exe network-proxy ac; Windows administrator consent required for only the temporary package policy",
+  "interpretation": {
+    "revocation": "On this host and sampled established TCP connection, removing the permit stopped the second HTTP exchange with socket error 10053. This observation is not a universal synchronous-termination guarantee for ALE policy changes.",
+    "proxyShutdown": "With the permit still installed during observation, explicitly shutting down and closing the accepted proxy socket and closing its listener stopped the second HTTP exchange. Closing only the listener was not used as the cutoff mechanism.",
+    "payloadEvidence": "Each case completed and acknowledged a full absolute-form HTTP request through the controlled proxy to a separate local fake origin; the worker verified the response body tied to the run nonce. The origin observed exactly one request in each case.",
+    "cleanup": "Both temporary package loopback exceptions were removed, dynamic WFP sessions closed, and the new AppContainer profiles deleted successfully."
+  },
+  "validationLimits": [
+    "Ordinary AppContainer with zero network capabilities; one established TCP connection per scenario on the tested local Windows x64 host.",
+    "Only the fixed cage-fixture.invalid name was mapped explicitly to the local fake origin; no system DNS query, DoH resolver, external upstream, or real proxy account was used.",
+    "This is mock HTTP payload forwarding, not HTTPS/TLS, DNS leak protection, real internet egress verification, or full Cage network admission.",
+    "Multiple simultaneous accepted streams, production broker lifecycle, real browser/Claude traffic, and LPAC networking are not validated by this result.",
+    "The measured cutoff timing is only this sample; it is not a guarantee that deleting an ALE permit always terminates all existing flows immediately."
+  ]
+}

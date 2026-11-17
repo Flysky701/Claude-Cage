@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "recordedDate": "2026-11-18",
+  "scope": "Local candidate ConPTY terminal; no production backend switch, login or paid API request.",
+  "conditions": {
+    "hostAccountChanged": false,
+    "installedToolAclChanged": false,
+    "capabilityCount": 0,
+    "networkCalls": false,
+    "fixture": "New temporary profile and tools/work/out directories for each mode.",
+    "executable": "System cmd.exe /d /q, followed by native test helpers staged in fixture/tools.",
+    "boundary": "Suspended shell token verified before resume; exact package and zero capabilities; mode independently verified with AccessCheck; shell assigned to kill-on-close Job.",
+    "transport": "Host owns synchronous pipes and ConPTY; the restricted shell receives console handles, not inherited host stdio. No named-pipe namespace grants were added."
+  },
+  "results": [
+    {
+      "mode": "ac",
+      "status": "passed_scoped_check",
+      "tokenVerified": true,
+      "isAppContainer": true,
+      "isLPAC": false,
+      "capabilityCount": 0,
+      "inputOutputPassed": true,
+      "childSamePackagePassed": true,
+      "initialConsoleSize": { "columns": 100, "rows": 30, "observedByChild": true },
+      "resizedConsoleSize": { "columns": 117, "rows": 41, "observedByChild": true },
+      "ctrlCPassed": true,
+      "ctrlCObservation": "The host wrote byte 0x03 to ConPTY input; the foreground native helper received os.Interrupt and printed its completion marker.",
+      "inputAfterInterruptPassed": true,
+      "normalExitPassed": true,
+      "exitCode": 0,
+      "outputDrained": true,
+      "profileDeleteResult": 0,
+      "evidence": "tmp/windows-appcontainer/terminal-ac-56a2478469b3407c8dab28a84973260b/terminal-result.json",
+      "limitations": "This verifies cmd and two fixture helpers. It does not verify PowerShell, Claude Code interactive TUI, arbitrary shells, task termination of every external application or production workbench integration."
+    },
+    {
+      "mode": "lpac",
+      "status": "partial_then_failed",
+      "tokenVerified": true,
+      "isAppContainer": true,
+      "isLPAC": true,
+      "capabilityCount": 0,
+      "inputOutputPassed": true,
+      "childSamePackagePassed": false,
+      "failureStage": "cmd invoking the staged native token helper",
+      "observedDiagnostic": "Access denied in the cmd console; no token-helper marker was produced.",
+      "failureScope": "The native helper was not observed running. This is not evidence of an incorrect child token, and the exact failed Win32 operation was not instrumented.",
+      "resize": "not reached",
+      "ctrlC": "not reached",
+      "inputAfterInterrupt": "not reached",
+      "outputDrained": true,
+      "profileDeleteResult": 0,
+      "evidence": "tmp/windows-appcontainer/terminal-lpac-25fc0486ebf242c2a4f101f120c25cda/terminal-result.json",
+      "limitations": "The LPAC cmd built-in echo path works, but the development terminal requiring external child processes did not pass. No capability or host-path ACL was broadened to force compatibility."
+    }
+  ],
+  "implementation": {
+    "terminal": "tools/windows-appcontainer/BoundaryTerminal.cs",
+    "nativeConsoleProbe": "tools/windows-appcontainer/TerminalWorker.go",
+    "childTokenProbe": "tools/windows-appcontainer/CompatibilityHelper.go",
+    "verificationScript": "tools/windows-appcontainer/verify-terminal.ps1",
+    "cli": "BoundaryProbe.exe terminal-suite ac|lpac",
+    "reuseReferences": [
+      "scripts/guest-os/guest-clipboard-windows/TerminalRpc.cs:NativeTerminal",
+      "internal/workbench/terminal_windows.go:startTerminal"
+    ]
+  },
+  "notes": [
+    "Typed command echo cannot satisfy the input/output markers: marker values are expanded from synthetic fixture environment variables by cmd.",
+    "The output reader stays active during Job closure and ClosePseudoConsole, and both runs drained successfully.",
+    "The separate terminal-rpc protocol and workbench transport test have their own evidence; this report does not assert their results.",
+    "The terminal result does not change the recorded Edge, Desktop or VS Code GUI compatibility failures."
+  ],
+  "references": [
+    "https://learn.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session",
+    "https://learn.microsoft.com/en-us/windows/console/createpseudoconsole",
+    "https://learn.microsoft.com/en-us/windows/console/ctrl-c-and-ctrl-break-signals"
+  ]
+}

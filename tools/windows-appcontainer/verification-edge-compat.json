@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "recordedDate": "2026-11-18",
+  "status": "paused_not_compatible",
+  "application": "Edge 157.0.4341.60",
+  "conditions": {
+    "mode": "ordinary AppContainer",
+    "capabilityCount": 0,
+    "newProfilePerRun": true,
+    "page": "self-contained inline test HTML",
+    "browserInternalSandboxDisabled": false,
+    "hostInputSettingsChanged": false,
+    "hostDataAclExpanded": false
+  },
+  "baselineDiagnosis": {
+    "mainThread": "USER32 -> msctf -> tsf_oime_core -> COM initialization",
+    "observation": "Repeated same-package ImeService launches and startup failure; no rendered DOM",
+    "evidence": "tmp/windows-appcontainer/edge-debug-20261118-01/main-stack.txt"
+  },
+  "processLocalInputExperiment": {
+    "implementation": "BrowserInputCompat.cs",
+    "operation": "ImmDisableIME(-1) within the verified suspended target using initialization threads",
+    "originalImeStackAbsentInFollowUpDump": true,
+    "followUpStillTimedOut": true,
+    "longerScreenshotRunExitHex": "0xC0000005",
+    "pageRenderedSuccessfully": false,
+    "profileDeleteResult": 0,
+    "evidence": [
+      "tmp/windows-appcontainer/edge-input-dump-20261118-01",
+      "tmp/windows-appcontainer/edge-input-screenshot-20261118-01"
+    ],
+    "limitation": "Initialization-thread side effects have not been excluded; this is diagnostic code, not a working browser adapter. Native IME functionality is not validated."
+  },
+  "remaining": {
+    "originalMainThreadApcInitialization": "design only; no implementation or run",
+    "queuedFinalCrashTrace": "not started because the user paused work",
+    "productionBackendChanged": false
+  }
+}

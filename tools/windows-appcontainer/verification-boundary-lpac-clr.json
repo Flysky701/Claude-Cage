@@ -1,0 +1,28 @@
+{
+  "mode": "lpac",
+  "scope": "offline fixtures only",
+  "workloadStartupFailed": true,
+  "privateUnchanged": true,
+  "readOnlyUnchanged": true,
+  "hostRegistryUnchanged": true,
+  "profileDeleteResult": 0,
+  "cases": [
+    {
+      "tokenLpacClass46Supported": false,
+      "lpacVerification": "synthetic AccessCheck: exact package and ALL APPLICATION PACKAGES",
+      "tokenVerified": true,
+      "isAppContainer": true,
+      "capabilityCount": 0,
+      "isLPAC": true,
+      "exitCode": 2148734722,
+      "timedOut": false,
+      "mode": "lpac",
+      "label": "case-00-read",
+      "expected": "success",
+      "passed": false
+    }
+  ],
+  "passed": false,
+  "worker": ".NET Framework",
+  "date": "2026-11-17"
+}

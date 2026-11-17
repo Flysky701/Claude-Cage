@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "recordedDate": "2026-11-18",
+  "status": "passed_scoped_check",
+  "scope": "Existing Cage terminal JSON transport connected to a real offline AppContainer cmd terminal; not production backend registration or the full UI",
+  "tests": ["TestWindowsAppContainerTerminalTransport", "TestWindowsAppContainerTerminalActiveClose"],
+  "implementation": "internal/workbench/windows_terminal.go:startWindowsGuestTerminalRequest",
+  "candidate": "tools/windows-appcontainer/BoundaryTerminalRpc.cs",
+  "hostAdapter": "internal/workbench/windows_appcontainer_terminal.go",
+  "evidence": "tmp/windows-appcontainer/terminal-rpc-1983468996/terminal-rpc.json",
+  "activeCloseEvidence": "tmp/windows-appcontainer/terminal-active-close-426756629/host-cleanup.json",
+  "observed": {
+    "openReady": true,
+    "realComputedOutput": true,
+    "syntheticHostEnvironmentNotInherited": true,
+    "resizeRequestAccepted": true,
+    "cleanStreamExit": true,
+    "tokenVerified": true,
+    "isAppContainer": true,
+    "capabilityCount": 0,
+    "isLPAC": false,
+    "exitCode": 0,
+    "profileCleanupOwner": "host controller",
+    "hostProfileDeleteSucceeded": true,
+    "activeCloseWithoutOutputConsumer": true,
+    "activeCloseRelayReaped": true,
+    "activeCloseHostProfileDeleteSucceeded": true
+  },
+  "limitations": [
+    "The separate ConPTY suite measures actual size changes and Ctrl+C; this test proves transport reuse.",
+    "Only the home workspace is accepted. Project grants, persistent environment identity, multi-terminal reconnection and frontend routing are not implemented.",
+    "cmd was used; no Claude login, interactive Claude TUI, external network or paid API was invoked."
+  ],
+  "earlierAttempts": [
+    "The restricted development runner could not create the local AppContainer; rerunning with ordinary host permissions reached the terminal.",
+    "Two test assertions required cmd arithmetic to print a newline; test input was corrected without changing the transport implementation.",
+    "Review found that terminating the relay bypassed its finally cleanup. The candidate host adapter now owns profile creation and deletion; both normal exit and active close were retested successfully. The original terminal transport and default backend selection were unchanged."
+  ]
+}

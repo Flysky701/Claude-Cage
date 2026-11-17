@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "date": "2026-11-17",
+  "scope": "offline launch of official unpacked Claude Desktop Chat/Code executable in temporary AppContainer and LPAC profiles",
+  "source": "https://claude.ai/api/desktop/win32/x64/msix/latest/redirect",
+  "officialDeploymentReference": "https://support.claude.com/en/articles/12622703-deploy-claude-desktop-for-windows",
+  "package": {
+    "name": "Claude",
+    "version": "5.11492.5.0",
+    "architecture": "x64",
+    "bytes": 299362172,
+    "sha256": "4625EAA902E05C81D35D247423AE24A2A1C30E60CAE9B355C07264998A89E453",
+    "signatureStatus": "Valid",
+    "publisherOrganization": "Anthropic, PBC"
+  },
+  "application": {
+    "relativeExecutable": "app/Claude.exe",
+    "version": "5.11492.5",
+    "signatureStatus": "Valid",
+    "entryPoint": "Windows.FullTrustApplication"
+  },
+  "conditions": {
+    "copiedProgramFilesOnly": true,
+    "newIsolatedWorkDirectoryPerMode": true,
+    "networkCapabilities": 0,
+    "noSandboxFlagUsed": false,
+    "packageRegistrationPerformed": false,
+    "serviceInstallationPerformed": false,
+    "loginPerformed": false,
+    "maxObservationSecondsPerMode": 20
+  },
+  "results": [
+    {
+      "mode": "ac",
+      "tokenVerified": true,
+      "isAppContainer": true,
+      "isLPAC": false,
+      "capabilityCount": 0,
+      "lpacVerification": "synthetic AccessCheck: exact package and ALL APPLICATION PACKAGES",
+      "tokenLpacClass46Supported": false,
+      "applicationExitCode": 2147483651,
+      "applicationExitHex": "0x80000003",
+      "timedOut": false,
+      "profileDeleteResult": 0,
+      "tokenLaunch": "passed",
+      "applicationStartup": "failed",
+      "windowVerification": "not performed",
+      "chatVerification": "not performed",
+      "codeVerification": "not performed",
+      "createdWorkFileCount": 0,
+      "capturedError": null
+    },
+    {
+      "mode": "lpac",
+      "tokenVerified": true,
+      "isAppContainer": true,
+      "isLPAC": true,
+      "capabilityCount": 0,
+      "lpacVerification": "synthetic AccessCheck: exact package and ALL APPLICATION PACKAGES",
+      "tokenLpacClass46Supported": false,
+      "applicationExitCode": 2147483651,
+      "applicationExitHex": "0x80000003",
+      "timedOut": false,
+      "profileDeleteResult": 0,
+      "tokenLaunch": "passed",
+      "applicationStartup": "failed",
+      "windowVerification": "not performed",
+      "chatVerification": "not performed",
+      "codeVerification": "not performed",
+      "createdWorkFileCount": 0,
+      "capturedError": {
+        "operation": "WSAStartup",
+        "code": 10107,
+        "meaning": "system call failure"
+      }
+    }
+  ],
+  "conclusion": "restricted tokens were created and verified; the Desktop application exited abnormally in both modes, so Desktop compatibility has not passed",
+  "limitations": [
+    "No interactive window, Chat, Code, login, update, or protocol activation was validated.",
+    "LPAC printed a Winsock initialization failure; the precise cause of the application exit is not established.",
+    "The result does not prove that MSIX registration or the Cowork service is the cause; Cowork is outside Cage current Desktop scope."
+  ]
+}

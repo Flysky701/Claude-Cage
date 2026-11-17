@@ -1,0 +1,216 @@
+{
+  "schema": 1,
+  "date": "2026-11-17",
+  "purpose": "Local Windows application compatibility candidate assessment; not a replacement decision or complete Cage acceptance",
+  "runner": "tools/windows-appcontainer/verify-apps.ps1",
+  "launcher": "tools/windows-appcontainer/BoundaryProbe.cs",
+  "nativeHelper": "tools/windows-appcontainer/CompatibilityHelper.go",
+  "conditions": {
+    "networkCapabilityCount": 0,
+    "realModelRequests": false,
+    "realLogins": false,
+    "hostApplicationProfilesRead": false,
+    "hostToolACLsModified": false,
+    "loopbackExemptionsInstalledByTheseTests": false,
+    "globalFirewallChangedByTheseTests": false,
+    "browserNoSandboxFlag": false,
+    "stagedApplications": ["Claude Code executable", "Node executable", "VS Code program files without portable user data"],
+    "edgeExecutable": "existing system installation; no installation ACL changes",
+    "profileLifecycle": "unique AppContainer profile per launch; all recorded profile deletions returned zero",
+    "modeVerification": "token classes 29/30/31 plus exact-package and ALL APPLICATION PACKAGES AccessCheck; class 46 unsupported on this machine",
+    "fixtureWorkACL": "later focused runs allow the package Modify and ChangePermissions on its new fixture/work only; no TakeOwnership"
+  },
+  "results": [
+    {
+      "app": "Claude Code",
+      "version": "2.1.296",
+      "versionSource": "actual --version output",
+      "mode": "ac",
+      "status": "passed_scoped_check",
+      "scope": "native executable --version only",
+      "observed": "2.1.296 (Claude Code)",
+      "exitCode": 0,
+      "tokenVerified": true,
+      "timedOut": false,
+      "fullApplicationVerified": false,
+      "notVerified": ["interactive terminal", "login", "model request", "tool execution", "history", "network proxy"],
+      "evidence": "tmp/windows-appcontainer/apps-20261117-compat01/results/ClaudeCode-ac/launch.json"
+    },
+    {
+      "app": "Claude Code",
+      "version": "2.1.296",
+      "versionSource": "actual --version output",
+      "mode": "lpac",
+      "status": "passed_scoped_check",
+      "scope": "native executable --version only",
+      "observed": "2.1.296 (Claude Code)",
+      "exitCode": 0,
+      "tokenVerified": true,
+      "timedOut": false,
+      "fullApplicationVerified": false,
+      "notVerified": ["interactive terminal", "login", "model request", "tool execution", "history", "network proxy"],
+      "evidence": "tmp/windows-appcontainer/apps-20261117-compat01/results/ClaudeCode-lpac/launch.json"
+    },
+    {
+      "app": "Node.js",
+      "version": "24.21.0",
+      "versionSource": "actual process.version in fixture",
+      "mode": "ac",
+      "status": "passed_scoped_check",
+      "scope": "inline -e script, then a file-based script with --preserve-symlinks-main --preserve-symlinks; child processes use inherited temporary-file stdio",
+      "checks": {
+        "directChildPackageAndModeVerified": true,
+        "cmdChildPackageAndModeVerified": true,
+        "samePackageForBothChildren": true,
+        "privateFixtureReadDenied": true,
+        "toolsWriteDenied": true,
+        "workFileWriteAndRead": true
+      },
+      "exitCode": 0,
+      "tokenVerified": true,
+      "timedOut": false,
+      "fullApplicationVerified": false,
+      "limitations": [
+        "Default file-based script entry failed during realpath/lstat of the drive root. A focused candidate passed with --preserve-symlinks-main --preserve-symlinks, without widening host ACLs.",
+        "Default child_process capture pipes stalled in the inline trial. Final scoped check uses inherited temporary-file descriptors.",
+        "Module loading, package managers, interactive terminal and networking remain unverified."
+      ],
+      "evidence": "tmp/windows-appcontainer/apps-20261117-preserve-symlinks01/results/Node-file-entry-preserve-symlinks-ac/launch.json",
+      "earlierInlineEvidence": "tmp/windows-appcontainer/apps-20261117-native-helper02/results/Node-ac/launch.json"
+    },
+    {
+      "app": "Node.js",
+      "version": "24.21.0",
+      "versionSource": "installed executable also observed in ac trial",
+      "mode": "lpac",
+      "status": "failed",
+      "scope": "native Node process startup before fixture JavaScript",
+      "failureStage": "Winsock initialization",
+      "diagnostic": "WSAStartup 10107 (system call failure)",
+      "exitCodeHex": "0x80000003",
+      "tokenVerified": true,
+      "timedOut": false,
+      "fullApplicationVerified": false,
+      "note": "This is not proof of expected network access denial; no fixture JavaScript success marker was observed.",
+      "evidence": "tmp/windows-appcontainer/apps-20261117-compat01/results/Node-lpac/launch.json"
+    },
+    {
+      "app": "Microsoft Edge",
+      "version": "157.0.4341.60",
+      "versionSource": "installed file metadata",
+      "mode": "ac",
+      "status": "failed",
+      "scope": "headless local HTML with JavaScript DOM marker, fresh user-data-dir, default internal browser sandbox",
+      "failureStage": "no DOM result before 35-second limit",
+      "diagnostic": "PathService error 0x3F0 remained. Temporary-work ChangePermissions removed earlier nested network-sandbox cache ACL errors, but did not produce the requested page result.",
+      "tokenVerified": true,
+      "timedOut": true,
+      "domMarkerObserved": false,
+      "fullApplicationVerified": false,
+      "note": "A zero exit code recorded after job termination is not application success when timedOut is true.",
+      "evidence": "tmp/windows-appcontainer/apps-20261117-edge-workacl01/results/Edge-ac/launch.json"
+    },
+    {
+      "app": "Microsoft Edge",
+      "version": "157.0.4341.60",
+      "versionSource": "installed file metadata",
+      "mode": "lpac",
+      "status": "failed",
+      "scope": "headless local HTML; default internal browser sandbox",
+      "failureStage": "process startup",
+      "diagnostic": "Immediate access-denied exit; empty stdout and stderr",
+      "exitCodeHex": "0xC0000022",
+      "tokenVerified": true,
+      "timedOut": false,
+      "domMarkerObserved": false,
+      "fullApplicationVerified": false,
+      "evidence": "tmp/windows-appcontainer/apps-20261117-compat01/results/Edge-lpac/launch.json"
+    },
+    {
+      "app": "Visual Studio Code",
+      "version": "1.144.0",
+      "versionSource": "actual Code.exe CLI --version output in the focused preserve-symlinks candidate",
+      "mode": "ac",
+      "status": "passed_scoped_check",
+      "scope": "native helper sets ELECTRON_RUN_AS_NODE plus NODE_OPTIONS=--preserve-symlinks-main --preserve-symlinks and starts copied Code.exe CLI --version with empty profile and extension directories",
+      "observed": "1.144.0; matching installed commit; x64",
+      "launcherTokenVerified": true,
+      "actualCodeChildTokenVerified": true,
+      "actualCodeExitCode": 0,
+      "helperExitCode": 0,
+      "timedOut": false,
+      "editorUIAttempted": false,
+      "fullApplicationVerified": false,
+      "defaultLaunchWithoutNodeOptions": {
+        "status": "failed",
+        "failureStage": "Electron Node CLI script-entry resolution",
+        "diagnostic": "EPERM lstat of drive root; embedded Node reports v24.22.1",
+        "actualCodeExitCode": 1,
+        "evidence": "tmp/windows-appcontainer/apps-20261117-native-helper02/results/VSCode-ac/launch.json"
+      },
+      "notVerified": ["editor GUI", "editing and saving files", "extensions", "interactive terminals", "network"],
+      "evidence": "tmp/windows-appcontainer/apps-20261117-preserve-symlinks01/results/VSCode-preserve-symlinks-ac/launch.json"
+    },
+    {
+      "app": "Visual Studio Code",
+      "version": "1.144.0",
+      "versionSource": "installed Code.exe metadata",
+      "mode": "lpac",
+      "status": "failed",
+      "scope": "native helper attempts copied Code.exe CLI with an empty profile",
+      "failureStage": "child process creation",
+      "diagnostic": "Code.exe CreateProcess denied; actual Code child was not started",
+      "launcherTokenVerified": true,
+      "actualCodeChildTokenVerified": false,
+      "helperExitCode": 3,
+      "timedOut": false,
+      "editorUIAttempted": false,
+      "fullApplicationVerified": false,
+      "evidence": "tmp/windows-appcontainer/apps-20261117-code-lpac-native01/results/VSCode-lpac/launch.json"
+    }
+  ],
+  "focusedTrials": [
+    {
+      "id": "compat01",
+      "scope": "initial 8 application/mode checks",
+      "retained": ["Claude Code ac/lpac version", "Node lpac startup failure", "Edge lpac startup failure"],
+      "supersededForFinalConclusion": ["Node ac", "Edge ac", "VS Code ac/lpac"],
+      "note": "Initial VS Code lpac failure was CLR initialization in a managed test wrapper, not evidence about Code.exe itself."
+    },
+    {
+      "id": "node-eval01",
+      "scope": "Node ac inline entry with default child-process capture pipes",
+      "result": "timed out; final file-descriptor-based child check supersedes this path"
+    },
+    {
+      "id": "native-helper01",
+      "scope": "native test helper replacement",
+      "result": "helper token-query pointer forwarding defect; not an application incompatibility result",
+      "fix": "mark the Go Proc.Call wrapper with go:uintptrescapes; ordinary-process negative control then returned unexpected_appcontainer_token correctly"
+    },
+    {
+      "id": "native-helper02",
+      "scope": "Node ac and VS Code ac only after helper correction",
+      "result": "Node scoped subset passed; VS Code actual child failure diagnosed"
+    },
+    {
+      "id": "edge-workacl01",
+      "scope": "Edge ac only, ChangePermissions on new fixture/work",
+      "result": "cache grant errors removed; local DOM still not produced"
+    },
+    {
+      "id": "code-lpac-native01",
+      "scope": "VS Code lpac only, no CLR wrapper",
+      "result": "Code child creation denied"
+    },
+    {
+      "id": "preserve-symlinks01",
+      "scope": "one focused ac comparison for Node file entry and VS Code CLI, explicit preserve-symlinks flags only",
+      "result": "Both scoped checks passed. This supersedes the affected default-entry failure as the candidate launch recipe, while preserving the failure as evidence that default startup is not supported.",
+      "hostACLsWidened": false,
+      "editorGUIVerified": false
+    }
+  ],
+  "notCovered": ["Claude Desktop (separate verification-desktop.json)", "full editor workflow", "real account or API behavior", "all Cage local features", "application network proxy integration"],
+  "overall": "partial compatibility evidence; no complete application or Sandboxie replacement claim"
+}

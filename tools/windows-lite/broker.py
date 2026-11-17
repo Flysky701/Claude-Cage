@@ -132,6 +132,10 @@ class DNSBroker(socketserver.ThreadingTCPServer):
                 self.pending.pop(name, None)
 
     def lookup(self, name):
+        if self.route is None:
+            # Offline sessions still use the compatibility DLL for local time,
+            # but DNS must fail here without consulting any host resolver.
+            return bytes([2, 0])
         records = []
         for family, kind in ((4, dns.rdatatype.A), (6, dns.rdatatype.AAAA)):
             question = dns.message.make_query(name + ".", kind)

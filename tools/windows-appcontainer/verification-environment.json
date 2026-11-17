@@ -1,0 +1,77 @@
+{
+  "recordedDate": "2026-11-18",
+  "mode": "ordinary AppContainer",
+  "passed": true,
+  "scope": "Opt-in Go environment controller and real local cmd terminals; managed project copies only; production backend unchanged",
+  "environment": {
+    "freshRootRequired": true,
+    "secondControllerRejectedWhileOpen": true,
+    "sameProfileNameAfterReopen": true,
+    "samePackageSidAfterReopen": true,
+    "workFilePreserved": true,
+    "copiedToolPreservedAndExecutedAfterReopen": true,
+    "projectManifestPreserved": true,
+    "projectCountAfterReopen": 2
+  },
+  "terminals": {
+    "simultaneousTerminals": 2,
+    "firstTerminalClosedWhileActive": true,
+    "secondTerminalExecutedAfterFirstClosed": true,
+    "secondTerminalComputedResult": 637021,
+    "copiedToolComputedResult": 57703,
+    "reopenedEnvironmentTerminalCompleted": true,
+    "completedTerminalReceipts": [
+      {
+        "tokenVerified": true,
+        "isAppContainer": true,
+        "capabilityCount": 0,
+        "isLPAC": false,
+        "childExited": true,
+        "exitCode": 0,
+        "profileCleanupOwner": "host controller"
+      },
+      {
+        "tokenVerified": true,
+        "isAppContainer": true,
+        "capabilityCount": 0,
+        "isLPAC": false,
+        "childExited": true,
+        "exitCode": 0,
+        "profileCleanupOwner": "host controller"
+      }
+    ]
+  },
+  "projects": {
+    "readOnlyProjectUnchangedAfterWriteAttempt": true,
+    "readWriteProjectEdited": true,
+    "privateImportSourceReadDenied": true,
+    "privateImportSourceUnchangedAfterWriteAttempt": true,
+    "exportedManagedEditMatches": true,
+    "exportToExistingDestinationRejected": true,
+    "importWhileTerminalsActiveRejected": true,
+    "hardlinkImportRejected": true,
+    "junctionImportRejected": true,
+    "junctionExportRejected": true,
+    "hostSourceAclModified": false,
+    "projectGrantIncludesChangePermissions": false
+  },
+  "sharedAdapterRegression": {
+    "disposableTerminalTransportPassed": true,
+    "activeDisposableTerminalClosePassed": true
+  },
+  "reproduction": {
+    "precondition": "Build the candidate BoundaryProbe.exe; set CAGE_TEST_APPCONTAINER_LAUNCHER to its absolute path; ordinary host execution permissions required",
+    "persistentEnvironmentCommand": "go test ./internal/workbench -run '^TestWindowsAppContainerEnvironmentPersistence$' -count=1 -v",
+    "sharedAdapterCommand": "go test ./internal/workbench -run '^TestWindowsAppContainerTerminal(Transport|ActiveClose)$' -count=1 -v"
+  },
+  "limitations": [
+    "Environment APIs are not yet connected to the production backend or a complete workbench user flow.",
+    "The two terminals intentionally share one environment identity and its explicitly imported projects; this is not per-terminal project isolation.",
+    "Projects are managed copies, not live host folders. Import/export requires all environment terminals to have stopped.",
+    "Copies preserve regular unnamed file contents and directory structure; they reject junctions, symlinks and hard-linked files rather than preserving them. Alternate streams and original metadata are not copied.",
+    "A failed copy retains its partial new destination for inspection; it does not overwrite or automatically remove an existing host destination.",
+    "This test uses cmd and a small copied batch tool. Browser, editor and Claude application compatibility is separate evidence.",
+    "The test confirms profile and data survival across controller Close/Open, then explicitly deletes only its dedicated test profile. Production controller Close retains the profile and data.",
+    "This is offline ordinary AppContainer evidence, not LPAC, production proxy/DNS integration, VM isolation or a complete host resource audit."
+  ]
+}

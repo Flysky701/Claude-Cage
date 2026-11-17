@@ -1,0 +1,88 @@
+{
+  "date": "2026-11-17",
+  "workACL": "Modify + ChangePermissions for the new test package only",
+  "worker": "native Go using synchronous Win32 file calls",
+  "cases": [
+    {
+      "case": "AC shared read",
+      "mode": "ac",
+      "tokenVerified": true,
+      "isLPAC": false,
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "passed": true,
+      "error": null,
+      "profileDeleteResult": 0
+    },
+    {
+      "case": "AC shared write denied",
+      "mode": "ac",
+      "tokenVerified": true,
+      "isLPAC": false,
+      "exitCode": 5,
+      "expectedExitCode": 5,
+      "passed": true,
+      "error": null,
+      "profileDeleteResult": 0
+    },
+    {
+      "case": "AC private read denied",
+      "mode": "ac",
+      "tokenVerified": true,
+      "isLPAC": false,
+      "exitCode": 5,
+      "expectedExitCode": 5,
+      "passed": true,
+      "error": null,
+      "profileDeleteResult": 0
+    },
+    {
+      "case": "AC private write denied",
+      "mode": "ac",
+      "tokenVerified": true,
+      "isLPAC": false,
+      "exitCode": 5,
+      "expectedExitCode": 5,
+      "passed": true,
+      "error": null,
+      "profileDeleteResult": 0
+    },
+    {
+      "case": "AC work write",
+      "mode": "ac",
+      "tokenVerified": true,
+      "isLPAC": false,
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "passed": true,
+      "error": null,
+      "profileDeleteResult": 0
+    },
+    {
+      "case": "LPAC native CreateProcess child",
+      "mode": "lpac",
+      "tokenVerified": true,
+      "isLPAC": true,
+      "exitCode": 5,
+      "expectedExitCode": 0,
+      "passed": false,
+      "error": null,
+      "profileDeleteResult": 0
+    },
+    {
+      "case": "LPAC direct WSAStartup",
+      "mode": "lpac",
+      "tokenVerified": true,
+      "isLPAC": true,
+      "exitCode": 10107,
+      "expectedExitCode": 0,
+      "passed": false,
+      "error": null,
+      "profileDeleteResult": 0
+    }
+  ],
+  "readOnlyUnchanged": true,
+  "privateUnchanged": true,
+  "workWriteVisible": true,
+  "scope": "Offline targeted cases; no external network or DNS queries"
+}

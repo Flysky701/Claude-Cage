@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "recordedDate": "2026-11-18",
+  "status": "partial_paused",
+  "application": "Git for Windows 2.55.0.windows.5",
+  "mode": "ordinary AppContainer; zero capabilities",
+  "diagnosis": "GetCurrentDirectory and opening cwd succeed; GetFinalPathNameByHandleW with DOS volume naming is denied, while VOLUME_NAME_NONE succeeds on both tested volumes",
+  "compatibility": {
+    "implementation": "NativePathCompat.c",
+    "scope": "Only the target main-image import, only access-denied DOS queries with flags 0/8 and a handle verified to be the current directory",
+    "semanticAndBoundaryProbePassed": true,
+    "otherHandlesAndFlagsPreserved": true,
+    "privateFixtureUnchanged": true,
+    "systemExportModified": false,
+    "originalInstallationModified": false,
+    "hostAclExpanded": false
+  },
+  "gitWorkflow": {
+    "initPassed": false,
+    "addPassed": false,
+    "statusPassed": false,
+    "relativePathConfigurationPassed": false,
+    "reftableConfigurationPassed": false,
+    "remainingBlocker": "Subsequent reference/leading-directory checks still require path behavior unavailable under the current boundary"
+  },
+  "profileDeleteResult": 0,
+  "productionIntegration": false,
+  "evidence": [
+    "tmp/windows-appcontainer/native-path-first/native-path-result.json",
+    "tmp/windows-appcontainer/native-path-relative/native-path-result.json",
+    "tmp/windows-appcontainer/native-path-reftable/native-path-result.json"
+  ]
+}

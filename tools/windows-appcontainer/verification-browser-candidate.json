@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "recordedDate": "2026-11-18",
+  "trialLocalDate": "2026-11-17",
+  "timezone": "Asia/Shanghai",
+  "scope": "one bounded Edge AppContainer compatibility candidate; no product backend change",
+  "app": "Microsoft Edge",
+  "version": "157.0.4341.60",
+  "candidate": "replace the earlier local file URL with a complete inline data URL containing a JavaScript DOM marker",
+  "conditions": {
+    "mode": "ac",
+    "freshProfile": true,
+    "networkCapabilityCount": 0,
+    "browserInternalSandboxDisabled": false,
+    "hostAclExpanded": false,
+    "desktopOrWindowStationAclChanged": false,
+    "realLoginOrModelRequest": false,
+    "maximumObservationSeconds": 25
+  },
+  "result": {
+    "tokenVerified": true,
+    "isAppContainer": true,
+    "isLPAC": false,
+    "capabilityCount": 0,
+    "timedOut": true,
+    "exitCodeAfterTermination": 0,
+    "domMarkerFound": false,
+    "stdoutBytes": 0,
+    "stderrBytes": 267,
+    "profileDeleteResult": 0,
+    "passed": false
+  },
+  "diagnostics": [
+    "DnsConfig could not be read.",
+    "PathService key 112 failed with Windows error 0x3F0 (ERROR_NO_TOKEN).",
+    "The browser created files in its fresh profile, including Local State and Default, so the warning alone does not establish that all profile I/O is blocked."
+  ],
+  "interpretation": [
+    "Avoiding page-file access did not produce a rendered DOM. A page-file permission adjustment alone is not an established solution.",
+    "Official Chromium base_paths_win.h maps 112 to DIR_LOCAL_APP_DATA; this is consistent with the Edge warning but is not proof that it caused the timeout.",
+    "No direct evidence identified a failing desktop/window-station call, GPU child policy, or browser IPC call. Those causes remain unresolved."
+  ],
+  "boundedWork": {
+    "candidatesExecuted": 1,
+    "maximumAuthorizedCandidates": 2,
+    "secondCandidateExecuted": false,
+    "reason": "No additional evidence-supported fix was identified; no repeat of the same failing launch or sandbox-disabling flags was attempted."
+  },
+  "evidence": "tmp/windows-appcontainer/browser-data-20261117-01/result.json",
+  "runner": "tools/windows-appcontainer/verify-browser-candidate.ps1",
+  "references": [
+    "https://raw.githubusercontent.com/chromium/chromium/main/base/base_paths_win.h",
+    "https://raw.githubusercontent.com/chromium/chromium/main/chrome/installer/util/helper.cc",
+    "https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/sandbox/win/src/broker_services.cc",
+    "https://chromium.googlesource.com/chromium/src/+/refs/heads/main/docs/design/sandbox.md"
+  ],
+  "conclusion": "Edge GUI/headless DOM compatibility remains unverified and the candidate launch failed its scoped check. Command-line application successes cannot be used as GUI compatibility evidence."
+}

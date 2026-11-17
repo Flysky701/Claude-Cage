@@ -24,6 +24,8 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "dns.zip"))
 from broker import DNSBroker, read_exact
 from fixed_tcp import FixedService, service_specs
+from browser_proxy import BrowserProxy
+from policy import build_policy, safe_environment
 
 
 def read_json(path):
@@ -184,7 +186,8 @@ class Sandbox:
         return raw.decode(encoding, "replace").lstrip("\ufeff").splitlines()
 
     @contextmanager
-    def configure(self, program, helpers, vault, state, output, source, route, broker, services):
+    def configure(self, program, helpers, vault, state, output, source, route, broker, services,
+                  policy=()):
         if self.name in self.settings("query", "*"):
             # A hard-stop may leave a legitimate box. Do not replace a stranger's box.
             previous = self.settings("query", self.name, "FileRootPath")
@@ -196,7 +199,7 @@ class Sandbox:
         pairs = [
             ("Enabled", "n"), ("FileRootPath", str(state)), ("ConfigLevel", "10"),
             ("CageLiteImage", str(program)), ("CageLiteDnsPort", str(broker.server_address[1])),
-            ("CageLiteDnsTicket", broker.ticket.decode()), ("OpenFilePath", str(output)),
+            ("CageLiteDnsTicket", broker.ticket.decode()),
             ("ClosedIpcPath", r"\RPC Control\DNSResolver"), ("ClosedFilePath", str(vault)),
             ("NetworkAccess", "*,Block"),
             ("InjectDll64", str(ROOT / "addon" / "CageRegion.dll")),
@@ -205,11 +208,15 @@ class Sandbox:
         try:
             for key, value in pairs:
                 self.settings("set", self.name, key, value)
+            for key, value in policy:
+                self.settings("append", self.name, key, value)
+            if not policy:
+                self.settings("append", self.name, "OpenFilePath", str(output) + "\\")
             for child in helpers:
                 self.settings("append", self.name, "CageLiteImage", str(child))
-            for path in {Path.home()/".claude-cage", source}:
+            for path in {Path.home()/".claude-cage", source} - {None}:
                 self.settings("append", self.name, "ClosedFilePath", str(path))
-            for port in [broker.server_address[1], route.port, *services.values()]:
+            for port in [broker.server_address[1], *([route.port] if route else []), *services.values()]:
                 self.settings("append", self.name, "NetworkAccess",
                               f"*,Allow;Address=127.0.0.1;Port={port};Protocol=TCP")
             self.settings("set", self.name, "Enabled", "y")
@@ -247,7 +254,7 @@ class Sandbox:
                     try:
                         return launched.wait(timeout=.5)
                     except subprocess.TimeoutExpired:
-                        if relay.poll() is not None:
+                        if relay is not None and relay.poll() is not None:
                             raise RuntimeError("专用代理核心已退出，正在关闭会话")
             finally:
                 if launched.poll() is None:
@@ -255,7 +262,7 @@ class Sandbox:
                     launched.terminate()
 
 
-def launch(config_path, selection, trace_dns=False):
+def launch(config_path, selection, trace_dns=False, offline=False):
     cfg = read_json(config_path)
     name = selection or cfg["selected"]
     if name not in cfg["applications"]:
@@ -270,46 +277,65 @@ def launch(config_path, selection, trace_dns=False):
     for helper in helpers:
         require_amd64(helper)
     endpoints = service_specs(spec.get("tcpServices", {}))
+    browser_proxy = spec.get("browserProxy", False)
+    if type(browser_proxy) is not bool:
+        raise ValueError("browserProxy 必须为 true 或 false")
     raw_args = spec.get("arguments", [])
     if not isinstance(raw_args, list) or not all(isinstance(a, str) for a in raw_args):
         raise ValueError("arguments 必须为字符串数组")
     sbie = full_path(cfg.get("sandboxieDirectory", r"%ProgramFiles%\Sandboxie-Plus"), config_path.parent)
     if not (sbie / "Start.exe").is_file() or not (sbie/"SbieIni.exe").is_file():
         raise FileNotFoundError("未找到已安装的 Sandboxie Plus")
-    connection_file = full_path(cfg["connectionFile"], config_path.parent)
-    upstream, doh = validate_endpoints(read_json(connection_file))
-    core_path = cfg.get("proxyCore")
-    if not core_path:
-        core_path = read_json(Path.home()/".claude-cage"/"proxy"/"managed-process.json")["executable"]
-    core = full_path(core_path, config_path.parent)
-    if not core.is_file():
-        raise FileNotFoundError("未找到 Mihomo，可在配置中填写 proxyCore")
+    connection_file = full_path(cfg["connectionFile"], config_path.parent) if cfg.get("connectionFile") else None
+    if not offline:
+        if connection_file is None:
+            raise ValueError("联网模式需要 connectionFile；也可用 --offline 离线启动")
+        upstream, doh = validate_endpoints(read_json(connection_file))
+        core_path = cfg.get("proxyCore")
+        if not core_path:
+            core_path = read_json(Path.home()/".claude-cage"/"proxy"/"managed-process.json")["executable"]
+        core = full_path(core_path, config_path.parent)
+        if not core.is_file():
+            raise FileNotFoundError("未找到 Mihomo，可在配置中填写 proxyCore")
     home = full_path(cfg["dataDirectory"], config_path.parent) if cfg.get("dataDirectory") else Path(os.environ["LOCALAPPDATA"]) / "CageLite"
-    identity = hashlib.sha256((str(home)+"|"+str(program)).casefold().encode()).hexdigest()[:16]
+    # Keep copies made by the original permissive profile separate. Never import
+    # cached host credentials into the new profile or remove the old data.
+    identity = hashlib.sha256(("v2|"+str(home)+"|"+str(program)).casefold().encode()).hexdigest()[:16]
     box = Sandbox(sbie, "CageLite_"+identity)
     private = home / "private" / identity
     state = home / "boxes" / identity
     output = home / "output" / identity
+    policy = build_policy(program, helpers, home, output, connection_file, sbie, spec, config_path.parent, ROOT)
+    env = safe_environment(program, helpers)
     output.mkdir(parents=True, exist_ok=True)
     with ExitStack() as stack:
         stack.enter_context(profile_lock(private))
-        route, relay = stack.enter_context(data_gateway(core, private, upstream, doh))
+        route, relay = (None, None) if offline else stack.enter_context(data_gateway(core, private, upstream, doh))
         broker = stack.enter_context(DNSBroker(route, secrets.token_hex(32), trace=trace_dns))
         thread = threading.Thread(target=broker.serve_forever, daemon=True)
         thread.start()
         stack.callback(broker.shutdown)
         services = {}
-        for service_name, service_spec in endpoints.items():
+        browser_address = "http://127.0.0.1:9" if offline and browser_proxy else ""
+        if browser_proxy and not offline:
+            browser_service = stack.enter_context(BrowserProxy(box, broker))
+            threading.Thread(target=browser_service.serve_forever, daemon=True).start()
+            stack.callback(browser_service.shutdown)
+            services["browser"] = browser_service.server_address[1]
+            browser_address = f"http://127.0.0.1:{services['browser']}"
+        for service_name, service_spec in (() if offline else endpoints.items()):
+            if service_name == "browser" and browser_proxy:
+                raise ValueError("启用 browserProxy 时，TCP 服务名 browser 为保留名称")
             service = stack.enter_context(FixedService(box, broker, service_spec))
             threading.Thread(target=service.serve_forever, daemon=True).start()
             stack.callback(service.shutdown)
             services[service_name] = service.server_address[1]
         stack.enter_context(box.configure(program, helpers, home/"private", state, output, connection_file,
-                                          route, broker, services))
-        address = f"http://127.0.0.1:{route.port}"
-        authenticated = f"http://{route.user}:{route.password}@127.0.0.1:{route.port}"
+                                          route, broker, services, policy))
+        address = f"http://127.0.0.1:{route.port}" if route else ""
         replacements = {"{output}":str(output), "{root}":str(ROOT), "{run}":"run-"+secrets.token_hex(4),
-                        "{proxy}":address}
+                        "{proxy}":address, "{browserProxy}":browser_address,
+                        "{profile}":str(home / "profiles" / identity)}
         for service_name, port in services.items():
             replacements["{tcpPort:"+service_name+"}"] = str(port)
             replacements["{tcp:"+service_name+"}"] = f"127.0.0.1:{port}"
@@ -318,13 +344,13 @@ def launch(config_path, selection, trace_dns=False):
             for key,value in replacements.items():
                 arg = arg.replace(key,value)
             args.append(arg)
-        env = os.environ.copy()
-        for k in list(env):
-            if k.lower() in {"http_proxy","https_proxy","all_proxy","no_proxy","cage_lite_proxy","cage_lite_user","cage_lite_password"}:
-                del env[k]
-        env.update(HTTP_PROXY=authenticated, HTTPS_PROXY=authenticated, ALL_PROXY=authenticated, NO_PROXY="",
-                   CAGE_LITE_PROXY=address, CAGE_LITE_USER=route.user, CAGE_LITE_PASSWORD=route.password)
+        if route:
+            authenticated = f"http://{route.user}:{route.password}@127.0.0.1:{route.port}"
+            env.update(HTTP_PROXY=authenticated, HTTPS_PROXY=authenticated, ALL_PROXY=authenticated, NO_PROXY="",
+                       CAGE_LITE_PROXY=address, CAGE_LITE_USER=route.user, CAGE_LITE_PASSWORD=route.password)
+        env["CAGE_LITE_NETWORK"] = "offline" if offline else "proxy"
         print(f"{name} | {box.name}\n输出目录 {output}", flush=True)
+        print("离线运行：业务网络已关闭" if offline else "联网运行：通过指定代理", flush=True)
         for service_name, port in services.items():
             print(f"TCP {service_name}  127.0.0.1:{port}", flush=True)
         if "y" not in [s.lower() for s in box.settings("query", "GlobalSettings", "NetworkEnableWFP")]:
@@ -338,10 +364,11 @@ def main():
     ap.add_argument("--config", type=Path, default=ROOT/"config.json")
     ap.add_argument("--app", help="本次使用的应用名称，默认读取 selected")
     ap.add_argument("--trace-dns", action="store_true", help="将本次域名和 DNS 返回码显示在控制台")
+    ap.add_argument("--offline", action="store_true", help="不读取代理凭据，关闭业务网络并启动本机工具")
     ns=ap.parse_args()
     if sys.platform != "win32" or struct.calcsize("P") != 8:
         raise RuntimeError("需要 64 位 Windows 和 64 位 Python")
-    return launch(ns.config.resolve(), ns.app, ns.trace_dns)
+    return launch(ns.config.resolve(), ns.app, ns.trace_dns, ns.offline)
 
 
 if __name__ == "__main__":
