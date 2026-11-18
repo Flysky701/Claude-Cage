@@ -16,6 +16,10 @@
 
 </div>
 
+## 个人 fork 的开发主线
+
+Android 开发集中在 `codex/android`。Windows 原生轻量隔离在本机 `codex/windows-local-native` 接续，AppContainer 实验已暂停。分支入口、验证进度和上游投稿统一见 [开发主线](https://github.com/Flysky701/Claude-Cage/blob/codex/android/docs/PROGRESS.md)。
+
 ## 受够了 Anthropic
 
 作为一个只是想和 Claude 对话与合作的正常用户，受够了折腾各种 VPS，指纹浏览器，环境检测，面对封号的担惊受怕和财产损失。我们提出 **Claude Cage** 项目：**一个开箱即用的桌面程序，配置好自己的网络代理，集中管理隔离环境、时区语言和环境检查。**
