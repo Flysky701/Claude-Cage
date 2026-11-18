@@ -108,7 +108,7 @@ macOS 和已签名 Windows 版本支持通过所选代理更新；Windows 未签
 
 ## 文档与贡献
 
-[本 Fork 开发进度](docs/PROGRESS.md)：Windows 修复、Android 实验、验证范围与待办。
+个人 fork 的两条开发主线是 Android 和 Windows 原生轻量隔离。分支、暂停的原型及上游投稿见 [开发主线](docs/PROGRESS.md)。
 
 面向用户的[官网使用文档](https://claude-cage.com/docs/)支持按功能浏览、搜索与章节直达。各项操作见[使用文档导航](docs/README.md)。
 
