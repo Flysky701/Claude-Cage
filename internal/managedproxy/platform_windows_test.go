@@ -4,8 +4,21 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestWindowsSocketWithLongPrototypeTemp(t *testing.T) {
+	cache := `C:\Users\Tester\AppData\Local`
+	t.Setenv("LocalAppData", cache)
+	longTemp := filepath.Join(cache, strings.Repeat("测", 28))
+	t.Setenv("TEMP", longTemp)
+	t.Setenv("TMP", longTemp)
+	path := Socket(`E:\Cage\prototype-one`)
+	if len(path) > 107 || filepath.Dir(filepath.Dir(path)) != cache || path == Socket(`E:\Cage\prototype-two`) {
+		t.Fatalf("invalid per-profile control socket %q", path)
+	}
+}
 
 // A PID reused after a reboot must neither be terminated nor block startup.
 func TestStopWindowsCoreForgetsReusedPID(t *testing.T) {

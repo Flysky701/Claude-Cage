@@ -66,7 +66,19 @@ func Dir(profile string) string { return filepath.Join(profile, "proxy") }
 func Socket(profile string) string {
 	h := sha256.Sum256([]byte(filepath.Clean(profile)))
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.TempDir(), fmt.Sprintf("cage-proxy-%x", h[:8]), "control.sock")
+		dir := fmt.Sprintf("cage-proxy-%x", h[:8])
+		path := filepath.Join(os.TempDir(), dir, "control.sock")
+		// A run-specific TEMP can exceed the 107 usable bytes in sun_path.
+		// Keep the socket in a per-profile, owner-protected directory.
+		if len(path) > 107 {
+			if local, err := os.UserCacheDir(); err == nil && filepath.IsAbs(local) {
+				shorter := filepath.Join(local, dir, "control.sock")
+				if len(shorter) < len(path) {
+					return shorter
+				}
+			}
+		}
+		return path
 	}
 	return filepath.Join("/tmp", fmt.Sprintf("cage-proxy-%d-%x", os.Getuid(), h[:8]), "control.sock")
 }
