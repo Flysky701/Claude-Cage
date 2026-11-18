@@ -62,15 +62,12 @@ import { AppUpdateButton, useAppUpdates } from "./app-updates";
 import "./appearance.css";
 import { stopAndExit } from "./quit";
 import { guestCapability, windowsLocalAccount } from "./guest-capabilities.mjs";
-import { WindowsLocalTerminalPane } from "./windows-local-account";
-import { WindowsLocalBrowserPane } from "./windows-local-browser";
-import { WindowsLocalAppPane, WindowsLocalDesktopImport } from "./windows-local-apps";
-import { WindowsLocalSSH } from "./windows-local-ssh";
-import { WindowsLocalServices } from "./windows-local-services";
-import { WindowsLocalProjects } from "./windows-local-projects";
+import { WindowsLocalWorkbench, windowsPageNames } from "./windows-local-workbench";
 
-const localAccountGroup = { workspace: "~", name: "隔离工作目录", folders: ["~"] };
-const localPages = { browser: "浏览器", desktop: "Claude Desktop", editor: "文件编辑器", accounts: "Claude 账号管理", tailnet: "Tailscale", "ssh-client": "SSH", projects: "项目共享" };
+const isolatedFolder = { workspace: "~", name: "隔离工作目录", folders: ["~"] };
+const terminalTab = item => ({
+  ...item, id: "terminal:" + item.id, sessionId: item.id, terminalKind: item.kind, kind: "terminal",
+});
 
 function App() {
   const { account } = useAccount();
@@ -81,7 +78,6 @@ function App() {
     return () => window.removeEventListener("cage-client-preferences", refresh);
   }, []);
   const [managementPage, setManagementPage] = useState("");
-  const [localTarget, setLocalTarget] = useState("");
   const [tailnetLogin, setTailnetLogin] = useState(null);
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [terminalChoice, setTerminalChoice] = useState(null);
@@ -139,7 +135,6 @@ function App() {
     : clientStatus;
   const system = status?.guest_system || account?.guest_system;
   const localAccountMode = windowsLocalAccount(status);
-  const localTerminalAvailable = localAccountMode && guestCapability(status, "terminal");
   const claudeProfiles = useClaudeAccounts(Boolean(status && !localAccountMode));
   const macGuest = system === "macos";
   const nativeGuestLabel = {macos: "macOS", "windows-11": "Windows", "windows-remote": "Windows 云端"}[system];
@@ -148,6 +143,7 @@ function App() {
   const workspaceBox = useRef(null);
   const [dropSide, setDropSide] = useState(null);
   const terminalControls = useRef(new Map());
+  const terminalRevision = useRef(0);
   const remote = useRef(),
     activeRef = useRef(active),
     lastBrowserTab = useRef(""),
@@ -202,6 +198,7 @@ function App() {
   const browserVisible = !desktopOpen && !showHome && webPanes.length > 0;
   const browserWasVisible = useRef(false);
   useEffect(() => {
+    if (localAccountMode) return;
     // Preserve the return destination until the last tab's removal is handled,
     // including removals received through events or fallback polling.
     if (browserWasVisible.current && !tabs.some(tab => tab.kind !== "terminal")) closeBrowser();
@@ -209,7 +206,7 @@ function App() {
       layout, home: showHome, desktopOpen, selectedProject,
     };
     browserWasVisible.current = browserVisible;
-  }, [browserVisible, layout, showHome, desktopOpen, selectedProject, tabs]);
+  }, [browserVisible, layout, showHome, desktopOpen, selectedProject, tabs, localAccountMode]);
   const closeBrowser = () => {
     const previous = viewBeforeBrowser.current;
     browserDismissed.current = true;
@@ -279,9 +276,9 @@ function App() {
   useEffect(() => {
     if (audio.error) setToast(audio.error);
   }, [audio.error]);
-  const groups = localAccountMode ? [localAccountGroup] : projectGroups(status);
+  const groups = localAccountMode ? [...projectGroups(status), isolatedFolder] : projectGroups(status);
   const projects = groups.map(group => group.workspace);
-  const selectedWorkspace = localAccountMode ? localAccountGroup.workspace : selectedProject || status?.workspace;
+  const selectedWorkspace = selectedProject || status?.workspace || (localAccountMode ? "~" : "");
   const workspace = groups.find(group => group.folders.includes(selectedWorkspace))?.workspace || selectedWorkspace;
   const contentWorkspace =
     terminal && !showHome ? current.workspace : workspace;
@@ -349,21 +346,8 @@ function App() {
     setSettingsSection(section);
     setSettingsOpen(true);
   };
-  async function localPage(page, target = "") {
-    if (page && page !== "projects" && tabs.some(t => t.terminalKind === "windows-local")) {
-      notify("请保存终端工作并关闭 PowerShell 标签，再打开此应用。");
-      return;
-    }
-    if (localPages[managementPage] && managementPage !== page && managementPage !== "projects") {
-      const ok = await confirm({title: "关闭当前应用会话？", body: "切换前请保存正在编辑的内容。已保存的文件、账号和浏览器资料会保留。", confirm: "关闭并继续"});
-      if (!ok) return;
-    }
-    setLocalTarget(target);
-    setManagementPage(page);
-    setDesktopOpen(false);
-    if (!page) setHome(true);
-  }
   const select = async (id, focusContent = true) => {
+    if (localAccountMode && id === "local-home") { setHome(true); return; }
     setTailnetLogin(null);
     setManagementPage("");
     const tab = tabs.find((t) => t.id === id);
@@ -373,8 +357,8 @@ function App() {
     if (tab?.kind === "browser-settings") setLayout({ active: id });
     else setActive(id);
     if (!tab?.incognito) localStorage.setItem(clientStorageKey("cage-active"), id);
-    if (tab?.kind === "terminal") setSelectedProject(tab.workspace);
-    if (tab && tab.kind !== "terminal") {
+    if (tab?.kind === "terminal" || (localAccountMode && tab?.workspace)) setSelectedProject(tab.workspace);
+    if (!localAccountMode && tab && tab.kind !== "terminal") {
       try {
         await api("/browser/activate", { id });
         if (activeRef.current === id) {
@@ -386,6 +370,43 @@ function App() {
       }
     }
   };
+  async function openLocalPage(kind, target = "") {
+    if (kind === "projects") { setProjectDialog({ path: target }); return; }
+    if (kind === "terminal") { await createTerminal(target || workspace, "shell").catch(error => notify(error.message)); return; }
+    if (!windowsPageNames[kind]) return;
+    const folder = kind === "editor" ? target || workspace : "";
+    const existing = kind !== "new" && tabs.find(tab => tab.kind === kind);
+    if (existing && kind === "editor" && existing.workspace !== folder) {
+      if (!await confirm({ title: "切换编辑器项目？", body: "当前编辑器将关闭，请先保存文件。", confirm: "切换项目" })) return;
+    } else if (existing) {
+      if (kind === "browser" && target) setTabs(list => list.map(tab => tab.id === existing.id ? { ...tab, target, navigation: (tab.navigation || 0) + 1 } : tab));
+      if (!showHome && current?.kind === "new") setTabs(list => list.filter(tab => tab.id !== current.id));
+      await select(existing.id);
+      return;
+    }
+    const id = "local-" + crypto.randomUUID();
+    const next = { id, kind, title: windowsPageNames[kind][0], target, workspace: folder };
+    setTabs(list => [...list.filter(tab => tab.id !== existing?.id && (showHome || current?.kind !== "new" || tab.id !== current.id)), next]);
+    setHome(false); setActive(id);
+    if (folder) setSelectedProject(folder);
+  }
+  async function closeLocalPage(tab, exited = false) {
+    if (tab.kind === "terminal") { await closeTab(tab); return; }
+    if (!exited && ["editor", "desktop", "ssh-client"].includes(tab.kind) &&
+      !await confirm({ title: "关闭 " + tab.title + "？", body: "此标签的进程将结束，请先保存需要的内容。", confirm: "关闭标签" })) return;
+    setTabs(list => list.filter(item => item.id !== tab.id));
+    if (tab.id === active) setHome(true);
+  }
+  function localCommand(command) {
+    if (command === "openProject") setProjectDialog({ path: "" });
+    if (command === "newTab") void openLocalPage("new");
+    if (command === "newTerminal") {
+      const anchor = [...document.querySelectorAll("[data-terminal-location]")].find(node => node.dataset.terminalLocation === workspace);
+      if (anchor) newTerminal(workspace, anchor);
+      else void openLocalPage("terminal");
+    }
+    if (command === "closeTab" && !showHome && current) void closeLocalPage(current);
+  }
   const destination = (id, x, y) => {
     const box = workspaceBox.current?.getBoundingClientRect();
     if (!box || busy || !running || desktopOpen || tabs.length < 2 ||
@@ -436,7 +457,6 @@ function App() {
       ? "about:blank" : settings?.browser_home_url || "https://www.bing.com/",
     incognito = Boolean(current?.incognito),
   ) => {
-    if (localAccountMode) { await localPage("browser", url); return null; }
     if (!browserAvailable) {
       notify("此环境的浏览器尚未接通。当前可使用隔离 PowerShell 终端。");
       return null;
@@ -487,7 +507,6 @@ function App() {
   };
   const openSettingsPageResult = result => result.id ? showBrowserResult(result) : openBrowserPage(result.url, false);
   const openBrowser = () => {
-    if (localAccountMode) return localPage("browser", "about:blank");
     const tab =
       tabs.find(
         (t) => t.id === lastBrowserTab.current && t.kind !== "terminal",
@@ -497,14 +516,6 @@ function App() {
     return tab ? select(tab.id) : newPage();
   };
   const newTerminal = (path = workspace, anchor = terminalTrigger.current) => {
-    if (localAccountMode) {
-      if (!localTerminalAvailable || connectionError) return;
-      if (managementPage && managementPage !== "projects") { notify("请先关闭当前应用会话，再新建终端。"); return; }
-      const existing = tabs.find(tab => tab.terminalKind === "windows-local");
-      if (existing) void select(existing.id);
-      else showTerminal({ id: "windows-local", kind: "windows-local", workspace: localAccountGroup.workspace, title: "PowerShell" });
-      return;
-    }
     if (system === "windows-remote" && !guestCapability(status, "claude-cli")) {
       createTerminal(status.workspace || "", "shell").catch((e) => notify(e.message));
       return;
@@ -528,12 +539,10 @@ function App() {
     }
   };
   const showTerminal = result => {
+    terminalRevision.current++;
     setTailnetLogin(null);
     setManagementPage("");
-    const tab = {
-      ...result, id: "terminal:" + result.id, sessionId: result.id,
-      terminalKind: result.kind, kind: "terminal",
-    };
+    const tab = terminalTab(result);
     setTabs((list) => [...list.filter((t) => t.id !== tab.id && (!tab.cli_session_id || t.cli_session_id !== tab.cli_session_id)), tab]);
     setSelectedProject(result.workspace);
     setDesktopOpen(false);
@@ -596,7 +605,6 @@ function App() {
       onSelect={(kind) => createTerminal(terminalChoice.path, kind).catch((e) => notify(e.message))} />
   );
   const openEditor = async (path = workspace) => {
-    if (localAccountMode) { await localPage("editor", path === "~" ? "" : path); return; }
     if (!browserAvailable || !editorAvailable) {
       notify("此 Windows 云端环境的文件编辑器尚未接通。当前可在隔离 PowerShell 中操作文件。");
       return;
@@ -627,10 +635,6 @@ function App() {
     }
   };
   const closeTab = async (tab, anchor) => {
-    if (tab.terminalKind === "windows-local") {
-      setTabs(list => list.map(item => item.id === tab.id ? { ...item, closing: true } : item));
-      return;
-    }
     if (macGuest && tab.native_window) { closeBrowser(); return; }
     if (tab.cli_session_id) return archiveSession({id:tab.cli_session_id, title:tab.title}, anchor);
     if (tab.kind === "terminal") {
@@ -645,6 +649,7 @@ function App() {
         return;
       try {
         await api("/terminals/" + tab.sessionId, undefined, "DELETE");
+        terminalRevision.current++;
       } catch (e) {
         notify(e.message);
         return;
@@ -752,7 +757,21 @@ function App() {
         setStatus(next);
         setStartRequest(pending => pending?.id && pending.id === next.job.id ? null : pending);
         setConnectionError("");
-        if (windowsLocalAccount(next)) return;
+        if (windowsLocalAccount(next)) {
+          if (next.ready) {
+            const revision = terminalRevision.current;
+            const liveTabs = (await api("/terminals")).map(terminalTab);
+            if (!live || revision !== terminalRevision.current) return;
+            setTabs(previous => [
+              ...previous.filter(tab => tab.kind !== "terminal" || liveTabs.some(item => item.id === tab.id))
+                .map(tab => liveTabs.find(item => item.id === tab.id) || tab),
+              ...liveTabs.filter(item => !previous.some(tab => tab.id === item.id)),
+            ]);
+            if (!initialized.current && liveTabs.some(tab => tab.id === activeRef.current)) setHome(false);
+            initialized.current = true;
+          }
+          return;
+        }
         if (!proxyRead) {
           proxyRead = true;
           try {
@@ -806,13 +825,7 @@ function App() {
           setBrowser(b);
           const all = [
             ...b.tabs,
-            ...t.map((item) => ({
-              ...item,
-              id: "terminal:" + item.id,
-              sessionId: item.id,
-              terminalKind: item.kind,
-              kind: "terminal",
-            })),
+            ...t.map(terminalTab),
           ];
           setTabs((previous) => {
             const map = new Map(all.map((item) => [item.id, item]));
@@ -1036,6 +1049,11 @@ function App() {
         }
         return;
       }
+      if (localAccountMode) {
+        const command = { o: "openProject", t: "newTab", w: "closeTab", ...(event.shiftKey && { enter: "newTerminal" }) }[k];
+        if (command) { event.preventDefault(); event.stopImmediatePropagation(); localCommand(command); }
+        return;
+      }
       // The guest owns Chrome's address bar, tabs and browser shortcuts.
       if (macGuest && !showHome && !desktopOpen && !terminal && event.target.closest?.(".mac-claude-frame")) return;
       let handle;
@@ -1078,7 +1096,7 @@ function App() {
         event.stopImmediatePropagation();
         if (
           !busy &&
-          (status?.ready || (localTerminalAvailable && k === "enter") ||
+          (status?.ready ||
             (running && k === "enter") ||
             (k === "w" && terminal))
         )
@@ -1119,6 +1137,11 @@ function App() {
         if (!projectDialog && !rename && !dialog) openSettings();
         return;
       }
+      if (localAccountMode && !settingsOpen && !dialog && !projectDialog && !rename && !terminalChoice &&
+          ["openProject", "newTab", "newTerminal", "closeTab"].includes(command)) {
+        localCommand(command);
+        return;
+      }
       if (storageRecovery && ["openProject", "newTab", "newTerminal"].includes(command)) {
         openSettings("project");
         return;
@@ -1143,7 +1166,7 @@ function App() {
       )
         return;
       if (command === "newTab" && status?.ready) await newPage();
-      if (command === "newTerminal" && (status?.vm_running || localTerminalAvailable))
+      if (command === "newTerminal" && status?.vm_running)
         await newTerminalHere();
       if (command === "closeTab") {
         if (document.querySelector("[data-browser-dialog], .mac-login-fullscreen")) {
@@ -1309,7 +1332,8 @@ function App() {
   };
   const openedProject = async (path) => {
     await refreshSettings();
-    await refreshStatus.current?.();
+    if (localAccountMode) setStatus(await api("/status"));
+    else await refreshStatus.current?.();
     setSelectedProject(path);
     setProjectDialog(null);
     setHome(true);
@@ -1354,6 +1378,23 @@ function App() {
       location={location} triggerRef={!tab || tab.id === active ? terminalTrigger : undefined}
       menu={terminalMenuAt(location)} onClose={() => closeTab(tab)} />;
   };
+  const renderTerminal = (tab, visible) => <div className="pane-body">
+    <TerminalView
+      session={{ ...tab, id: tab.sessionId }}
+      onIsolatedLink={localAccountMode ? url => openLocalPage("browser", url) : undefined}
+      onManageAccount={localAccountMode ? () => openLocalPage("accounts") : undefined}
+      onLoginTab={({ id }) => showBrowserResult({ id, kind: "web", login: true, incognito: true, title: "账号授权" })}
+      onControls={(control) =>
+        control
+          ? terminalControls.current.set(tab.id, control)
+          : terminalControls.current.delete(tab.id)
+      }
+      visible={visible && !settingsOpen && !managementPage}
+      focused={active === tab.id}
+      onStatus={notify}
+      onAccountChanged={view => { if (view?.desktop_terminal_id && view.desktop_terminal_id !== tab.sessionId) void openSessionTerminal({id:tab.cli_session_id}); }}
+    />
+  </div>;
   const recoverEditor = async tab => {
     if (!(await confirm({ title: "重启编辑器？", body: "请先保存文件。浏览器、终端和环境会继续运行。", confirm: "重启编辑器" }))) return;
     setRecoveringEditor(true);
@@ -1492,13 +1533,15 @@ function App() {
       >
         {!sidebarCollapsed && (
           <WorkspaceSidebar
-            onClaudeAccounts={localAccountMode ? () => localPage("accounts") : () => setManagementPage("claude-accounts")}
-            claudeAccountsOpen={managementPage === "claude-accounts" || managementPage === "accounts"}
-            tailscaleOpen={managementPage === "tailscale" || (managementPage === "tailnet" && localTarget !== "ssh")}
-            onLocalSSH={localAccountMode ? () => managementPage === "tailnet" ? localPage("tailnet", "ssh") : localPage("ssh-client") : undefined}
-            localSSHOpen={managementPage === "ssh-client" || (managementPage === "tailnet" && localTarget === "ssh")}
-            updateAction={<AppUpdateButton updates={appUpdates} />}
-            workspace={localAccountMode ? localAccountGroup.workspace : selectedProject || status.workspace}
+            onClaudeAccounts={() => localAccountMode ? openLocalPage("accounts") : setManagementPage("claude-accounts")}
+            claudeAccountsOpen={localAccountMode ? !showHome && current?.kind === "accounts" : managementPage === "claude-accounts"}
+            tailscaleOpen={localAccountMode ? !showHome && current?.kind === "tailnet" : managementPage === "tailscale"}
+            onLocalSSH={localAccountMode ? () => openLocalPage("ssh-client") : undefined}
+            localSSHOpen={localAccountMode && !showHome && current?.kind === "ssh-client"}
+            statusActive={localAccountMode && !showHome && current?.kind === "status"}
+            browserSelected={localAccountMode ? !showHome && current?.kind === "browser" : undefined}
+            updateAction={!localAccountMode && <AppUpdateButton updates={appUpdates} />}
+            workspace={selectedProject || status.workspace}
             guestSystem={system || guestSystem?.guest_system || "debian-13"}
             projects={projects}
             projectGroups={groups}
@@ -1521,18 +1564,18 @@ function App() {
             home={!managementPage && showHome}
             busy={busy || storageRecovery}
             ready={status.ready}
-            running={running}
+            running={localAccountMode ? status.ready : running}
             desktopAvailable={localAccountMode ? status.ready : running}
-            terminalAvailable={localAccountMode ? localTerminalAvailable && !connectionError : running}
+            terminalAvailable={localAccountMode ? status.ready : running}
             runtimeLabel={runtimeLabel}
             network={network}
-            onHome={() => { if (localAccountMode) { void localPage(""); return; } setManagementPage(""); setDesktopOpen(false); setHome(true); }}
-            browserAvailable={localAccountMode ? guestCapability(status,"browser") : browserAvailable}
+            onHome={() => { setManagementPage(""); setDesktopOpen(false); setHome(true); }}
+            browserAvailable={localAccountMode || browserAvailable}
             editorAvailable={editorAvailable}
             projectsAvailable={projectsAvailable}
-            onOpenProject={(path = "") => localAccountMode ? localPage("projects") : setProjectDialog({ path })}
+            onOpenProject={(path = "") => setProjectDialog({ path })}
             onSelect={select}
-            onClose={closeTab}
+            onClose={localAccountMode ? tab => closeLocalPage(tab) : closeTab}
             onRename={renameTab}
             onPin={pinTab}
             splitDrag={splitDrag}
@@ -1542,25 +1585,30 @@ function App() {
             onProjectSelect={setSelectedProject}
             onNewTerminal={newTerminal}
             terminalMenuAt={terminalMenuAt}
-            onBrowser={openBrowser}
-            onTailscale={localAccountMode ? () => localPage("tailnet") : () => {
+            onBrowser={localAccountMode ? () => openLocalPage("browser") : openBrowser}
+            onTailscale={localAccountMode ? () => openLocalPage("tailnet") : () => {
               setManagementPage("tailscale");
               if (window.matchMedia("(max-width: 520px)").matches) setSidebarCollapsed(true);
             }}
-            desktopOpen={!managementPage && desktopOpen}
-            onClaudeWeb={() => openBrowserPage("https://claude.ai/")}
-            onClaudeDesktop={() => { if (localAccountMode) { void localPage("desktop"); return; } setManagementPage(""); setHome(false); setDesktopOpen(true); }}
-            onEditor={openEditor}
+            desktopOpen={localAccountMode ? !showHome && current?.kind === "desktop" : !managementPage && desktopOpen}
+            onClaudeWeb={() => localAccountMode ? openLocalPage("browser", "https://claude.ai/") : openBrowserPage("https://claude.ai/")}
+            onClaudeDesktop={localAccountMode ? () => openLocalPage("desktop") : () => { setManagementPage(""); setHome(false); setDesktopOpen(true); }}
+            onEditor={localAccountMode ? path => openLocalPage("editor", path) : openEditor}
             onSettings={openSettings}
             onAccountConfirm={confirm}
             onAccountStatus={notify}
-            onSafety={localAccountMode ? undefined : () => setSafetyOpen(true)}
+            onSafety={localAccountMode ? () => openLocalPage("status") : () => setSafetyOpen(true)}
             onCollapse={() =>
               persist("cage-sidebar-collapsed", true, setSidebarCollapsed)
             }
           />
         )}
-        <div className="workbench-main">
+        {localAccountMode ? <WindowsLocalWorkbench status={status} collapsed={sidebarCollapsed}
+          setCollapsed={value => persist("cage-sidebar-collapsed", value, setSidebarCollapsed)} settingsOpen={settingsOpen}
+          connectionError={connectionError} onSettings={openSettings} onConfirm={confirm} notify={notify} toast={toast}
+          onRefresh={() => refreshStatus.current?.()} tabs={displayTabs} selected={showHome ? "local-home" : active}
+          open={openLocalPage} close={closeLocalPage} select={select} renderTerminal={renderTerminal}
+          newTerminal={newTerminal} terminalMenuAt={terminalMenuAt} project={workspace}/> : <div className="workbench-main">
           {!managementPage && showHome && terminalHeader(null)}
           {!managementPage && status.ready && status.guest_system === "windows-remote" && !status.workload_ready && !connectionError && <div className="remote-capability-banner" role="status">
             <span>{browserAvailable
@@ -1585,32 +1633,7 @@ function App() {
               </button>
             </div>
           )}
-          {localAccountMode && localPages[managementPage] && (
-            <main className="management-page native-workbench-page">
-              <header className="chrome management-header">{sidebarButton()}<h1>{managementPage === "tailnet" && localTarget === "ssh" ? "SSH" : localPages[managementPage]}</h1>
-                <button className="quiet-button" onClick={() => localPage("")}>关闭会话</button></header>
-              {managementPage === "browser" && <WindowsLocalBrowserPane initialURL={localTarget} />}
-              {(managementPage === "ssh-client" || (managementPage === "tailnet" && localTarget === "ssh")) && <nav aria-label="SSH 连接方向" className="native-ssh-nav">
-                <button aria-pressed={managementPage === "ssh-client"} onClick={() => localPage("ssh-client")}>连接远程主机</button>
-                <button aria-pressed={managementPage === "tailnet"} onClick={() => localPage("tailnet", "ssh")}>其他设备登录本机</button>
-              </nav>}
-              {managementPage === "ssh-client" && <WindowsLocalSSH network={status.local_network} onNetwork={() => openSettings("network")} />}
-              {managementPage === "projects" && <WindowsLocalProjects onOpenEditor={editorAvailable ? openEditor : undefined} />}
-              {["editor","desktop"].includes(managementPage) && (guestCapability(status,managementPage)
-                ? <WindowsLocalAppPane key={managementPage} app={managementPage} project={localTarget}/>
-                : <section className="native-service"><p>{localPages[managementPage]} 尚未安装到隔离环境。</p>
-                  {managementPage === "desktop" && <WindowsLocalDesktopImport selected={Boolean(status.local_network?.selected)}
-                    visible={!settingsOpen} onInstalled={() => refreshStatus.current?.()} />}
-                  <button onClick={async () => { try { await api("/windows-local/status"); await refreshStatus.current?.(); } catch (e) { notify(e.message); } }}>重新检查安装状态</button>
-                  <button onClick={() => openSettings("network")}>网络与代理</button></section>)}
-              {["accounts","tailnet"].includes(managementPage) && (guestCapability(status, managementPage === "accounts" ? "claude-accounts" : "tailscale")
-                ? <WindowsLocalServices key={managementPage} service={managementPage} sshView={managementPage === "tailnet" && localTarget === "ssh"}
-                    onSSH={() => localPage("tailnet", "ssh")} onConfirm={confirm} network={Boolean(status.local_network?.open)}
-                    networkMessage={status.local_network?.message} onNetwork={() => openSettings("network")} />
-                : <section className="native-service"><p>此隔离账户尚未部署{managementPage === "accounts" ? " Claude Code" : " Cage Tailscale"} 组件。</p></section>)}
-            </main>
-          )}
-          {managementPage && !localAccountMode && (
+          {managementPage && (
             <main className="management-page" aria-labelledby={managementPage + "-title"}>
               <header className="chrome management-header">
                 {sidebarButton()}
@@ -1655,7 +1678,7 @@ function App() {
                 <button onClick={() => openSettings("project")}>查看并更新</button>
               </div>
             )}
-            {!storageRecovery && (localAccountMode || status.vm_running || terminal) && (
+            {!storageRecovery && (status.vm_running || terminal) && (
               <>
                 {macGuest && !desktopOpen && !showHome && webPanes.length > 0 && (
                   <section className={`pane-lane browser-lane split-${paneSide(webPanes[0].id)}`}>
@@ -1708,26 +1731,7 @@ function App() {
                     data-focused={active === tab.id} hidden={!visible}
                     onPointerDownCapture={() => focusHeader(tab)} onFocusCapture={() => focusHeader(tab)}>
                     {visible && terminalHeader(tab)}
-                    <div className="pane-body">
-                      {tab.terminalKind === "windows-local" ? <WindowsLocalTerminalPane closing={tab.closing}
-                        active={visible && !settingsOpen && !managementPage} onExit={() => {
-                        setTabs(list => list.filter(item => item.id !== tab.id));
-                        setLayout({ active: "" });
-                        setHome(true);
-                      }} /> : <TerminalView
-                        session={{ ...tab, id: tab.sessionId }}
-                        onLoginTab={({ id }) => showBrowserResult({ id, kind: "web", login: true, incognito: true, title: "账号授权" })}
-                        onControls={(control) =>
-                          control
-                            ? terminalControls.current.set(tab.id, control)
-                            : terminalControls.current.delete(tab.id)
-                        }
-                        visible={visible && !settingsOpen && !managementPage}
-                        focused={active === tab.id}
-                        onStatus={notify}
-                        onAccountChanged={view => { if (view?.desktop_terminal_id && view.desktop_terminal_id !== tab.sessionId) void openSessionTerminal({id:tab.cli_session_id}); }}
-                      />}
-                    </div>
+                    {renderTerminal(tab, visible)}
                   </section>;
                 })}
               </>
@@ -1736,16 +1740,7 @@ function App() {
               <div className="welcome">
                 <div className="welcome-content">
                   <img className="welcome-logo" src={logo} alt="Cage" />
-                  {localAccountMode ? <>
-                    <h1>Windows 本地账户工作台</h1>
-                    <p className="welcome-subtitle">在隔离工作目录中打开 PowerShell，输入命令并查看输出。</p>
-                    <div className="welcome-shortcuts">
-                      <button className="primary" data-terminal-location="start" disabled={!localTerminalAvailable || busy || Boolean(connectionError)}
-                        onClick={newTerminalHere}><TerminalSquare size={16} />新建终端</button>
-                      <button onClick={() => openEditor("~")} disabled={!editorAvailable}><FileCode2 size={16} />打开编辑器</button>
-                    </div>
-                    <button className="text-button" onClick={() => openSettings("network")}>选择 Cage 代理节点</button>
-                  </> : storageRecovery ? <>
+                  {storageRecovery ? <>
                     <h1>环境存储需要恢复</h1>
                     <p className="welcome-subtitle"><SafetyMessage message={status.storage_recovery.error} /></p>
                     <p className="field-help">在设置中恢复环境存储后，再启动浏览器和终端。诊断包可以从同一页面导出。</p>
@@ -1963,13 +1958,6 @@ function App() {
           </main>
           <footer className="status-bar">
             {sidebarCollapsed && <AppUpdateButton updates={appUpdates} />}
-            {localAccountMode ? <>
-              <span>Windows 本地账户</span>
-              <span className="status-divider" />
-              <button onClick={() => openSettings("network")}>{network.label}</button>
-              <span className="status-spacer" />
-              <span role="status" className="status-feedback">{toast}</span>
-            </> : <>
             <button onClick={() => setSafetyOpen(true)} title="网络与隔离检查">
               <EnvironmentShield
                 size={14}
@@ -2033,9 +2021,8 @@ function App() {
               <Power size={12} />
               <span>停止环境</span>
             </button>
-            </>}
           </footer>
-        </div>
+        </div>}
       </div>
       <BrowserUploads requests={status.ready ? browser.uploads : []} onStatus={notify} />
       {settingsOpen && (
@@ -2058,7 +2045,8 @@ function App() {
           onOpened={openedProject}
           onRemoved={async (removed, workspace) => {
             await refreshSettings();
-            await refreshStatus.current?.();
+            if (localAccountMode) setStatus(await api("/status"));
+            else await refreshStatus.current?.();
             if ((groups.find(group => group.workspace === removed)?.folders || [removed]).includes(selectedProject)) setSelectedProject(workspace);
           }}
         />

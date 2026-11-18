@@ -47,7 +47,7 @@ function NodeSSH({ data, disabled, send }) {
   </>;
 }
 
-export function WindowsLocalServices({ service, network, networkMessage, onNetwork, sshView, onSSH, onConfirm }) {
+export function WindowsLocalServices({ service, network, networkMessage, onNetwork, sshView, onSSH, onConfirm, active = true }) {
   const accounts = service === "accounts";
   const [data, setData] = useState(null);
   const [connection, setConnection] = useState(null);
@@ -150,6 +150,6 @@ export function WindowsLocalServices({ service, network, networkMessage, onNetwo
     </>}
     {data?.auth_url && !closed && !loginURL && <button disabled={!network} onClick={openLogin}>在隔离浏览器中完成登录</button>}
     {loginURL && bridge && <><button onClick={() => {setLoginURL(""); send("status");}}>返回登录状态</button>
-      <div className="native-service-login"><WindowsLocalBrowserPane initialURL={loginURL} bridge={bridge}/></div></>}
+      <div className="native-service-login"><WindowsLocalBrowserPane initialURL={loginURL} bridge={bridge} active={active}/></div></>}
   </section>;
 }

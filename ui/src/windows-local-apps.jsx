@@ -36,13 +36,15 @@ export function WindowsLocalDesktopImport({ selected, visible, onInstalled }) {
   </div>;
 }
 
-export function WindowsLocalAppPane({ app, project = "" }) {
+export function WindowsLocalAppPane({ app, project = "", active = true }) {
   const label = app === "editor" ? "Visual Studio Code" : "Claude Desktop";
   const [attempt, setAttempt] = useState(0);
   const [frame, setFrame] = useState(null);
   const [error, setError] = useState("");
   const [text, setText] = useState("");
   const channel = useRef(null);
+  const visible = useRef(active);
+  visible.current = active;
   useEffect(() => {
     if (app !== "editor" && app !== "desktop") return;
     setFrame(null);
@@ -54,6 +56,8 @@ export function WindowsLocalAppPane({ app, project = "" }) {
     const socket = new WebSocket(url);
     channel.current = socket;
     function requestFrame() {
+      if (!alive) return;
+      if (!visible.current || document.hidden) { timer = setTimeout(requestFrame, 400); return; }
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "frame" }));
     }
     socket.onmessage = event => {

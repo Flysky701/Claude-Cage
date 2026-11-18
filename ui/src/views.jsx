@@ -303,7 +303,7 @@ export const RemoteView = forwardRef(function RemoteView(
   );
 });
 
-export function TerminalView({ session, visible, focused = true, onStatus, onControls, onAccountChanged, onLoginTab }) {
+export function TerminalView({ session, visible, focused = true, onStatus, onControls, onAccountChanged, onLoginTab, onIsolatedLink, onManageAccount }) {
   const { appearance, theme, variant } = useAppearance();
   const box = useRef(),
     instance = useRef(),
@@ -317,6 +317,8 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
   visibleRef.current = visible;
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
+  const isolatedLink = useRef(onIsolatedLink);
+  isolatedLink.current = onIsolatedLink;
   useEffect(() => {
     let disposed = false, emittingPaste = false, inputChain = Promise.resolve();
     const enqueue = (action) => {
@@ -328,6 +330,7 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
     };
     const activateLogin = async (_event, uri) => {
       if (disposed || !visibleRef.current || !focusedRef.current || !isClaudeLoginLink(uri)) return;
+      if (isolatedLink.current) { isolatedLink.current(uri); return; }
       try {
         const tab = await api(`/terminals/${session.id}/login-link`, { url: uri });
         if (!disposed && visibleRef.current && focusedRef.current) onLoginTab?.(tab);
@@ -335,6 +338,10 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
     };
     const terminal = new Terminal({
       linkHandler: { activate(event, uri) {
+        if (isolatedLink.current) {
+          if (/^https?:\/\//i.test(uri)) isolatedLink.current(uri);
+          return;
+        }
         if (isClaudeLoginLink(uri)) return void activateLogin(event, uri);
         // Keep xterm's user confirmation for other explicit HTTP(S) links.
         if (window.confirm(`打开此终端链接？\n${uri}`)) window.open(uri, "_blank", "noopener,noreferrer");
@@ -405,6 +412,7 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
     };
     let historyFrame = false, replayingHistory = false;
     const clipboardHandler = terminal.parser.registerOscHandler(52, async (data) => {
+      if (isolatedLink.current) return true;
       if (disposed || replayingHistory || !visibleRef.current || !focusedRef.current || !box.current?.contains(document.activeElement)) return true;
       const text = terminalClipboardText(data);
       if (text === undefined) return true;
@@ -617,8 +625,10 @@ export function TerminalView({ session, visible, focused = true, onStatus, onCon
   return (
     <div className={`terminal-view ${visible ? "" : "concealed"}`}>
       {session.workspace_notice && <p className="connection-banner" role="status">{session.workspace_notice}</p>}
-      {visible && session.cli_session_id && <SessionAccount id={session.cli_session_id} request={terminalAccountRequest} compact
-        onChanged={onAccountChanged} />}
+      {visible && session.cli_session_id && (onManageAccount
+        ? <div className="session-account compact"><button onClick={onManageAccount} title="打开 Claude 账号管理">
+          会话账号 · {session.claude_account_label || (session.claude_account_id === "default" ? "默认账号" : session.claude_account_id)}</button></div>
+        : <SessionAccount id={session.cli_session_id} request={terminalAccountRequest} compact onChanged={onAccountChanged} />)}
       <div className={`terminal-host ${preparing ? "terminal-preparing" : ""}`} ref={box} aria-hidden={preparing || undefined} />
       {preparing && (
         <div className="terminal-startup" role="status">

@@ -94,6 +94,7 @@ namespace CageLocalTool
                 throw new InvalidOperationException("Live WFP verification failed: " +
                     rules["installedFilters"] + "/" + rules["requiredFilters"] + " rules match.");
             }
+            if (args[0] == "workbench-tabs") return RunWorkbenchTabs(profile);
             if (args[0] == "workbench-terminal") return RunWorkbenchTerminal(profile);
             if (args[0] == "workbench-accounts") return RunWorkbenchService(profile, "accounts");
             if (args[0] == "workbench-tailnet") return RunWorkbenchService(profile, "tailnet");
@@ -101,6 +102,7 @@ namespace CageLocalTool
             if (args[0] == "workbench-desktop") return RunWorkbenchApp(profile, "desktop");
             if (args[0] == "workbench-editor") return RunWorkbenchApp(profile, "editor");
             if (args[0] == "workbench-projects") return RunWorkbenchProjects(profile);
+            if (args[0] == "workbench-volume") return PrepareProjectVolume(profile);
             Dictionary<string, object> result = new Dictionary<string, object>
             {
                 { "instanceId", profile.instanceId },

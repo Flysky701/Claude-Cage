@@ -55,7 +55,7 @@ export function TerminalMenu({ choice, busy, onClose, onSelect }) {
       <button role="menuitem" disabled={busy} onClick={() => onSelect("shell")}>
         <TerminalSquare size={16} />普通终端
       </button>
-      <button role="menuitem" disabled={busy} onClick={() => onSelect("claude")}>
+      <button role="menuitem" aria-label="Claude 终端" disabled={busy} onClick={() => onSelect("claude")}>
         <AgentIcon />Claude 终端
       </button>
     </div>

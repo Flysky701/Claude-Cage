@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 )
 
 var errTerminalInputFull = errors.New("terminal input queue is full")
@@ -26,6 +27,7 @@ type terminalSession struct {
 	conversationEnded     bool
 	workspace             string
 	kind, claudeAccountID string
+	claudeAccountLabel    string
 	loginGuestID          string
 	loginLinkMu           sync.Mutex
 	loginLinkCleanup      sync.Once
@@ -64,9 +66,13 @@ func (t *terminalSession) summary() map[string]any {
 			closed = false
 		}
 	}
-	return map[string]any{"id": t.id, "title": t.title, "closed": closed, "workspace": t.workspace, "kind": t.kind,
+	view := map[string]any{"id": t.id, "title": t.title, "closed": closed, "workspace": t.workspace, "kind": t.kind,
 		"claude_account_id": t.claudeAccountID, "claude_account_source": t.claudeAccountSource, "cli_session_id": t.sharedID,
 		"cli_starting": t.cliStartupPendingLocked()}
+	if t.claudeAccountLabel != "" {
+		view["claude_account_label"] = t.claudeAccountLabel
+	}
+	return view
 }
 
 func (t *terminalSession) cliStartupPendingLocked() bool {
@@ -93,6 +99,9 @@ func (t *terminalSession) stopPTY() {
 	t.closeOnce.Do(func() {
 		t.mu.Lock()
 		t.closed = true
+		if p, ok := t.file.(*windowsLocalPTY); ok {
+			p.pendingInput = nil
+		}
 		t.mu.Unlock()
 		if t.stopping != nil {
 			close(t.stopping)
@@ -126,6 +135,18 @@ func (t *terminalSession) enqueueInput(ctx context.Context, input string) error 
 	if t.closed {
 		return os.ErrClosed
 	}
+	if p, ok := t.file.(*windowsLocalPTY); ok {
+		if len(input) > (1<<20)-len(p.pendingInput) {
+			return errTerminalInputFull
+		}
+		if len(input) != 0 {
+			if len(p.pendingInput) == 0 {
+				t.inputs <- "" // one wakeup per nonempty buffer
+			}
+			p.pendingInput = append(p.pendingInput, input...)
+		}
+		return nil
+	}
 	select {
 	case t.inputs <- input:
 		return nil
@@ -135,12 +156,30 @@ func (t *terminalSession) enqueueInput(ctx context.Context, input string) error 
 }
 
 func (t *terminalSession) writeInput() {
+	local, native := t.file.(*windowsLocalPTY)
 	for {
 		select {
 		case <-t.stopping:
 			return
 		case input := <-t.inputs:
-			if _, err := io.WriteString(t.file, input); err != nil {
+			var err error
+			if native {
+				// xterm emits one frame per key. Collect adjacent frames before
+				// crossing both native process boundaries, preserving VT bytes.
+				select {
+				case <-t.stopping:
+					return
+				case <-time.After(4 * time.Millisecond):
+				}
+				t.mu.Lock()
+				data := local.pendingInput
+				local.pendingInput = nil
+				t.mu.Unlock()
+				_, err = local.Write(data)
+			} else {
+				_, err = io.WriteString(t.file, input)
+			}
+			if err != nil {
 				t.stopPTY()
 				return
 			}

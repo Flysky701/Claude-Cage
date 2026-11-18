@@ -387,16 +387,14 @@ func (s *Server) handler() http.Handler {
 	if s.windowsLocal != nil {
 		mux.HandleFunc("GET /api/windows-local/status", s.windowsLocal.serve)
 		mux.HandleFunc("POST /api/windows-local/probe", s.windowsLocal.serve)
-		mux.HandleFunc("GET /api/windows-local/terminal", s.windowsLocalTerminal)
-		mux.HandleFunc("GET /api/windows-local/browser", s.windowsLocalBrowser)
 		mux.HandleFunc("GET /api/windows-local/apps/{app}", s.windowsLocalApp)
 		mux.HandleFunc("POST /api/windows-local/apps/desktop/import", s.windowsLocalDesktopImport)
 		mux.HandleFunc("GET /api/windows-local/network", s.windowsLocal.networkStatus)
 		mux.HandleFunc("GET /api/windows-local/projects", s.windowsLocalProjects)
 		mux.HandleFunc("POST /api/windows-local/projects", s.windowsLocalProjects)
-		for path, command := range map[string]string{"accounts": "workbench-accounts", "tailnet": "workbench-tailnet"} {
-			mux.HandleFunc("GET /api/windows-local/services/"+path, func(w http.ResponseWriter, r *http.Request) {
-				s.serveWindowsLocalVisual(w, r, command)
+		for path, app := range map[string]string{"terminal": "terminal", "browser": "browser", "services/accounts": "accounts", "services/tailnet": "tailnet"} {
+			mux.HandleFunc("GET /api/windows-local/"+path, func(w http.ResponseWriter, r *http.Request) {
+				s.serveWindowsLocalTab(w, r, app)
 			})
 		}
 	}
@@ -634,6 +632,9 @@ func (s *Server) handler() http.Handler {
 				return
 			}
 			ctx, cancel := context.WithCancel(r.Context())
+			if s.windowsLocal != nil {
+				ctx = context.WithValue(ctx, windowsLocalEpochKey{}, epoch)
+			}
 			if strings.HasPrefix(r.URL.Path, "/api/mobile/") || strings.HasPrefix(r.URL.Path, "/api/cli/") {
 				ctx = context.WithValue(ctx, mobileEpochKey{}, epoch)
 			}
@@ -705,6 +706,7 @@ func requestError(w http.ResponseWriter, err error) {
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if s.windowsLocal != nil {
 		view := s.windowsLocal.workbenchStatus()
+		s.windowsLocalProjectStatus(r.Context(), view)
 		view["job"] = s.jobs.snapshot()
 		jsonReply(w, view)
 		return
@@ -775,6 +777,9 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	p := s.preferences
 	s.mu.Unlock()
+	if s.windowsLocal != nil {
+		p.Workspace = s.windowsLocalCurrentProject(r.Context())
+	}
 	jsonReply(w, settingsView(c, p))
 }
 func (s *Server) proposed(w http.ResponseWriter, r *http.Request) (savedProfile, bool) {

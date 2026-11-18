@@ -11,6 +11,10 @@ import (
 )
 
 func (s *Server) removeProject(w http.ResponseWriter, r *http.Request) {
+	if s.windowsLocal != nil {
+		s.windowsLocalRemoveProject(w, r)
+		return
+	}
 	var input struct {
 		Workspace string `json:"workspace"`
 	}

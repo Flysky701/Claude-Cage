@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, RotateCw } from "lucide-react";
 import { runtimeSocketURL } from "./client-context.mjs";
 import "./windows-local-browser.css";
 
-export function WindowsLocalBrowserPane({ initialURL = "", active = true, bridge }) {
+export function WindowsLocalBrowserPane({ initialURL = "", navigation, active = true, bridge }) {
   const [attempt, setAttempt] = useState(0);
   const [phase, setPhase] = useState("opening");
   const [address, setAddress] = useState("");
@@ -111,7 +111,7 @@ export function WindowsLocalBrowserPane({ initialURL = "", active = true, bridge
 
   useEffect(() => {
     if (ready.current && initialURL && initialURL !== "about:blank") navigate(initialURL);
-  }, [initialURL]);
+  }, [initialURL, navigation]);
 
   function point(event) {
     const bounds = event.currentTarget.getBoundingClientRect();

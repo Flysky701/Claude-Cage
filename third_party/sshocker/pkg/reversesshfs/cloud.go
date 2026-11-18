@@ -223,7 +223,10 @@ func (h *cloudHandlers) Filecmd(r *sftp.Request) error {
 
 // The remote environment owns its own disk reports; querying the desktop
 // volume via an SFTP extension would disclose unrelated host information.
-func (h *cloudHandlers) StatVFS(*sftp.Request) (*sftp.StatVFS, error) {
+func (h *cloudHandlers) StatVFS(r *sftp.Request) (*sftp.StatVFS, error) {
+	if h.localVolume {
+		return h.rootedHandlers.StatVFS(r)
+	}
 	return nil, sftp.ErrSSHFxOpUnsupported
 }
 

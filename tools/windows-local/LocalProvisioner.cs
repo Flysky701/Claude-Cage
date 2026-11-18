@@ -596,6 +596,7 @@ namespace CageLocalTool
 
         private static void ApplyProjectGrant(LocalProfileModel profile, string cleanTarget, string access)
         {
+            InvalidateProjectVolume(profile, cleanTarget);
             using (var folder = PinnedProjectDirectory.Open(cleanTarget))
             {
                 var acl = folder.ReadDacl();

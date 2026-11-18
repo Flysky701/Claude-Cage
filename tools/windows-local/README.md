@@ -1,8 +1,8 @@
 # Windows 原生本地账户
 
-本目录实现了 Cage 的 **Windows 原生轻量隔离底座（Phase 1）**：不依赖 Hyper-V 虚拟机、Sandboxie、闭源内核驱动或第三方商业软件，完全基于 100% 开源（MIT）代码与 Windows 系统内置安全机制构建独立执行边界，并通过 `verification-phase1.json` 完成离线编译、内核网络隔离、私有桌面、应用兼容与 Zero-Leak 清理验证。
+Windows 原生工作台在专用标准账户和私有桌面中运行应用。可以从同一个宿主项目打开 PowerShell、Claude 终端和 VS Code。浏览器、SSH、Tailscale、Claude Desktop 和账号管理有各自的标签入口。各项功能的实测范围见[工作台状态](STATUS.md)。
 
-工作台可在既有的 Windows 标准账户中打开 PowerShell、Edge、VS Code、项目共享、Claude 账号和 Tailscale。Claude Desktop 需要单独准备官方安装包。[实测范围](STATUS.md) 和 [第一阶段记录](verification-phase1.json)。
+隔离账户通过 Windows 筛选平台（WFP）限制联网，只允许使用工作台中选定并应用的 Cage 节点。打开主机项目需要本机安装 WinFsp 和 SSHFS-Win，Claude Desktop 需要准备官方 Windows x64 安装包。账户和网络隔离的初次验证见[第一阶段记录](verification-phase1.json)。
 
 ## 打开工作台原型
 
@@ -14,17 +14,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows-local\Start-
 
 脚本在 Edge 中打开本机工作台，默认读取 `tmp/windows-local/profile/local-profile.json`，也可通过 `-ProfilePath` 指定已有档案。首次打开时按提示设置原型的 Cage 登录账户，在「Windows 原生本地账户」页确认显示的是已部署的 Windows 标准账户，然后点「进入工作台」。这一步会保存账户绑定。之后用同一档案打开原型，可以继续使用原有的 Cage 登录和工作目录。首次部署见下方「一次性管理员初始化」。
 
-在工作台首页点「新建终端」，或点项目侧栏「隔离工作目录」右侧的终端按钮。PowerShell 标签打开后，在底部输入命令并按 Enter，结果和错误会出现在上方。上下方向键可以找回本次会话的命令。下列示例分两行输入，第二行会读到第一行设置的变量。
+在首页点「打开项目」，或点侧栏「项目」旁的「＋」，打开和 Linux 工作台共用的项目选择器。填写项目名，添加主机上的文件夹，为每个目录选择只读或读写，再点「创建项目」。第一个目录是默认工作目录，其余目录归在同一项目下。已有项目可从选择器中重新打开、编辑或移除。
 
-```powershell
-$n = 40
-$n + 2
-```
+左下角「Windows 本地账户」可打开账户详情标签。绿点表示本地账户已就绪，外网状态显示在工作台底部和账户详情中的「应用网络出口」。
 
-每次连接都会重新核对专用账户和七条网络隔离规则，再在私有桌面上启动低完整性的 PowerShell。当前目录和变量在这次连接中保留。默认工作目录为该 Windows 账户下的 `AppData\LocalLow\CageTerminal`，其中的文件跨会话保留。关闭终端或页面会结束 Shell 及其所属的子进程。原型一次打开一个隔离会话。PowerShell 支持按行输入，全屏控制台及交互式密码提示仍待接入。
-
-- 点「浏览器」可操作隔离 Edge，点旁边的 Claude 图标可打开 claude.ai。
-- 点「项目」选择要共享的宿主目录，确认读写权限后保存。已授权项目可在隔离 VS Code 打开。Windows 的完整性保护可能进一步限制编辑器对宿主目录的写入。
+- 在项目旁点终端按钮，选「普通终端」进入 PowerShell，或选「Claude 终端」启动专用账户中的 Claude Code。两者使用工作台的交互终端，可以输入命令、调整窗口大小和按 Ctrl+C 中断。项目的编辑器按钮会在隔离的 VS Code 中打开同一份文件。
+- 主机项目通过 WinFsp 和 SSHFS-Win 挂载到隔离账户。读写目录中的文件修改会回到主机原文件，只读目录拒绝写入。宿主 Git 可以查看差异。专用账户默认工作目录为 `AppData\LocalLow\CageTerminal`。移除项目或收窄权限前，请先保存并关闭正在使用该项目的终端和编辑器。
+- 从原项目侧栏点历史会话，可按创建时的账号与 Claude 会话 ID 重新打开。如果上一次停在登录向导，且 Claude 尚未保存正式对话，工作台会说明这是草稿。要登录，在「Claude 账号管理」中完成官方授权。
+- 顶部「＋」可打开新标签；多个 PowerShell 各自保留变量、当前目录和输出。浏览器和每种原生应用各保留一个标签。点「浏览器」打开隔离 Edge，点旁边的 Claude 图标可打开 claude.ai。
+- 点侧栏底部的「Windows 本地账户」，可核对实际账户名、七条网络隔离规则、已选代理节点与应用联网状态，也可从此处打开已安装的应用或设置代理。
 - 点「Claude 账号管理」可添加或切换档案、查看登录状态。登录及额度查询需要可用的 Cage 节点。打开新的 PowerShell 时，Claude Code 会使用当前选定的账号档案。
 - 点「Tailscale」查看专用账户的节点状态。连网后可登录私网，管理获准通过 SSH 登录此节点的公钥。关闭窗口会结束本次节点进程。
 - 点「SSH → 连接远程主机」可创建专用 SSH 密钥，在手动应用的 Cage 代理节点上向一个指定的公网地址逐条执行远程命令。连接前需要目标服务器的主机公钥，并在目标账号上授权专用账户公钥。此模式使用非交互式密钥认证，每条命令建立独立连接。
@@ -142,7 +140,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows-local\Teardo
 
 Windows 原型由 `Start-CageLocalWorkbench.ps1` 显式启用。绑定保存在当前工作台的配置目录内。普通 Cage、macOS 和 Linux 继续使用各自已有的运行环境。
 
-- `internal/workbench/windows_local_prototype.go` 校验账户并提供能力状态。`windows_local_terminal.go`、`windows_local_browser.go`、`windows_local_apps.go` 和 `windows_local_projects.go` 承接登录后同源工作台操作。
+- `internal/workbench/windows_local_prototype.go` 校验账户并提供能力状态。`windows_local_pty.go` 将项目终端接入工作台的终端和会话接口，`windows_local_tabs.go` 管理浏览器和原生应用标签。`windows_local_project_groups.go` 保存项目分组，`windows_local_volume_windows.go` 打开已授权的项目文件夹。
 - `LocalWorkbenchTerminal.cs`、`LocalWorkbenchBrowser.cs`、`LocalWorkbenchApps.cs` 和 `LocalWorkbenchServices.cs` 在专用账户会话内启动相应组件。
 - `windows_local_network.go` 和 `LocalWorkbenchNetwork.cs` 将本次会话的代理转发到工作台选定的 Cage 节点。每一跳须提供公网 IPv4 地址，支持用独立 TLS 域名校验证书。
-- 尚待实测的项目包括真实账号登录、节点出口、SSH 私网连接和 Claude Desktop 日常使用。Chromium 时区、并行会话及文件传输的覆盖情况见 [STATUS.md](STATUS.md)。
+- 经过指定节点的 HTTPS 请求和 Claude Desktop 欢迎页已在 Windows 验证。真实账号登录、SSH 私网连接和 Claude Desktop 日常使用的覆盖情况见 [STATUS.md](STATUS.md)。

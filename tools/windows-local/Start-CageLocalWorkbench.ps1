@@ -16,14 +16,13 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSEdition -eq 'Desktop') {
     $builtinModules = Join-Path $PSHOME 'Modules'
-    if (($env:PSModulePath -split ';') -notcontains $builtinModules) {
-        $env:PSModulePath = $builtinModules + ';' + $env:PSModulePath
-    }
+    # A PowerShell 7 parent can put incompatible versions of these modules first.
+    $otherModules = @($env:PSModulePath -split ';' | Where-Object { $_ -and $_ -ne $builtinModules })
+    $env:PSModulePath = (@($builtinModules) + $otherModules) -join ';'
 }
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $output = Join-Path $repo '_output/windows-local'
 $backend = Join-Path $output 'cage.exe'
-$helper = Join-Path $repo 'tmp/windows-local/CageLocal.exe'
 
 function Assert-LocalPath([string]$Path) {
     $current = [IO.Path]::GetFullPath($Path)
@@ -90,9 +89,10 @@ if ($PSCmdlet.ParameterSetName -eq 'Stop') {
 
 if (!$ProfilePath) { $ProfilePath = Join-Path $repo 'tmp/windows-local/profile/local-profile.json' }
 $profileFile = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ProfilePath)
-foreach ($path in @($profileFile, $helper, $backend)) { Assert-LocalPath $path }
+foreach ($path in @($profileFile, (Join-Path $repo 'tmp/windows-local'), $backend)) { Assert-LocalPath $path }
 if (!(Test-Path -LiteralPath $profileFile -PathType Leaf)) { throw 'The configured Windows isolation profile does not exist.' }
-& (Join-Path $PSScriptRoot 'build.ps1') -IfNeeded | Out-Host
+$helper = & (Join-Path $PSScriptRoot 'build.ps1') -IfNeeded -Workbench
+Assert-LocalPath $helper
 $inspection = & $helper workbench-inspect --profile $profileFile
 if ($LASTEXITCODE -ne 0) { throw 'The Windows account or its isolation rules could not be verified.' }
 $verified = $inspection | ConvertFrom-Json

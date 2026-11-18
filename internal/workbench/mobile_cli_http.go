@@ -44,6 +44,15 @@ func (s *Server) mobileOpenTerminal(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &input) {
 		return
 	}
+	if s.windowsLocal != nil {
+		terminal, err := s.createTerminal(terminalRequest{Kind: "claude", sharedID: r.PathValue("id"), requestContext: r.Context()})
+		if err != nil {
+			requestError(w, err)
+			return
+		}
+		jsonReply(w, map[string]string{"id": r.PathValue("id"), "desktop_terminal_id": terminal.id})
+		return
+	}
 	s.mobileConnectMu.Lock()
 	defer s.mobileConnectMu.Unlock()
 	view, ok := s.authorizedMobileSession(w, r)
@@ -225,6 +234,10 @@ func (s *Server) mobileProjects(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, map[string]any{"projects": projects, "ready": ready, "host": name, "shared_sessions": shared})
 }
 func (s *Server) mobileSessions(w http.ResponseWriter, r *http.Request) {
+	if s.windowsLocal != nil {
+		s.windowsLocalSessions(w, r)
+		return
+	}
 	paths, err := s.projectPaths()
 	if err != nil {
 		http.Error(w, "无法读取已授权的项目", 500)
@@ -356,7 +369,12 @@ func (s *Server) authorizedMobileSessionRecord(w http.ResponseWriter, r *http.Re
 		http.Error(w, "无法读取主机上的 CLI 会话记录", 500)
 		return view, false, false
 	}
-	if _, err := s.projectWorkspace(view.Workspace); err != nil {
+	if s.windowsLocal != nil {
+		if _, err := s.localTerminalFolders(r.Context(), view.Workspace); err != nil {
+			http.Error(w, "项目未授权或已不可用", 403)
+			return view, false, false
+		}
+	} else if _, err := s.projectWorkspace(view.Workspace); err != nil {
 		http.Error(w, "项目未授权或已不可用", 403)
 		return view, false, false
 	}

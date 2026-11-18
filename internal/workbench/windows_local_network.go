@@ -29,6 +29,7 @@ type windowsLocalNetwork struct {
 }
 
 type localNetworkState struct {
+	InUse    bool   `json:"in_use"`
 	Open     bool   `json:"open"`
 	Selected bool   `json:"selected"`
 	Message  string `json:"message"`
@@ -71,7 +72,7 @@ func (n *windowsLocalNetwork) state() localNetworkState {
 	}
 	n.session.mu.Lock()
 	defer n.session.mu.Unlock()
-	return localNetworkState{Open: n.session.grant != nil, Selected: n.selected, Message: n.session.message}
+	return localNetworkState{InUse: true, Open: n.session.grant != nil, Selected: n.selected, Message: n.session.message}
 }
 
 // Refresh on startup and proxy mutations; polling status never probes the

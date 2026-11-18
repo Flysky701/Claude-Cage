@@ -56,6 +56,8 @@ export function WorkspaceSidebar({
   terminalAvailable = running,
   desktopAvailable = running,
   runtimeLabel,
+  statusActive,
+  browserSelected,
   network,
   onHome,
   browserAvailable = true,
@@ -100,7 +102,9 @@ export function WorkspaceSidebar({
       setCollapsed((previous) => ({ ...previous, [activeWorkspace]: false }));
   }, [active, activeWorkspace]);
   if (ssh?.expanded) return null;
-  const healthy = ready && network.mode === "open";
+  const localAccount = guestSystem === "windows-local";
+  const healthy = ready && (localAccount ? network.mode !== "unknown" : network.mode === "open");
+  const accountStatus = localAccount ? `打开 Windows 本地账户详情 · ${healthy ? "账户就绪" : runtimeLabel} · ${network.label}` : undefined;
   return (
     <aside className="workspace-sidebar" aria-label="项目与终端">
       <div className="sidebar-top">
@@ -126,7 +130,7 @@ export function WorkspaceSidebar({
           <Home size={17} />
           工作台
         </button>
-        <div className={`sidebar-browser-row ${!desktopOpen && !home && tabs.some((tab) => tab.id === active && tab.kind !== "terminal") ? "selected" : ""}`}>
+        <div className={`sidebar-browser-row ${(browserSelected ?? (!desktopOpen && !home && tabs.some((tab) => tab.id === active && tab.kind !== "terminal"))) ? "selected" : ""}`}>
           <button
             className="sidebar-link"
             onClick={onBrowser}
@@ -251,7 +255,7 @@ export function WorkspaceSidebar({
                   className="icon-button"
                   aria-label={`在 ${project} 新建终端`}
                   title="新建终端"
-                  aria-haspopup={guestSystem === "windows-local" ? undefined : "menu"}
+                  aria-haspopup="menu"
                   data-terminal-location={path}
                   disabled={!terminalAvailable || busy}
                   onClick={(event) => {
@@ -330,9 +334,10 @@ export function WorkspaceSidebar({
         )}
       </div>
       <div className="sidebar-bottom">
-        <button className="sidebar-status" onClick={onSafety} disabled={!onSafety}>
-          <i className={`status-dot ${network.mode}`} />
-          <span>{healthy ? "环境运行正常" : runtimeLabel}</span>
+        <button className="sidebar-status" onClick={onSafety} disabled={!onSafety} aria-current={statusActive ? "page" : undefined}
+          title={accountStatus} aria-label={localAccount ? runtimeLabel : undefined}>
+          <i className={`status-dot ${localAccount && healthy ? "open" : network.mode}`} />
+          <span>{healthy && guestSystem !== "windows-local" ? "环境运行正常" : runtimeLabel}</span>
           <EnvironmentShield size={17} healthy={healthy} />
         </button>
         <div className="sidebar-footer-actions">

@@ -82,6 +82,7 @@ namespace CageLocalTool
             private string service, exe, profile, local, profiles, chosen, work;
             private SortedDictionary<string, string> environment;
             private Process node, login;
+            private IntPtr job;
             private string loginURL = "";
             private readonly object outputLock = new object();
 
@@ -134,13 +135,31 @@ namespace CageLocalTool
 
             private Process Start(string args, string config)
             {
-                var info = new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true,
-                    WorkingDirectory = work, RedirectStandardInput = true, RedirectStandardOutput = true,
-                    RedirectStandardError = true, StandardOutputEncoding = Utf8NoBom, StandardErrorEncoding = Utf8NoBom };
+                var info = config == null ? new ProcessStartInfo(exe, args) :
+                    new ProcessStartInfo(Assembly.GetExecutingAssembly().Location, "claude-account-run " + args);
+                info.UseShellExecute = false;
+                info.CreateNoWindow = true;
+                info.WorkingDirectory = work;
+                info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = true;
+                info.StandardOutputEncoding = info.StandardErrorEncoding = Utf8NoBom;
                 info.EnvironmentVariables.Clear();
                 foreach (var pair in environment) info.EnvironmentVariables[pair.Key] = pair.Value;
-                if (config != null) info.EnvironmentVariables["CLAUDE_CONFIG_DIR"] = config;
-                return Process.Start(info);
+                if (config != null) info.EnvironmentVariables["CAGE_CLAUDE_ACCOUNT_ID"] = Path.GetFileName(config);
+                if (job == IntPtr.Zero) job = CreateKillOnCloseJob();
+                var child = Process.Start(info);
+                try
+                {
+                    // A short-lived service command can finish before assignment.
+                    if (!AssignProcessToJobObject(job, child.Handle) && !child.HasExited)
+                        throw new InvalidOperationException("无法将服务进程绑定到隔离标签页。");
+                    return child;
+                }
+                catch
+                {
+                    try { if (!child.HasExited) child.Kill(); }
+                    finally { child.Dispose(); }
+                    throw;
+                }
             }
 
             private static readonly string AccountOptions = "--setting-sources user --settings " + QuoteCmdArg("{\"disableAllHooks\":true}") + " ";
@@ -176,7 +195,8 @@ namespace CageLocalTool
                     if ((child.ExitCode != 0 && child.ExitCode != 1) ||
                         !report.TryGetValue("loggedIn", out logged) || !(logged is bool) ||
                         (report.TryGetValue("configDirectory", out directory) &&
-                            !SameWindowsName(Path.GetFullPath(Convert.ToString(directory)), Path.GetFullPath(dir))))
+                            !SameWindowsName(Path.GetFullPath(Convert.ToString(directory)),
+                                Path.Combine(PrepareTerminalDirectory(profile, true), "ClaudeProfiles", chosen))))
                         throw new InvalidDataException("无法核实当前 Claude 账号档案。");
                     var state = new Dictionary<string,object>();
                     foreach (string key in new[] { "loggedIn", "email", "orgId", "authMethod", "subscriptionType" })
@@ -356,11 +376,18 @@ namespace CageLocalTool
 
             public void Dispose()
             {
-                foreach (var child in new[] { node, login }) if (child != null) {
-                    try { child.StandardInput.Close(); if (!child.WaitForExit(800)) { child.Kill(); child.WaitForExit(); } } catch (InvalidOperationException) { }
-                    child.Dispose();
+                try {
+                    foreach (var child in new[] { node, login }) if (child != null) {
+                        try { child.StandardInput.Close(); if (!child.WaitForExit(800)) child.Kill(); } catch (InvalidOperationException) { }
+                        finally { child.Dispose(); }
+                    }
+                } finally {
+                    node = login = null;
+                    if (job != IntPtr.Zero) {
+                        try { WaitForJobDrain(job, 2000); }
+                        finally { CloseHandle(job); job = IntPtr.Zero; }
+                    }
                 }
-                node = login = null;
             }
         }
     }

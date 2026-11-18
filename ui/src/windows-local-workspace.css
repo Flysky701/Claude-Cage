@@ -1,0 +1,37 @@
+.windows-local-workspace {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(18px, 4vw, 38px);
+}
+
+.windows-local-content {
+  width: 100%;
+  max-width: 740px;
+  margin-inline: auto;
+}
+
+.windows-local-content h2 { margin: 0; font-size: 1.4rem; overflow-wrap: anywhere; }
+.windows-local-content h3 { margin: 28px 0 10px; font-size: 1.05rem; }
+.windows-local-help, .windows-local-content small { color: var(--muted); }
+.windows-local-help { margin: 6px 0 12px; line-height: 1.6; }
+.windows-local-content button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.windows-status-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.windows-status-tools { list-style: none; margin: 0; padding: 0; }
+.windows-status-heading button { flex-shrink: 0; }
+.windows-status-facts { margin: 18px 0 14px; }
+.windows-status-facts > div { display: grid; grid-template-columns: minmax(88px, 30%) 1fr; padding: 9px 0; border-top: 1px solid var(--line); gap: 8px; }
+.windows-status-facts dt { color: var(--muted); }
+.windows-status-facts dd { margin: 0; overflow-wrap: anywhere; }
+.windows-status-facts small { margin-inline-start: 4px; }
+.windows-status-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 0 16px; }
+.windows-status-tools li { border-top: 1px solid var(--line); }
+.windows-status-tools button { width: 100%; text-align: left; border: 0; background: transparent; padding: 12px 4px; }
+.windows-status-tools button:hover { background: var(--hover); }
+.windows-status-tools button > span { flex: 1; }
+.windows-status-tools svg { color: var(--muted); }

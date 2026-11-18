@@ -18,6 +18,9 @@ func (s *Server) newTerminal(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &input) {
 		return
 	}
+	if s.windowsLocal != nil {
+		input.requestContext = r.Context()
+	}
 	session, err := s.createTerminal(input)
 	switch {
 	case errors.Is(err, errTerminalsClosed):

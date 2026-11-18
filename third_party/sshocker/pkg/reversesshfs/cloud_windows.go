@@ -8,6 +8,31 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// OpenNativeProjectShare keeps the no-follow and single-link checks on all
+// reads and writes. The local WinFsp client also needs STATVFS at mount time.
+func OpenNativeProjectShare(directory string, readOnly bool, readOnlyTrees []string) (*CloudShare, error) {
+	c, err := OpenCloudShare(directory, readOnly)
+	if err != nil {
+		return nil, err
+	}
+	c.handlers.localVolume = true
+	c.handlers.foldedNames = []string{FoldName(".git")}
+	for _, dir := range readOnlyTrees {
+		c.handlers.readOnlyTrees = append(c.handlers.readOnlyTrees, FoldName(filepath.ToSlash(dir)))
+	}
+	return c, nil
+}
+
+// Match the directory object that the account controller actually authorized,
+// including if a different local application replaces the named path.
+func (c *CloudShare) MatchesWindowsDirectory(serial, high, low uint32) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var info windows.ByHandleFileInformation
+	return !c.closed && windows.GetFileInformationByHandle(c.handlers.rootHandle, &info) == nil &&
+		info.VolumeSerialNumber == serial && info.FileIndexHigh == high && info.FileIndexLow == low
+}
+
 // Open an absolute local drive path from its volume root. DONT_REPARSE applies
 // to all remaining components, so junctions cannot redirect the grant.
 func openCloudRoot(directory string) (rootedSys, error) {
@@ -45,7 +70,7 @@ func (h *rootedHandlers) cloudOpenRead(rel string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = h.checkHandle(fh)
+	_, err = h.normalizedRel(fh) // read-only names remain readable
 	var fi windows.ByHandleFileInformation
 	if err == nil {
 		err = windows.GetFileInformationByHandle(fh, &fi)

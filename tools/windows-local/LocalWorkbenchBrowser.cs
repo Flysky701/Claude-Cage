@@ -57,7 +57,7 @@ namespace CageLocalTool
         private sealed class WorkerBrowser : IDisposable
         {
             private AnonymousPipeServerStream toEdge, fromEdge;
-            private IntPtr process;
+            private IntPtr process, job;
             private readonly byte[] received = new byte[16384];
             private int bufferStart, bufferEnd, sequence;
             private string target, session;
@@ -79,12 +79,12 @@ namespace CageLocalTool
             }
 
             internal Dictionary<string, object> Open(string profileDir, string appData, string localAppData,
-                int brokerPort, string timezone, string desktop, bool signIn)
+                int brokerPort, string timezone, string desktop, bool signIn, bool tailnetSignIn = false)
             {
                 if (process != IntPtr.Zero) throw new InvalidOperationException("浏览器已经打开。");
                 string executable = FindWorkbenchEdge();
                 if (executable == null) throw new FileNotFoundException("Windows 隔离浏览器需要系统安装的 Microsoft Edge。");
-                string data = Path.Combine(localAppData, "Cage", signIn ? "WorkbenchSignIn" : "WorkbenchEdge");
+                string data = Path.Combine(localAppData, "Cage", signIn ? (tailnetSignIn ? "WorkbenchTailnetSignIn" : "WorkbenchSignIn") : "WorkbenchEdge");
                 AssertNoReparsePointOnTreeUpToRoot(data, profileDir);
                 Directory.CreateDirectory(data);
                 AssertNoReparsePointOnTreeUpToRoot(data, profileDir);
@@ -98,6 +98,7 @@ namespace CageLocalTool
                         "," + write.ToInt64().ToString(CultureInfo.InvariantCulture),
                     "--no-first-run", "--no-default-browser-check", "--disable-background-mode", "--disable-sync",
                     "--disable-gpu", "--disable-quic", "--disable-extensions", "--disable-background-networking",
+                    "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows",
                     "--proxy-server=http://127.0.0.1:" + brokerPort, "--proxy-bypass-list=<-loopback>",
                     "--user-data-dir=" + data, "about:blank" };
                 if (signIn) args = new[] { "--inprivate" }.Concat(args).ToArray();
@@ -120,19 +121,32 @@ namespace CageLocalTool
                     startup.StartupInfo.cb = Marshal.SizeOf(typeof(StartupInfoExW));
                     startup.StartupInfo.lpDesktop = "Winsta0\\" + desktop;
                     startup.lpAttributeList = attr;
+                    job = CreateKillOnCloseJob();
                     CheckWin32(CreateProcessEx(executable, new StringBuilder(BuildCommandLine(executable, args)), IntPtr.Zero,
-                        IntPtr.Zero, true, ExtendedStartupInfoPresent | CreateUnicodeEnvironment | CreateNoWindow,
+                        IntPtr.Zero, true, ExtendedStartupInfoPresent | CreateUnicodeEnvironment | CreateNoWindow | CreateSuspended,
                         variables, data, ref startup, out pi), "Start isolated Edge");
                     process = pi.hProcess;
+                    CheckWin32(AssignProcessToJobObject(job, process), "Attach Edge to tab's job");
+                    CheckWin32(ResumeThread(pi.hThread) != uint.MaxValue, "Start isolated Edge thread");
                     toEdge.DisposeLocalCopyOfClientHandle();
                     fromEdge.DisposeLocalCopyOfClientHandle();
                     var token = InspectToken(process);
-                    var created = Send("Target.createTarget", Fields("url", "about:blank"), false);
-                    target = (string)created["targetId"];
+                    var blank = ((object[])Send("Target.getTargets", null, false)["targetInfos"])
+                        .Cast<Dictionary<string, object>>().FirstOrDefault(info => Object.Equals(info["type"], "page") &&
+                            Object.Equals(info["url"], "about:blank") && !info.ContainsKey("openerId"));
+                    if (blank == null) blank = Send("Target.createTarget", Fields("url", "about:blank"), false);
+                    target = (string)blank["targetId"];
+                    Send("Target.activateTarget", Fields("targetId", target), false);
                     Attach(target);
                     Send("Browser.setDownloadBehavior", Fields("behavior", "deny"), false);
                     ShowHome();
                     return Fields("pid", pi.dwProcessId, "token", token, "desktop", desktop);
+                }
+                catch
+                {
+                    if (process != IntPtr.Zero) TerminateProcess(process, 1);
+                    Dispose();
+                    throw;
                 }
                 finally
                 {
@@ -384,7 +398,7 @@ namespace CageLocalTool
                 {
                     try {
                         // Closing the debugging pipe also tells Edge to quit. Allow the profile
-                        // to flush before the outer session reclaims its job tree.
+                        // to flush before reclaiming this tab's job tree.
                         if (toEdge != null) {
                             byte[] close = Utf8NoBom.GetBytes("{\"id\":0,\"method\":\"Browser.close\"}\0");
                             toEdge.Write(close, 0, close.Length);
@@ -394,11 +408,17 @@ namespace CageLocalTool
                     CloseHandle(process);
                     process = IntPtr.Zero;
                 }
+                if (job != IntPtr.Zero)
+                {
+                    try { WaitForJobDrain(job, 2000); }
+                    finally { CloseHandle(job); job = IntPtr.Zero; }
+                }
                 if (toEdge != null) toEdge.Dispose();
                 if (fromEdge != null) fromEdge.Dispose();
                 toEdge = fromEdge = null;
                 parents.Clear();
-                viewToken = displayedLoader = displayedURL = null;
+                bufferStart = bufferEnd = 0;
+                target = session = displayedTarget = viewToken = displayedLoader = displayedURL = null;
             }
         }
     }

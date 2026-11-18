@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
 using Microsoft.Win32;
 
@@ -135,8 +136,10 @@ namespace CageLocalTool
                 var args = new List<string> { "--user-data-dir=" + Path.Combine(data, kind), "--disable-gpu",
                     "--disable-renderer-backgrounding", "--disable-features=CalculateNativeWinOcclusion",
                     "--proxy-server=http://127.0.0.1:" + brokerPort, "--proxy-bypass-list=<-loopback>" };
-                if (kind == "editor") args.AddRange(new[] { "--new-window", "--disable-extensions", "--skip-welcome",
-                    "--skip-release-notes", "--extensions-dir=" + Path.Combine(data, "CodeExtensions"), (string)req["project"] ?? work });
+                string editorFolder = kind == "editor" ? (string)req["project"] ?? work : null;
+                if (editorFolder != null) args.AddRange(new[] { "--new-window", "--disable-extensions", "--skip-welcome",
+                    "--skip-release-notes", "--extensions-dir=" + Path.Combine(data, "CodeExtensions"),
+                    "--folder-uri", new Uri(Path.GetFullPath(editorFolder)).AbsoluteUri });
                 IntPtr source = IntPtr.Zero, low = IntPtr.Zero, env = IntPtr.Zero;
                 ProcessInformation pi = new ProcessInformation();
                 try
@@ -148,6 +151,29 @@ namespace CageLocalTool
                     CheckWin32(OpenProcessToken(Process.GetCurrentProcess().Handle, 0x008b, out source), "Open application source token");
                     CheckWin32(CreateRestrictedToken(source, 1, 0, IntPtr.Zero, 0, IntPtr.Zero, 0, IntPtr.Zero, out low), "Restrict application token");
                     SetTerminalTokenLow(low);
+                    if (editorFolder != null)
+                    {
+                        using (WindowsIdentity.Impersonate(low))
+                        {
+                            // Report a missing grant before VS Code can fall back to an empty window.
+                            using (var entries = Directory.EnumerateFileSystemEntries(editorFolder).GetEnumerator())
+                                entries.MoveNext();
+                        }
+                    }
+                    if (kind == "desktop")
+                    {
+                        // Electron resolves known folders beneath the redirected USERPROFILE.
+                        // Create them with the same restricted token that will use them.
+                        using (WindowsIdentity.Impersonate(low))
+                        {
+                            foreach (string name in new[] { "Roaming", "Local" })
+                            {
+                                string folder = Path.Combine(data, "AppData", name);
+                                AssertNoReparsePointOnTreeUpToRoot(folder, profileDir);
+                                Directory.CreateDirectory(folder);
+                            }
+                        }
+                    }
                     // VS Code also keeps argv.json under USERPROFILE/.vscode.
                     // Give GUI apps a low-integrity home for their own settings.
                     env = AllocUnicodeEnvBlock(BuildWorkerEnv(data, data, data, data, brokerPort, timezone, null, null));
@@ -310,7 +336,11 @@ namespace CageLocalTool
             }
             public void Dispose()
             {
-                if (job != IntPtr.Zero) { CloseHandle(job); job = IntPtr.Zero; }
+                if (job != IntPtr.Zero)
+                {
+                    try { WaitForJobDrain(job, 2000); }
+                    finally { CloseHandle(job); job = IntPtr.Zero; }
+                }
                 if (process != IntPtr.Zero) { CloseHandle(process); process = IntPtr.Zero; }
             }
         }

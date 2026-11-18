@@ -165,24 +165,31 @@ func (h *rootedHandlers) normalizedRel(fh windows.Handle) (string, error) {
 
 // guardAt asks Guard about base in the directory parent, by the normalized name of parent.
 func (h *rootedHandlers) guardAt(parent windows.Handle, base string, entry bool) error {
-	if Guard == nil {
+	if Guard == nil && len(h.readOnlyTrees) == 0 {
 		return nil
 	}
 	dir, err := h.normalizedRel(parent)
 	if err != nil {
 		return err
 	}
-	return h.guard(path.Join(dir, base), entry)
+	rel := path.Join(dir, base)
+	if h.inReadOnlyTree(rel, entry) {
+		return errDenied
+	}
+	return h.guard(rel, entry)
 }
 
 // guardHandle asks Guard about the file of fh, by its normalized name.
 func (h *rootedHandlers) guardHandle(fh windows.Handle, entry bool) error {
-	if Guard == nil {
+	if Guard == nil && len(h.readOnlyTrees) == 0 {
 		return nil
 	}
 	rel, err := h.normalizedRel(fh)
 	if err != nil {
 		return err
+	}
+	if h.inReadOnlyTree(rel, entry) {
+		return errDenied
 	}
 	return h.guard(rel, entry)
 }
@@ -195,6 +202,9 @@ func (h *rootedHandlers) checkHandle(fh windows.Handle) error {
 	}
 	if rel == "." {
 		return nil
+	}
+	if h.inReadOnlyTree(rel, false) {
+		return errDenied
 	}
 	for _, c := range strings.Split(rel, "/") {
 		c, _, _ = strings.Cut(c, ":")

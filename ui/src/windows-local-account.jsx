@@ -53,7 +53,7 @@ function closeSocket(socket) {
   socket.close();
 }
 
-export function WindowsLocalTerminalPane({ onExit, closing = false, active = true, sshControls }) {
+export function WindowsLocalTerminalPane({ onExit, closing = false, active = true, sshControls, project = "" }) {
   const [attempt, setAttempt] = useState(0);
   const [phase, setPhase] = useState("opening");
   const [error, setError] = useState("");
@@ -96,7 +96,9 @@ export function WindowsLocalTerminalPane({ onExit, closing = false, active = tru
       const account = await inspectAccount(request.signal);
       if (request.signal.aborted || closingRef.current) return;
       if (!account.available || !account.rules_verified) throw new Error(account.message || "隔离账户尚未就绪。");
-      socket = new WebSocket(runtimeSocketURL("/windows-local/terminal"));
+      const endpoint = new URL(runtimeSocketURL("/windows-local/terminal"), window.location.href);
+      if (project && project !== "~") endpoint.searchParams.set("project", project);
+      socket = new WebSocket(endpoint);
       connection.current = socket;
       socket.onmessage = event => {
         if (request.signal.aborted || exited || failed) return;
@@ -147,7 +149,7 @@ export function WindowsLocalTerminalPane({ onExit, closing = false, active = tru
       connection.current = null;
       leave();
     };
-  }, [attempt]);
+  }, [attempt, project]);
 
   useEffect(() => {
     if (!closing) return;

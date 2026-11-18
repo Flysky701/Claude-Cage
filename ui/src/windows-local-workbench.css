@@ -1,0 +1,20 @@
+.local-workbench { min-height: 0; }
+.local-tab-bar { display: flex; align-items: center; padding: 4px 8px 0; min-height: 40px; gap: 4px; background: var(--chrome); border-bottom: 1px solid var(--line); }
+.local-tab-strip { display: flex; align-self: stretch; overflow-x: auto; scrollbar-width: thin; gap: 2px; min-width: 0; }
+.local-tab { display: flex; align-items: center; border: 1px solid transparent; border-radius: 6px 6px 0 0; flex-shrink: 0; color: var(--muted); }
+.local-tab[data-current="true"] { background: var(--paper); border-color: var(--line); border-bottom-color: var(--paper); color: var(--ink); }
+.local-tab button { display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; color: inherit; box-shadow: none; }
+.local-tab [role="tab"] { height: 100%; padding: 6px 10px; font-size: 13px; }
+.local-tab-close { margin-right: 3px; padding: 4px; border-radius: 4px; }
+.local-tab-close:hover { background: var(--line); }
+.local-tab-panel { display: flex; flex-direction: column; flex: 1; overflow: auto; min-height: 0; min-width: 0; }
+.local-tab-panel[hidden] { display: none; }
+.local-tab-panel > .windows-local-terminal { flex: 1; }
+.local-launcher { margin: clamp(26px, 8vh, 90px) auto; width: min(660px, calc(100% - 40px)); }
+.local-launcher h1 { font-size: clamp(23px, 3vw, 32px); font-weight: 600; margin: 0 0 24px; }
+.local-launch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 8px; }
+.local-launch-grid button { display: flex; align-items: center; gap: 10px; min-height: 54px; text-align: left; padding: 10px 14px; }
+.local-terminal-choice { position: relative; }
+.local-terminal-choice > button { width: 100%; }
+.local-tab-panel > .pane-body { flex: 1; }
+.sidebar-status[aria-current="page"] { background: var(--line); color: var(--ink); }

@@ -42,9 +42,13 @@ func (s *Server) projectGroups() ([]projectGroup, error) {
 	if err != nil {
 		return nil, err
 	}
+	return groupsFromPaths(paths, saved.Groups), nil
+}
+
+func groupsFromPaths(paths []string, saved []projectGroup) []projectGroup {
 	groups := []projectGroup{}
 	covered := map[string]bool{}
-	for _, group := range saved.Groups {
+	for _, group := range saved {
 		if !slices.Contains(paths, group.Workspace) {
 			continue
 		}
@@ -65,7 +69,7 @@ func (s *Server) projectGroups() ([]projectGroup, error) {
 			groups = append(groups, projectGroup{Workspace: path, Name: filepath.Base(path), Folders: []string{path}})
 		}
 	}
-	return groups, nil
+	return groups
 }
 
 func (s *Server) projectFolders(workspace string) ([]string, error) {
@@ -147,6 +151,10 @@ func (s *Server) projectConnectionError(w http.ResponseWriter, err error, folder
 }
 
 func (s *Server) saveProject(w http.ResponseWriter, r *http.Request) {
+	if s.windowsLocal != nil {
+		s.windowsLocalSaveProject(w, r)
+		return
+	}
 	var input projectGroup
 	if !readJSON(w, r, &input) {
 		return

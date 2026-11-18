@@ -115,10 +115,17 @@ namespace CageLocalTool
 
         // This class lives exclusively inside the standard-account daemon. The
         // shell's only inherited handles are the two anonymous pipe endpoints.
+        [DllImport("kernel32.dll")]
+        private static extern int CreatePseudoConsole(int size, IntPtr input, IntPtr output, uint flags, out IntPtr console);
+        [DllImport("kernel32.dll")]
+        private static extern int ResizePseudoConsole(IntPtr console, int size);
+        [DllImport("kernel32.dll")]
+        private static extern void ClosePseudoConsole(IntPtr console);
+
         private sealed class WorkerTerminal : IDisposable
         {
             private AnonymousPipeServerStream input, output;
-            private IntPtr process, job;
+            private IntPtr process, job, console;
             private readonly BlockingCollection<byte[]> commands = new BlockingCollection<byte[]>(16);
             private Task inputPump;
             private readonly Decoder decoder = Utf8NoBom.GetDecoder();
@@ -126,7 +133,8 @@ namespace CageLocalTool
             private readonly char[] chars = new char[8194];
 
             internal Dictionary<string, object> Open(string profileDir, string appData, string localAppData,
-                int brokerPort, string timezone, string desktop, string expectedSid)
+                int brokerPort, string timezone, string desktop, string expectedSid, string project = null,
+                Dictionary<string, object> interactive = null)
             {
                 if (process != IntPtr.Zero) throw new InvalidOperationException("A terminal is already open.");
                 string work = PrepareTerminalDirectory(profileDir);
@@ -142,15 +150,57 @@ namespace CageLocalTool
                 environment["CAGE_SSH_CLIENT"] = Assembly.GetExecutingAssembly().Location;
                 string toolsDir = Path.Combine(Directory.GetParent(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)).FullName, "tools");
                 string cli = ServiceExecutable(toolsDir, "accounts");
+                string account = null;
                 if (File.Exists(cli)) {
                     ConfigureClaudeShell(environment, toolsDir);
                     environment["PATH"] = Path.GetDirectoryName(cli) + ";" + environment["PATH"];
-                    environment["CLAUDE_CONFIG_DIR"] = WorkerServices.ConfigFolder(localAppData, WorkerServices.SelectedProfile(localAppData));
+                    account = WorkerServices.SelectedProfile(localAppData);
+                    environment["CLAUDE_CONFIG_DIR"] = Path.Combine(PrepareTerminalDirectory(profileDir, true), "ClaudeProfiles", account);
+                }
+                if (interactive != null)
+                {
+                    environment["TERM"] = "xterm-256color";
+                    environment["COLORTERM"] = "truecolor";
+                    string kind = (string)interactive["kind"];
+                    if (kind == "claude")
+                    {
+                        account = interactive.ContainsKey("account") ? (string)interactive["account"] : WorkerServices.SelectedProfile(localAppData);
+                        string accountSource = WorkerServices.ConfigFolder(localAppData, account);
+                        if (account != "default" && !Directory.Exists(accountSource))
+                            throw new InvalidDataException("原 Claude 账号档案已不可用。");
+                        if (!File.Exists(cli)) throw new FileNotFoundException("请先安装隔离账户的 Claude Code。");
+                        string id = (string)interactive["cliID"];
+                        Guid uuid;
+                        if (!Guid.TryParseExact(id, "D", out uuid) || id != uuid.ToString("D"))
+                            throw new InvalidDataException("Claude 会话标识无效。");
+                        environment["CLAUDE_CONFIG_DIR"] = Path.Combine(PrepareTerminalDirectory(profileDir, true), "ClaudeProfiles", account);
+                        shell = cli;
+                        var options = new List<string> { Object.Equals(interactive["resume"], true) ? "--resume" : "--session-id", id };
+                        if (interactive.ContainsKey("additional")) {
+                            options.Add("--add-dir");
+                            foreach (object path in (System.Collections.IEnumerable)interactive["additional"]) options.Add((string)path);
+                        }
+                        args = options.ToArray();
+                    }
+                    else if (kind == "shell")
+                    {
+                        // PSReadLine opens its history at the first prompt. Set its path
+                        // before that prompt, without redirecting AppData for other apps.
+                        environment["CAGE_POWERSHELL_HISTORY_PATH"] = Path.Combine(work, "ConsoleHost_history.txt");
+                        const string init = "if (Get-Command Set-PSReadLineOption -ErrorAction SilentlyContinue) { " +
+                            "Set-PSReadLineOption -HistorySavePath $env:CAGE_POWERSHELL_HISTORY_PATH }; " +
+                            "Remove-Item Env:CAGE_POWERSHELL_HISTORY_PATH";
+                        args = new[] { "-NoLogo", "-NoProfile", "-NoExit", "-EncodedCommand",
+                            Convert.ToBase64String(Encoding.Unicode.GetBytes(init)) };
+                    }
+                    else throw new InvalidDataException("终端类型无效。");
                 }
                 IntPtr envBlock = IntPtr.Zero, attrList = IntPtr.Zero, handles = IntPtr.Zero;
                 bool initialized = false;
                 ProcessInformation pi = new ProcessInformation();
                 IntPtr sourceToken = IntPtr.Zero, lowToken = IntPtr.Zero;
+                bool reopenedDraft = false;
+                string accountLabel = null;
                 try
                 {
                     input = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
@@ -163,17 +213,29 @@ namespace CageLocalTool
                     attrList = Marshal.AllocHGlobal(size);
                     CheckWin32(InitializeProcThreadAttributeList(attrList, 1, 0, ref size), "Initialize terminal handle list");
                     initialized = true;
-                    handles = Marshal.AllocHGlobal(2 * IntPtr.Size);
-                    Marshal.WriteIntPtr(handles, 0, stdin);
-                    Marshal.WriteIntPtr(handles, IntPtr.Size, stdout);
-                    CheckWin32(UpdateProcThreadAttribute(attrList, 0, (IntPtr)0x20002, handles,
-                        (IntPtr)(2 * IntPtr.Size), IntPtr.Zero, IntPtr.Zero), "Set terminal handle list");
+                    if (interactive == null)
+                    {
+                        handles = Marshal.AllocHGlobal(2 * IntPtr.Size);
+                        Marshal.WriteIntPtr(handles, 0, stdin);
+                        Marshal.WriteIntPtr(handles, IntPtr.Size, stdout);
+                        CheckWin32(UpdateProcThreadAttribute(attrList, 0, (IntPtr)0x20002, handles,
+                            (IntPtr)(2 * IntPtr.Size), IntPtr.Zero, IntPtr.Zero), "Set terminal handle list");
+                    }
+                    else
+                    {
+                        Marshal.ThrowExceptionForHR(CreatePseudoConsole(100 | (30 << 16), stdin, stdout, 0, out console));
+                        CheckWin32(UpdateProcThreadAttribute(attrList, 0, (IntPtr)0x20016, console,
+                            (IntPtr)IntPtr.Size, IntPtr.Zero, IntPtr.Zero), "Attach terminal console");
+                    }
                     StartupInfoExW si = new StartupInfoExW();
                     si.StartupInfo.cb = Marshal.SizeOf(typeof(StartupInfoExW));
                     si.StartupInfo.lpDesktop = "Winsta0\\" + desktop;
                     si.StartupInfo.dwFlags = (int)StartfUseStdHandles;
-                    si.StartupInfo.hStdInput = stdin;
-                    si.StartupInfo.hStdOutput = si.StartupInfo.hStdError = stdout;
+                    if (interactive == null)
+                    {
+                        si.StartupInfo.hStdInput = stdin;
+                        si.StartupInfo.hStdOutput = si.StartupInfo.hStdError = stdout;
+                    }
                     si.lpAttributeList = attrList;
                     envBlock = AllocUnicodeEnvBlock(environment);
                     CheckWin32(OpenProcessToken(Process.GetCurrentProcess().Handle, 0x008b /* ASSIGN_PRIMARY | DUPLICATE | QUERY | ADJUST_DEFAULT */,
@@ -181,21 +243,40 @@ namespace CageLocalTool
                     CheckWin32(CreateRestrictedToken(sourceToken, 1 /* DISABLE_MAX_PRIVILEGE */, 0, IntPtr.Zero, 0, IntPtr.Zero,
                         0, IntPtr.Zero, out lowToken), "Restrict terminal token");
                     SetTerminalTokenLow(lowToken);
-                    CheckWin32(CreateTerminalAsUser(lowToken, shell, new StringBuilder(BuildCommandLine(shell, args)), IntPtr.Zero, IntPtr.Zero, true,
-                        ExtendedStartupInfoPresent | CreateUnicodeEnvironment | CreateNoWindow | CreateSuspended,
-                        envBlock, work, ref si, out pi), "Start isolated PowerShell");
+                    if (account != null)
+                        PrepareClaudeRuntime(lowToken, profileDir, WorkerServices.ConfigFolder(localAppData, account), environment["CLAUDE_CONFIG_DIR"]);
+                    if (interactive != null && shell == cli)
+                    {
+                        using (System.Security.Principal.WindowsIdentity.Impersonate(lowToken))
+                            accountLabel = ReadClaudeProfileLabel(WorkerServices.ConfigFolder(localAppData, account), account);
+                    }
+                    if (interactive != null && shell == cli && args[0] == "--resume")
+                    {
+                        using (System.Security.Principal.WindowsIdentity.Impersonate(lowToken))
+                        {
+                            if (!HasClaudeTranscript(environment["CLAUDE_CONFIG_DIR"], args[1]))
+                            {
+                                args[0] = "--session-id";
+                                reopenedDraft = true;
+                            }
+                        }
+                    }
+                    CheckWin32(CreateTerminalAsUser(lowToken, shell, new StringBuilder(BuildCommandLine(shell, args)), IntPtr.Zero, IntPtr.Zero, interactive == null,
+                        ExtendedStartupInfoPresent | CreateUnicodeEnvironment | (interactive == null ? CreateNoWindow : 0u) | CreateSuspended,
+                        envBlock, project ?? work, ref si, out pi), "Start isolated PowerShell");
                     process = pi.hProcess;
                     CheckWin32(AssignProcessToJobObject(job, process), "Assign terminal job");
                     var token = VerifyTerminalToken(process, expectedSid);
                     input.DisposeLocalCopyOfClientHandle();
                     output.DisposeLocalCopyOfClientHandle();
                     CheckWin32(ResumeThread(pi.hThread) != uint.MaxValue, "Resume isolated PowerShell");
-                    WaitUntilReady();
+                    if (interactive == null) WaitUntilReady();
                     inputPump = Task.Run(delegate {
                         foreach (byte[] command in commands.GetConsumingEnumerable())
                             input.Write(command, 0, command.Length);
                     });
-                    return new Dictionary<string, object> { { "pid", pi.dwProcessId }, { "token", token }, { "desktop", desktop } };
+                    return new Dictionary<string, object> { { "pid", pi.dwProcessId }, { "token", token }, { "desktop", desktop },
+                        { "account", account }, { "accountLabel", accountLabel }, { "reopenedDraft", reopenedDraft } };
                 }
                 catch
                 {
@@ -217,12 +298,26 @@ namespace CageLocalTool
 
             internal void Input(string text)
             {
+                if (console != IntPtr.Zero)
+                {
+                    byte[] raw = Convert.FromBase64String(text);
+                    if (raw.Length > TerminalInputLimit || !commands.TryAdd(raw))
+                        throw new InvalidDataException("终端输入过长或队列已满。");
+                    return;
+                }
                 ValidateTerminalInput(text);
                 // Base64 keeps the line framing independent of the worker's Windows
                 // console input code page. Decoding and execution happen in PowerShell.
                 byte[] line = Encoding.ASCII.GetBytes(Convert.ToBase64String(Utf8NoBom.GetBytes(text)) + "\n");
                 if (inputPump.IsFaulted) throw new IOException("PowerShell input is closed.", inputPump.Exception);
                 if (!commands.TryAdd(line)) throw new InvalidOperationException("PowerShell input queue is full.");
+            }
+
+            internal void Resize(int cols, int rows)
+            {
+                if (console == IntPtr.Zero || cols < 2 || cols >= 600 || rows < 2 || rows >= 400)
+                    throw new InvalidDataException("终端尺寸无效。");
+                Marshal.ThrowExceptionForHR(ResizePseudoConsole(console, cols | (rows << 16)));
             }
 
             internal Dictionary<string, object> Read()
@@ -237,8 +332,9 @@ namespace CageLocalTool
                 }
                 int read = available == 0 ? 0 : output.Read(bytes, 0, (int)Math.Min((uint)bytes.Length, available));
                 bool ended = exited && read == 0;
-                int count = decoder.GetChars(bytes, 0, read, chars, 0, ended);
-                var result = new Dictionary<string, object> { { "text", new string(chars, 0, count) }, { "ended", ended } };
+                int count = console == IntPtr.Zero ? decoder.GetChars(bytes, 0, read, chars, 0, ended) : 0;
+                string text = console == IntPtr.Zero ? new string(chars, 0, count) : Convert.ToBase64String(bytes, 0, read);
+                var result = new Dictionary<string, object> { { "text", text }, { "ended", ended } };
                 if (ended)
                 {
                     uint code;
@@ -271,6 +367,13 @@ namespace CageLocalTool
                 if (job != IntPtr.Zero)
                 {
                     try { WaitForJobDrain(job, 2000); } finally { CloseHandle(job); job = IntPtr.Zero; }
+                }
+                if (console != IntPtr.Zero)
+                {
+                    Task drain = Task.Run(delegate { try { output.CopyTo(Stream.Null); } catch (IOException) { } });
+                    ClosePseudoConsole(console);
+                    console = IntPtr.Zero;
+                    drain.Wait(1500);
                 }
                 if (process != IntPtr.Zero) { CloseHandle(process); process = IntPtr.Zero; }
                 if (inputPump != null) { try { inputPump.Wait(1500); } catch (AggregateException) { } }

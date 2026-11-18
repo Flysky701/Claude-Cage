@@ -8,6 +8,7 @@ import { MacOSProjectApproval } from "./macos-project-approval";
 import { ProjectRecovery } from "./project-recovery";
 import { projectGroups, projectName, rememberClientProjectName } from "./workspace-state.mjs";
 import { getClientContext, isRemoteClient } from "./client-context.mjs";
+import { windowsLocalAccount } from "./guest-capabilities.mjs";
 
 export function ProjectDialog({
   status,
@@ -35,6 +36,24 @@ export function ProjectDialog({
   const [directories, setDirectories] = useState(null);
   const [browsing, setBrowsing] = useState(false);
   const remote = isRemoteClient();
+  const nativeWindows = windowsLocalAccount(status);
+  const [folderAccess, setFolderAccess] = useState({});
+  const cleanPath = folder => folder.replaceAll("/", "\\").replace(/\\+$/, "").toLowerCase();
+  const folderKey = nativeWindows ? cleanPath : folder => folder;
+  const uniqueFolders = list => {
+    const seen = new Set();
+    return list.filter(folder => {
+      const key = folderKey(folder);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const savedAccess = Object.fromEntries(Object.entries(status.project_access || {}).map(([folder, mode]) => [cleanPath(folder), mode]));
+  const accessFor = folder => folderAccess[cleanPath(folder)] || savedAccess[cleanPath(folder)] || "ro";
+  const permission = folder => <select aria-label={`访问权限 ${folder}`} value={accessFor(folder)} disabled={busy}
+    onChange={event => setFolderAccess(previous => ({ ...previous, [cleanPath(folder)]: event.target.value }))}>
+    <option value="ro">只读</option><option value="rw">读写</option></select>;
   const context = getClientContext();
   const canShare = remote && nativeAvailable() && context.connection?.manifest?.capabilities?.client_project_share === true;
   const [shares, setShares] = useState([]);
@@ -76,16 +95,17 @@ export function ProjectDialog({
   const projectList = [...new Set([...projects, ...shares.map((s) => s.guest_path)])].filter(project => !removed.includes(project));
   const displayName = value => projectName(value, groups);
   const selectedGroup = groups.find(group => group.workspace === path);
-  const draftFolders = [...new Set([...folders, ...(path.trim() ? [path.trim()] : [])])];
+  const draftFolders = uniqueFolders([...folders, ...(path.trim() ? [path.trim()] : [])]);
   const appendFolder = value => {
     const folder = value.trim();
     if (!folder) return;
-    setFolders(previous => [...new Set([...previous, folder])]);
+    setFolders(previous => uniqueFolders([...previous, folder]));
     setName(previous => previous || projectName(folder));
     setPath(""); setError("");
   };
   const edit = () => {
     if (!selectedGroup) return;
+    setFolderAccess({});
     setEditing(selectedGroup.workspace); setName(selectedGroup.name);
     setFolders(selectedGroup.folders); setPath(""); setAdding(true); setError("");
   };
@@ -114,7 +134,7 @@ export function ProjectDialog({
     if (remote) { await browse(); return; }
     setBrowsing(true);
     try {
-      const selected = await native("chooseFolder");
+      const selected = nativeWindows && !nativeAvailable() ? (await api("/windows-local/projects", { action: "choose" })).selected : await native("chooseFolder");
       if (selected) {
         appendFolder(selected);
       }
@@ -126,6 +146,7 @@ export function ProjectDialog({
   };
   const add = () => {
     setAdding(true);
+    setFolderAccess({});
     setEditing(""); setName(""); setFolders([]);
     setPath("");
     setError("");
@@ -137,6 +158,9 @@ export function ProjectDialog({
     if (adding) {
       const saved = await api("/projects/save", {
         workspace: editing, name: name.trim() || projectName(draftFolders[0]), folders: draftFolders,
+        ...(nativeWindows && { folder_access: Object.fromEntries(draftFolders
+          .filter(folder => Object.hasOwn(folderAccess, cleanPath(folder)))
+          .map(folder => [folder, folderAccess[cleanPath(folder)]])) }),
       });
       if (saved.approval) {
         setPending({ workspace: saved.workspace, grant: saved.approval });
@@ -203,6 +227,7 @@ export function ProjectDialog({
         onSubmit={open}
       >
         <p>{adding ? "为项目命名，并添加需要一起使用的文件夹。" : activate ? "选择要打开的项目，或添加新项目。" : "从 Cage 项目列表选择工作目录。新项目由 Cage 授权并共享。"}</p>
+        {status.project_list_error && <p className="error-message" role="alert">{status.project_list_error}</p>}
         {canShare && <>
           <button type="button" className="quiet-button project-picker-add" onClick={() => { setSharing(!sharing); setWriteAccess(false); }} disabled={busy} aria-expanded={sharing}>
             <FolderOpen size={16} />共享本机项目…
@@ -243,7 +268,7 @@ export function ProjectDialog({
           <button type="button" className="quiet-button project-picker-add" onClick={add} disabled={busy || Boolean(removeTarget) || !status.ready}><Plus size={16} />{remote ? "添加云端项目…" : "添加本机项目…"}</button>
         </>}
         {!sharing && adding && <>
-          {projects.length > 0 && <button type="button" className="quiet-button project-picker-add" disabled={busy} onClick={() => { setAdding(false); setEditing(""); setFolders([]); setPending(null); setPath(groups.find(group => group.folders.includes(status.workspace))?.workspace || projects[0]); setError(""); }}>返回已有项目</button>}
+          {projects.length > 0 && <button type="button" className="quiet-button project-picker-add" disabled={busy} onClick={() => { setAdding(false); setEditing(""); setFolders([]); setFolderAccess({}); setPending(null); setPath(groups.find(group => group.folders.includes(status.workspace))?.workspace || projects[0]); setError(""); }}>返回已有项目</button>}
           <label htmlFor="project-name">项目名称</label>
           <input id="project-name" autoFocus value={name} maxLength={100} onChange={event => setName(event.target.value)} placeholder="例如：课程系统" disabled={busy} />
           <label>源文件夹</label>
@@ -251,6 +276,7 @@ export function ProjectDialog({
             {folders.map((folder, index) => <li key={folder}>
               <FolderOpen size={16} aria-hidden="true" /><span><strong>{projectName(folder)}</strong><small>{folder}</small></span>
               {index === 0 && <small className="project-folder-default">默认</small>}
+              {nativeWindows && permission(folder)}
               <button type="button" disabled={busy || folder === editing} aria-label={`移除文件夹 ${projectName(folder)}`} title={folder === editing ? "默认文件夹用于关联会话历史，需保留" : "解除文件夹绑定"} onClick={() => setFolders(previous => previous.filter(value => value !== folder))}>移除</button>
             </li>)}
           </ul>}
@@ -263,18 +289,19 @@ export function ProjectDialog({
               setPath(event.target.value);
               setError("");
             }}
-            placeholder={remote ? "/home/cage/Projects/my-project" : isWindows ? "C:/Users/你的名字/Projects/my-project" : isMac ? "/Users/你的名字/Projects/my-project" : "/home/你的名字/Projects/my-project"}
+            placeholder={remote ? "/home/cage/Projects/my-project" : nativeWindows ? "D:\\Projects\\my-project" : isWindows ? "C:/Users/你的名字/Projects/my-project" : isMac ? "/Users/你的名字/Projects/my-project" : "/home/你的名字/Projects/my-project"}
             disabled={busy}
             spellCheck="false"
             autoComplete="off"
           />
           {path.trim() && <button type="button" disabled={busy} onClick={() => appendFolder(path)}>添加</button>}
-          {(remote || nativeAvailable()) && (
+          {(remote || nativeAvailable() || nativeWindows) && (
             <button type="button" onClick={choose} disabled={busy || browsing}>
               {browsing ? "正在读取…" : remote ? "浏览云端文件夹…" : "选择文件夹…"}
             </button>
           )}
           </div>
+          {nativeWindows && path.trim() && !folders.some(folder => cleanPath(folder) === cleanPath(path.trim())) && <label>此文件夹的权限 {permission(path.trim())}</label>}
           {remote && directories && <section className="remote-directory-picker" aria-label="云端文件夹">
             <div className="remote-directory-heading"><strong>{directories.path}</strong><button type="button" disabled={browsing} onClick={() => setDirectories(null)}>收起</button></div>
             <div className="remote-directory-list">
@@ -285,7 +312,7 @@ export function ProjectDialog({
             <button type="button" disabled={browsing || !directories.selectable} onClick={() => { appendFolder(directories.path); setDirectories(null); }}>选择此云端文件夹</button>
           </section>}
         </>}
-        {adding && <p className="field-help">Claude 从默认文件夹启动，并可读写其余绑定文件夹。修改绑定后，新建或重新打开会话生效。{editing && "默认文件夹用于关联会话历史，需保留。解绑前请关闭项目的终端、运行中会话和编辑器。"}</p>}
+        {adding && <p className="field-help">Claude 从默认文件夹启动，{nativeWindows ? "各文件夹依照所选权限开放。" : "并可读写其余绑定文件夹。"}修改绑定后，新建或重新打开会话生效。{editing && "默认文件夹用于关联会话历史，需保留。解绑前请关闭项目的终端、运行中会话和编辑器。"}</p>}
         <p className="field-help project-picker-note">
           <span>{remote ? "云端项目保存在服务器上。" : "绑定文件夹中的改动会直接写入本机。"}</span>
           <span>所有项目共用 Cage 环境，已有终端和网页会保持运行。</span>

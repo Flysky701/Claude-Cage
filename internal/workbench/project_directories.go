@@ -17,10 +17,18 @@ import (
 func (s *Server) projectDirectories(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
-		path, _ = os.UserHomeDir()
+		if s.windowsLocal != nil {
+			path = filepath.VolumeName(s.profile) + string(filepath.Separator)
+		} else {
+			path, _ = os.UserHomeDir()
+		}
 	}
 	if !filepath.IsAbs(path) {
 		http.Error(w, "请选择服务器上的绝对路径", 400)
+		return
+	}
+	if s.windowsLocal != nil && len(filepath.VolumeName(path)) != 2 {
+		http.Error(w, "请选择本机磁盘上的项目目录", http.StatusBadRequest)
 		return
 	}
 	real, err := paths.Resolve(path)
@@ -42,6 +50,9 @@ func (s *Server) projectDirectories(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "无法验证环境存储目录", 500)
 		return
 	}
+	if s.windowsLocal != nil {
+		reserved = append(reserved, s.windowsLocalPrivateRoots()...)
+	}
 	private := func(path string) bool {
 		for _, dir := range reserved {
 			if cage.StorageContains(dir, path) {
@@ -50,7 +61,7 @@ func (s *Server) projectDirectories(w http.ResponseWriter, r *http.Request) {
 		}
 		return false
 	}
-	if private(real) {
+	if private(real) || s.windowsLocal != nil && len(filepath.VolumeName(real)) != 2 {
 		http.Error(w, "Cage 配置目录不能作为项目浏览", 403)
 		return
 	}
@@ -79,11 +90,14 @@ func (s *Server) projectDirectories(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		path := filepath.Join(real, entry.Name())
-		if physical, err := paths.Resolve(path); err == nil && !private(physical) {
+		if physical, err := paths.Resolve(path); err == nil && !private(physical) && (s.windowsLocal == nil || len(filepath.VolumeName(physical)) == 2) {
 			children = append(children, child{Name: entry.Name(), Path: physical})
 		}
 	}
 	sort.Slice(children, func(i, j int) bool { return children[i].Name < children[j].Name })
 	_, selectableError := validateWorkspace(real, s.profile)
+	if s.windowsLocal != nil && selectableError == nil {
+		_, selectableError = s.localProjectPath(real)
+	}
 	jsonReply(w, map[string]any{"path": real, "parent": filepath.Dir(real), "directories": children, "selectable": selectableError == nil})
 }

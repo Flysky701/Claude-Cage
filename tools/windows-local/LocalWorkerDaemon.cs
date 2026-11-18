@@ -887,10 +887,7 @@ namespace CageLocalTool
                 pipe.Connect(15000);
                 using (StreamReader reader = new StreamReader(pipe, Utf8NoBom, false, 65536, true))
                 using (StreamWriter writer = new StreamWriter(pipe, Utf8NoBom, 65536, true))
-                using (WorkerTerminal terminal = new WorkerTerminal())
-                using (WorkerServices services = new WorkerServices())
-                using (WorkerBrowser browser = new WorkerBrowser())
-                using (WorkerApp app = new WorkerApp())
+                using (WorkerTabCollection tabs = new WorkerTabCollection())
                 {
                     writer.AutoFlush = true;
                     string selfLogonSid = QueryProcessLogonSid(Process.GetCurrentProcess().Handle);
@@ -933,6 +930,8 @@ namespace CageLocalTool
                         resp["id"] = id;
                         try
                         {
+                            string channel = req.ContainsKey("channel") ? (string)req["channel"] : "";
+                            WorkerTab tab = tabs.Get(channel, op);
                             if (op == "shutdown")
                             {
                                 resp["ok"] = true;
@@ -966,47 +965,62 @@ namespace CageLocalTool
                             }
                             else if (op == "app-open")
                             {
-                                resp["result"] = app.Open(req, profileDir, appDataDir, localAppDataDir, tempDir, brokerPort, timezoneIana, actualDesktop, (string)selfToken["userSid"]);
+                                resp["result"] = tab.App.Open(req, profileDir, appDataDir, localAppDataDir, tempDir, brokerPort, timezoneIana, actualDesktop, (string)selfToken["userSid"]);
                                 resp["ok"] = true;
                             }
                             else if (op == "app-frame" || op == "app-input")
                             {
-                                resp["result"] = op == "app-frame" ? app.Frame() : app.Input(req);
+                                resp["result"] = op == "app-frame" ? tab.App.Frame() : tab.App.Input(req);
                                 resp["ok"] = true;
                             }
                             else if (op == "service-open")
                             {
-                                services.Open((string)req["service"], profileDir, appDataDir, localAppDataDir, tempDir, brokerPort, timezoneIana);
+                                tab.Services.Open((string)req["service"], profileDir, appDataDir, localAppDataDir, tempDir, brokerPort, timezoneIana);
                                 resp["ok"] = true;
                             }
                             else if (op == "service-action")
                             {
-                                resp["result"] = services.Action(req);
+                                resp["result"] = tab.Services.Action(req);
                                 resp["ok"] = true;
                             }
                             else if (op == "terminal-open")
                             {
-                                resp["result"] = terminal.Open(profileDir, appDataDir, localAppDataDir, brokerPort, timezoneIana, actualDesktop, (string)selfToken["userSid"]);
+                                resp["result"] = tab.Terminal.Open(profileDir, appDataDir, localAppDataDir, brokerPort, timezoneIana, actualDesktop,
+                                    (string)selfToken["userSid"], req.ContainsKey("project") ? (string)req["project"] : null,
+                                    req.ContainsKey("kind") ? req : null);
                                 resp["ok"] = true;
                             }
                             else if (op == "browser-close")
                             {
-                                browser.Dispose();
+                                tab.Browser.Dispose();
                                 resp["ok"] = true;
                             }
                             else if (op == "browser-open" || op == "browser-action")
                             {
-                                resp["result"] = op == "browser-open" ? browser.Open(profileDir, appDataDir, localAppDataDir, brokerPort, timezoneIana, actualDesktop, req.ContainsKey("signIn") && Object.Equals(req["signIn"], true)) : browser.Action(req);
+                                resp["result"] = op == "browser-open"
+                                    ? tab.Browser.Open(profileDir, appDataDir, localAppDataDir, brokerPort, timezoneIana, actualDesktop,
+                                        req.ContainsKey("signIn") && Object.Equals(req["signIn"], true), req.ContainsKey("service") && Object.Equals(req["service"], "tailnet"))
+                                    : tab.Browser.Action(req);
                                 resp["ok"] = true;
                             }
                             else if (op == "terminal-read")
                             {
-                                resp["result"] = terminal.Read();
+                                resp["result"] = tab.Terminal.Read();
+                                resp["ok"] = true;
+                            }
+                            else if (op == "terminal-resize")
+                            {
+                                tab.Terminal.Resize(Convert.ToInt32(req["cols"]), Convert.ToInt32(req["rows"]));
                                 resp["ok"] = true;
                             }
                             else if (op == "terminal-input")
                             {
-                                terminal.Input((string)req["text"]);
+                                tab.Terminal.Input((string)req["text"]);
+                                resp["ok"] = true;
+                            }
+                            else if (op == "tab-create" || op == "tab-close")
+                            {
+                                if (op == "tab-close") tabs.Close(channel);
                                 resp["ok"] = true;
                             }
                             else
@@ -2139,6 +2153,8 @@ namespace CageLocalTool
                     throw new EndOfStreamException("Worker daemon pipe closed during op: " + op);
                 }
                 Dictionary<string, object> resp = FromJsonObject(line);
+                if (!resp.ContainsKey("id") || !Object.Equals(resp["id"], id))
+                    throw new IOException("Isolated worker replied to a different request.");
                 if (!resp.ContainsKey("ok") || !(bool)resp["ok"])
                 {
                     string err = resp.ContainsKey("error") ? Convert.ToString(resp["error"]) : "Worker RPC failed";

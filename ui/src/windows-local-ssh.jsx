@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { WindowsLocalTerminalPane } from "./windows-local-account";
 
-export function WindowsLocalSSH({ network, onNetwork }) {
+export function WindowsLocalSSH({ network, onNetwork, active, onExit }) {
   const [host, setHost] = useState("");
   const [port, setPort] = useState("22");
   const [user, setUser] = useState("");
@@ -15,7 +15,7 @@ export function WindowsLocalSSH({ network, onNetwork }) {
     send("& $env:CAGE_SSH_CLIENT ssh-run " + payload + "; [Console]::WriteLine(('SSH exit {0}' -f $LASTEXITCODE))",
       spec.user + "@" + spec.host + "> " + command);
   }
-  return <WindowsLocalTerminalPane sshControls={(send, ready) => <section className="native-service native-ssh-client">
+  return <WindowsLocalTerminalPane active={active} onExit={onExit} sshControls={(send, ready) => <section className="native-service native-ssh-client">
     <p>输入目标主机提供的 SSH 公钥。每次运行一条远程命令，使用专用 Windows 账户的密钥认证。</p>
     {!network?.open && <p role="status">{network?.message || "请先选择 Cage 代理节点。"} <button onClick={onNetwork}>网络与代理</button></p>}
     <button disabled={!ready} onClick={() => send("& $env:CAGE_SSH_CLIENT ssh-key", "专用账户公钥")}>创建或查看专用账户公钥</button>

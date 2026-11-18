@@ -24,6 +24,13 @@ type windowsLocalPrototype struct {
 	components                   atomic.Pointer[windowsLocalStatus]
 	network                      windowsLocalNetwork
 	op                           sync.Mutex
+	volumeMu                     sync.Mutex
+	volumes                      map[string]*windowsLocalVolume
+	tabsMu                       sync.Mutex
+	tabs                         *windowsLocalHub
+	projectMu                    sync.Mutex
+	projectView                  *windowsLocalProjectView
+	projectViewUntil             time.Time
 }
 
 type windowsLocalBinding struct {
@@ -88,7 +95,7 @@ func (p *windowsLocalPrototype) workbenchStatus() map[string]any {
 		"local_network": network,
 		"guest_capabilities": map[string]any{"network": mode, "available": map[string]bool{
 			"network":  network.Open,
-			"terminal": ready, "projects": ready, "browser": ready && components.BrowserInstalled,
+			"terminal": ready, "projects": ready, "browser": ready && components.BrowserInstalled, "claude-cli": ready && components.CLIInstalled,
 			"editor": ready && components.EditorInstalled, "desktop": ready && components.DesktopInstalled,
 			"claude-accounts": ready && components.CLIInstalled, "tailscale": ready && components.TailnetInstalled,
 		}},
@@ -99,12 +106,16 @@ func (p *windowsLocalPrototype) workbenchStatus() map[string]any {
 // its actual local components. Remote destinations select their own handler.
 func (p *windowsLocalPrototype) supports(r *http.Request) bool {
 	path := r.URL.Path
+	if windowsLocalSessionRoute(r.Method, path) {
+		return p.active.Load() != nil
+	}
 	if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/api/account/") ||
 		strings.HasPrefix(path, "/api/diagnostics/") {
 		return true
 	}
 	switch path {
-	case "/api/windows-local/terminal", "/api/windows-local/browser", "/api/windows-local/apps/editor", "/api/windows-local/apps/desktop", "/api/windows-local/apps/desktop/import",
+	case "/api/projects/open", "/api/projects/save", "/api/projects/remove", "/api/projects/directories",
+		"/api/windows-local/terminal", "/api/windows-local/browser", "/api/windows-local/apps/editor", "/api/windows-local/apps/desktop", "/api/windows-local/apps/desktop/import",
 		"/api/windows-local/services/accounts", "/api/windows-local/services/tailnet", "/api/windows-local/network", "/api/windows-local/projects":
 		return p.active.Load() != nil
 	case "/api/proxy", "/api/proxy/select", "/api/proxy/route", "/api/proxy/import", "/api/proxy/refresh",
@@ -117,6 +128,27 @@ func (p *windowsLocalPrototype) supports(r *http.Request) bool {
 		return true
 	case "/api/settings":
 		return r.Method == http.MethodGet
+	}
+	return false
+}
+
+// The shared terminal and Claude history UI also serves VM-backed environments.
+// Admit only the operations implemented by the Windows local session provider.
+func windowsLocalSessionRoute(method, path string) bool {
+	switch path {
+	case "/api/terminals":
+		return method == http.MethodGet || method == http.MethodPost
+	case "/api/cli/sessions":
+		return method == http.MethodGet
+	}
+	if rest, ok := strings.CutPrefix(path, "/api/terminals/"); ok {
+		id, action, more := strings.Cut(rest, "/")
+		return id != "" && ((!more && method == http.MethodDelete) ||
+			(action == "stream" && method == http.MethodGet) || (action == "metadata" && method == http.MethodPost))
+	}
+	if rest, ok := strings.CutPrefix(path, "/api/cli/sessions/"); ok {
+		id, action, _ := strings.Cut(rest, "/")
+		return id != "" && method == http.MethodPost && (action == "open" || action == "metadata" || action == "archive" || action == "restore")
 	}
 	return false
 }

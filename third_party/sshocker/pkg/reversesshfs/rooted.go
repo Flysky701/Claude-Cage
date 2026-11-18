@@ -28,7 +28,9 @@ import (
 type rootedHandlers struct {
 	rootPath      string // slash-separated, cleaned
 	root          *os.Root
-	cloud         bool // stricter checks for the remote desktop project transport
+	cloud         bool     // stricter checks for the remote desktop project transport
+	localVolume   bool     // local Windows file system can report its own volume capacity
+	readOnlyTrees []string // canonical slash-separated subtrees with narrower grants
 	readonly      bool
 	readonlyNames []string
 	foldedNames   []string // readonlyNames as FoldName gives them
@@ -115,7 +117,7 @@ func (h *rootedHandlers) writableRel(p string, entry bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if h.isReadonlyName(r) || !writableName(r) || (h.cloud && r == ".") {
+	if h.isReadonlyName(r) || h.inReadOnlyTree(r, entry) || !writableName(r) || (h.cloud && r == ".") {
 		return "", errDenied
 	}
 	if lexicalGuard {
@@ -124,6 +126,19 @@ func (h *rootedHandlers) writableRel(p string, entry bool) (string, error) {
 		}
 	}
 	return r, nil
+}
+
+func (h *rootedHandlers) inReadOnlyTree(rel string, entry bool) bool {
+	if len(h.readOnlyTrees) == 0 {
+		return false
+	}
+	rel = FoldName(rel)
+	for _, dir := range h.readOnlyTrees {
+		if rel == dir || strings.HasPrefix(rel, dir+"/") || (entry && strings.HasPrefix(dir, rel+"/")) {
+			return true
+		}
+	}
+	return false
 }
 
 // Guard, when set by the program running the server, is asked before every

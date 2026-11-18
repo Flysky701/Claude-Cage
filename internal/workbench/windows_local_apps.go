@@ -22,7 +22,7 @@ func (s *Server) windowsLocalApp(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	s.serveWindowsLocalVisual(w, r, "workbench-"+app)
+	s.serveWindowsLocalTab(w, r, app)
 }
 
 func (s *Server) windowsLocalDesktopImport(w http.ResponseWriter, r *http.Request) {

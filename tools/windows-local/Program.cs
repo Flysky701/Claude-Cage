@@ -388,13 +388,14 @@ namespace CageLocalTool
                 if (cmd == "teardown") return TeardownCommand(args);
                 if (cmd == "grant-share") return GrantShareCommand(args);
                 if (cmd == "worker-daemon") return WorkerDaemonCommand(args);
+                if (cmd == "claude-account-run") return RunLowClaudeAccount(args);
                 if (cmd == "ssh-key" || cmd == "ssh-run" || cmd == "ssh-pipe") return WorkerSsh(args);
                 if (cmd == "run-suite") return RunSuiteCommand(args);
                 if (cmd == "workbench-accounts" || cmd == "workbench-tailnet") return WorkbenchCommand(args);
                 if (cmd == "workbench-desktop" || cmd == "workbench-editor") return WorkbenchCommand(args);
-                if (cmd == "workbench-projects") return WorkbenchCommand(args);
+                if (cmd == "workbench-projects" || cmd == "workbench-volume") return WorkbenchCommand(args);
                 if (cmd == "workbench-inspect" || cmd == "workbench-probe" || cmd == "workbench-terminal") return WorkbenchCommand(args);
-                if (cmd == "workbench-browser") return WorkbenchCommand(args);
+                if (cmd == "workbench-browser" || cmd == "workbench-tabs") return WorkbenchCommand(args);
 
                 Console.Error.WriteLine("Unknown subcommand: " + cmd);
                 return 2;

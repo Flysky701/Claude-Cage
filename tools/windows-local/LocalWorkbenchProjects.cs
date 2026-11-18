@@ -32,9 +32,18 @@ namespace CageLocalTool
             private static extern bool GetSecurityDescriptorDacl(IntPtr sd, out bool present, out IntPtr dacl, out bool defaulted);
 
             private SafeFileHandle handle;
-            internal static PinnedProjectDirectory Open(string path)
+            internal uint[] VolumeIdentity()
             {
-                var handle = OpenFolder(path, 0x00060080 /* READ_CONTROL | WRITE_DAC | READ_ATTRIBUTES */, 3 /* no DELETE */, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
+                uint[] data = new uint[13]; // BY_HANDLE_FILE_INFORMATION
+                if (!GetProjectFileInformation(handle, data)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                return new[] { data[7], data[11], data[12] };
+            }
+            [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandle", SetLastError = true)]
+            private static extern bool GetProjectFileInformation(SafeFileHandle handle, [Out] uint[] information);
+            internal static PinnedProjectDirectory Open(string path, bool modifyAcl = true)
+            {
+                var handle = OpenFolder(path, modifyAcl ? 0x00060080u : 0x00020080u /* READ_CONTROL, READ_ATTRIBUTES, optional WRITE_DAC */,
+                    3 /* no DELETE */, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
                 if (handle.IsInvalid) { handle.Dispose(); throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not open project permissions."); }
                 try
                 {
@@ -107,8 +116,12 @@ namespace CageLocalTool
 
         private static string ExplicitProjectAccess(string path, string sid)
         {
+            return ExplicitProjectAccess(Directory.GetAccessControl(path), sid);
+        }
+
+        private static string ExplicitProjectAccess(DirectorySecurity security, string sid)
+        {
             bool read = false, modify = false, writeDenied = false;
-            DirectorySecurity security = Directory.GetAccessControl(path);
             foreach (FileSystemAccessRule rule in security.GetAccessRules(true, false, typeof(SecurityIdentifier)))
             {
                 if (rule.IdentityReference.Value != sid) continue;
@@ -123,12 +136,94 @@ namespace CageLocalTool
             return read && writeDenied ? "ro" : modify ? "rw" : "unconfirmed";
         }
 
+        private sealed class PendingProjectGrant : IDisposable
+        {
+            internal string Path, After;
+            internal PinnedProjectDirectory Directory;
+            internal readonly List<FileSystemAccessRule> Previous = new List<FileSystemAccessRule>();
+            public void Dispose() { if (Directory != null) Directory.Dispose(); }
+        }
+
+        // All members must still have the rights observed by the project picker.
+        // Pin every target before writing the first ACL and retain its original
+        // explicit rules for this SID; unrelated trustees are never rolled back.
+        private static void ChangeProjectGrants(LocalProfileModel profile, object[] changes)
+        {
+            if (changes == null || changes.Length == 0 || changes.Length > 64) throw new InvalidDataException("Invalid project changes.");
+            string file = Path.Combine(profile.rootDir, "workbench-projects.json");
+            var sid = new SecurityIdentifier(profile.workerSid);
+            using (var lease = AcquireProjectGrantLock(profile))
+            {
+                var original = ProjectCandidates(profile, file);
+                var candidates = new HashSet<string>(original, StringComparer.OrdinalIgnoreCase);
+                var saved = new HashSet<string>(original, StringComparer.OrdinalIgnoreCase);
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var pending = new List<PendingProjectGrant>();
+                int applied = 0;
+                bool staged = false;
+                try
+                {
+                    foreach (object item in changes)
+                    {
+                        var change = (Dictionary<string, object>)item;
+                        string path = ValidateProjectTarget(profile, (string)change["path"]);
+                        string before = (string)change["before"], after = (string)change["after"];
+                        if (!seen.Add(path) || (after != "rw" && after != "ro" && after != ""))
+                            throw new InvalidDataException("Invalid project permission change.");
+                        var row = new PendingProjectGrant { Path = path, After = after, Directory = PinnedProjectDirectory.Open(path) };
+                        pending.Add(row);
+                        var acl = row.Directory.ReadDacl();
+                        string current = original.Contains(path) ? ExplicitProjectAccess(acl, profile.workerSid) : "";
+                        if (current != before || before == "unconfirmed")
+                            throw new IOException("项目授权已变化，请重新打开项目选择器。");
+                        foreach (FileSystemAccessRule rule in acl.GetAccessRules(true, false, typeof(SecurityIdentifier)))
+                            if (rule.IdentityReference.Value == profile.workerSid) row.Previous.Add(rule);
+                        if (after == "") saved.Remove(path);
+                        else { candidates.Add(path); saved.Add(path); }
+                    }
+                    // Even an interrupted controller leaves every potentially
+                    // granted directory listed and available for revocation.
+                    if (!candidates.SetEquals(original)) { SaveCandidates(profile, file, candidates); staged = true; }
+                    foreach (var row in pending)
+                    {
+                        InvalidateProjectVolume(profile, row.Path);
+                        var acl = row.Directory.ReadDacl();
+                        UpdateProjectDacl(acl, sid, row.After);
+                        row.Directory.WriteDacl(acl);
+                        applied++;
+                        if (row.After != "" && ExplicitProjectAccess(row.Directory.ReadDacl(), profile.workerSid) != row.After)
+                            throw new IOException("项目授权未生效。");
+                    }
+                    if (!saved.SetEquals(candidates)) SaveCandidates(profile, file, saved);
+                }
+                catch (Exception originalFailure)
+                {
+                    Exception rollback = null;
+                    for (int i = applied - 1; i >= 0; i--)
+                    {
+                        try {
+                            var row = pending[i];
+                            var acl = row.Directory.ReadDacl();
+                            UpdateProjectDacl(acl, sid, "");
+                            foreach (FileSystemAccessRule prior in row.Previous) acl.AddAccessRule(prior);
+                            row.Directory.WriteDacl(acl);
+                        } catch (Exception failure) { rollback = failure; }
+                    }
+                    if (rollback != null) throw new IOException("恢复原权限失败，请检查项目权限：" + rollback.Message, originalFailure);
+                    if (staged)
+                        SaveCandidates(profile, file, original);
+                    throw;
+                }
+                finally { foreach (var row in pending) row.Dispose(); }
+            }
+        }
+
         private static Dictionary<string, object> ChangeProjectGrant(LocalProfileModel profile, string path, string access)
         {
             if (access != "ro" && access != "rw" && access != "revoke") throw new InvalidDataException("Unknown project access.");
             string clean = ValidateProjectTarget(profile, path);
             string file = Path.Combine(profile.rootDir, "workbench-projects.json");
-            using (var lease = new FileStream(file + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            using (var lease = AcquireProjectGrantLock(profile))
             {
                 var paths = ProjectCandidates(profile, file);
                 // First record the candidate. Even a crash between the filesystem
@@ -148,7 +243,7 @@ namespace CageLocalTool
         private static int RunWorkbenchProjects(LocalProfileModel profile)
         {
             string line = Console.ReadLine();
-            if (line == null || line.Length > 32768) throw new InvalidDataException("Expected a project request.");
+            if (line == null || line.Length > 262144) throw new InvalidDataException("Expected a project request.");
             var req = FromJsonObject(line);
             if (!req.ContainsKey("instanceId") || !req.ContainsKey("workerSid") ||
                 !SameWindowsName((string)req["instanceId"], profile.instanceId) || !SameWindowsName((string)req["workerSid"], profile.workerSid))
@@ -172,9 +267,16 @@ namespace CageLocalTool
                 picker.Join();
                 if (failure != null) throw new IOException("The folder picker could not be opened.", failure);
             }
+            else if (req.ContainsKey("changes"))
+            {
+                ChangeProjectGrants(profile, (object[])req["changes"]);
+                Console.WriteLine(ToJson(new { workerSid = profile.workerSid, instanceId = profile.instanceId, applied = true }));
+                return 0;
+            }
             else if (req.ContainsKey("access")) ChangeProjectGrant(profile, (string)req["path"], (string)req["access"]);
             var projects = new List<Dictionary<string, string>>();
             string file = Path.Combine(profile.rootDir, "workbench-projects.json");
+            using (AcquireProjectGrantLock(profile))
             foreach (string path in ProjectCandidates(profile, file))
             {
                 string access = "unconfirmed";
@@ -183,6 +285,7 @@ namespace CageLocalTool
                     ValidateProjectTarget(profile, path);
                     access = ExplicitProjectAccess(path, profile.workerSid);
                 }
+                catch (InvalidDataException) { }
                 catch (IOException) { }
                 catch (UnauthorizedAccessException) { }
                 projects.Add(new Dictionary<string, string> { { "path", path }, { "access", access } });
@@ -194,7 +297,11 @@ namespace CageLocalTool
 
         private static string SelectedEditorProject(LocalProfileModel profile)
         {
-            string raw = Environment.GetEnvironmentVariable("CAGE_LOCAL_EDITOR_PROJECT");
+            return SelectedWorkbenchProject(profile, Environment.GetEnvironmentVariable("CAGE_LOCAL_EDITOR_PROJECT"));
+        }
+
+        private static string SelectedWorkbenchProject(LocalProfileModel profile, string raw)
+        {
             if (string.IsNullOrWhiteSpace(raw)) return null;
             string path = ValidateProjectTarget(profile, raw);
             if (!ProjectCandidates(profile, Path.Combine(profile.rootDir, "workbench-projects.json")).Contains(path) ||

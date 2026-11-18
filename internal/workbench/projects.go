@@ -61,6 +61,10 @@ func (s *Server) connectProject(path string, add bool) (string, error) {
 }
 
 func (s *Server) openProject(w http.ResponseWriter, r *http.Request) {
+	if s.windowsLocal != nil {
+		s.windowsLocalOpenProject(w, r)
+		return
+	}
 	var input struct {
 		Workspace string `json:"workspace"`
 		Add       bool   `json:"add"`
