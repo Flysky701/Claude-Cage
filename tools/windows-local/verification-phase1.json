@@ -1,0 +1,539 @@
+{
+    "schema":  1,
+    "date":  "2026-11-18T02:33:05+08:00",
+    "desktopMode":  "PrivateCreateDesktop",
+    "wfpProvisionReceipt":  {
+                                "action":  "install",
+                                "instanceId":  "e92f6fc5-3c35-4837-ae4f-4c1db392a4b3",
+                                "workerSid":  "S-1-5-21-<REDACTED>-1005",
+                                "brokerPort":  17981,
+                                "sublayerKey":  "fd3cbc53-9b5e-afca-1eb7-8f37eebea93b",
+                                "installedFilters":  7,
+                                "requiredFilters":  7,
+                                "verifiedRules":  [
+                                                      "connect-v4",
+                                                      "connect-v6",
+                                                      "receive-v4",
+                                                      "receive-v6",
+                                                      "udp-bind-v4",
+                                                      "udp-bind-v6",
+                                                      "broker-connect-v4"
+                                                  ],
+                                "allVerified":  true,
+                                "provisionedAtUtc":  "2026-11-17T16:59:51.9906655Z"
+                            },
+    "workerInspect":  {
+                          "token":  {
+                                        "userSid":  "S-1-5-21-<REDACTED>-1005",
+                                        "isAppContainer":  false,
+                                        "capabilityCount":  0,
+                                        "appContainerSid":  "",
+                                        "integrityRid":  "0x2000",
+                                        "integrityLabel":  "Medium"
+                                    },
+                          "username":  "CageLocal_e92f6fc5",
+                          "sessionId":  2,
+                          "desktop":  "CageLocal_e92f6fc5_fc1dbc",
+                          "userProfile":  "<WORKER_USERPROFILE>",
+                          "appData":  "<WORKER_USERPROFILE>\\AppData\\Roaming",
+                          "localAppData":  "<WORKER_USERPROFILE>\\AppData\\Local",
+                          "tzEnv":  "Asia/Tokyo",
+                          "expectedTz":  "Asia/Tokyo",
+                          "brokerPort":  17981,
+                          "hkcuProxyEnable":  1,
+                          "hkcuProxyServer":  "127.0.0.1:17981"
+                      },
+    "boundaries":  {
+                       "hostUserListCode":  5,
+                       "hostPrivateFileReadCode":  5,
+                       "credentialFileReadCode":  5,
+                       "sharedRwReadOk":  true,
+                       "sharedRwWriteOk":  true,
+                       "sharedRoReadOk":  true,
+                       "sharedRoWriteCode":  5,
+                       "workerRegistryWriteOk":  true,
+                       "directTcpV4Code":  10013,
+                       "directTcpV6Code":  10013,
+                       "directUdpCode":  10013,
+                       "otherHostLoopbackCode":  10013,
+                       "brokerHttpStatus":  200,
+                       "brokerHttpBodyMatch":  true,
+                       "brokerConnectTunnelOk":  true,
+                       "brokerConnectEcho":  "CAGE_TUNNEL_OK:PING_LOCAL_WORKER",
+                       "otherHostLoopbackPending":  false,
+                       "nonWorkerBrokerRejected":  true,
+                       "killSwitchClosedStatus":  503,
+                       "killSwitchReopenedStatus":  200,
+                       "killSwitchPassed":  true
+                   },
+    "boundariesPassed":  true,
+    "hostChecks":  {
+                       "hostPrivateUnchanged":  true,
+                       "hostWorkerWriteVisible":  true,
+                       "hostNodeWriteVisible":  true,
+                       "hostRoDenyAbsent":  true,
+                       "hostHkcuUnchanged":  true,
+                       "lingeringWorkerProcesses":  0
+                   },
+    "hostChecksPassed":  true,
+    "apps":  {
+                 "ClaudeCodeRing1":  {
+                                         "token":  {
+                                                       "userSid":  "S-1-5-21-<REDACTED>-1005",
+                                                       "isAppContainer":  false,
+                                                       "capabilityCount":  0,
+                                                       "appContainerSid":  "",
+                                                       "integrityRid":  "0x2000",
+                                                       "integrityLabel":  "Medium"
+                                                   },
+                                         "timedOut":  false,
+                                         "exitCode":  0,
+                                         "exitHex":  "0x00000000",
+                                         "durationMs":  874,
+                                         "stdout":  "2.1.296 (Claude Code)\n",
+                                         "stderr":  ""
+                                     },
+                 "ClaudeCodeRing2AppContainer":  {
+                                                     "token":  {
+                                                                   "userSid":  "S-1-5-21-<REDACTED>-1005",
+                                                                   "isAppContainer":  true,
+                                                                   "capabilityCount":  0,
+                                                                   "appContainerSid":  "S-1-15-2-234585587-862956568-3277800722-1407156660-1783873578-2713328946-3020041317",
+                                                                   "integrityRid":  "0x1000",
+                                                                   "integrityLabel":  "Low"
+                                                               },
+                                                     "ring2PrivateFixturePath":  "<WORKER_USERPROFILE>\\AppData\\Local\\CageRing2\\39d47fd070bf458998c7d8bd6f3e3002\\private\\ring1-secret.txt",
+                                                     "timedOut":  false,
+                                                     "exitCode":  0,
+                                                     "stdout":  "2.1.296 (Claude Code)\n",
+                                                     "stderr":  ""
+                                                 },
+                 "NodeSharedDDrive":  {
+                                          "token":  {
+                                                        "userSid":  "S-1-5-21-<REDACTED>-1005",
+                                                        "isAppContainer":  false,
+                                                        "capabilityCount":  0,
+                                                        "appContainerSid":  "",
+                                                        "integrityRid":  "0x2000",
+                                                        "integrityLabel":  "Medium"
+                                                    },
+                                          "timedOut":  false,
+                                          "exitCode":  0,
+                                          "exitHex":  "0x00000000",
+                                          "durationMs":  464,
+                                          "stdout":  "{\"marker\":\"CAGE_LOCAL_NODE_PASS\",\"nodeVersion\":\"v24.21.0\",\"realRw\":\"<WORKSPACE>\\\\tmp\\\\windows-local\\\\verify-664bfa1e\\\\shared-rw\",\"tz\":\"Asia/Tokyo\",\"privDenied\":true,\"roWriteDenied\":true,\"rwOk\":true}\n",
+                                          "stderr":  ""
+                                      },
+                 "EdgeHeadlessSandboxAndHkcuProxy":  {
+                                                         "token":  {
+                                                                       "userSid":  "S-1-5-21-<REDACTED>-1005",
+                                                                       "isAppContainer":  false,
+                                                                       "capabilityCount":  0,
+                                                                       "appContainerSid":  "",
+                                                                       "integrityRid":  "0x2000",
+                                                                       "integrityLabel":  "Medium"
+                                                                   },
+                                                         "timedOut":  false,
+                                                         "exitCode":  0,
+                                                         "exitHex":  "0x00000000",
+                                                         "durationMs":  1963,
+                                                         "stdout":  "\u003c!DOCTYPE html\u003e\r\n\u003chtml\u003e\u003chead\u003e\u003cmeta charset=\"utf-8\"\u003e\u003ctitle\u003eCageLocal Edge Probe\u003c/title\u003e\u003c/head\u003e\u003cbody\u003e\u003cdiv id=\"out\"\u003eCAGE_LOCAL_EDGE_PROXY_OK|TZ=Asia/Shanghai\u003c/div\u003e\u003cscript\u003evar tz = Intl.DateTimeFormat().resolvedOptions().timeZone;document.getElementById(\u0027out\u0027).textContent = \u0027CAGE_LOCAL_EDGE_PROXY_OK|TZ=\u0027 + tz;\u003c/script\u003e\u003c/body\u003e\u003c/html\u003e\r\n",
+                                                         "stderr":  "[61888:52532:1118/023245.146:ERROR:chrome\\browser\\importer\\edge_china_browsers\\edge_qqbrowser_importer_utils_win.cc:165] QQBrowser user data path not found.\r\n"
+                                                     },
+                 "VSCodeCli":  {
+                                   "token":  {
+                                                 "userSid":  "S-1-5-21-<REDACTED>-1005",
+                                                 "isAppContainer":  false,
+                                                 "capabilityCount":  0,
+                                                 "appContainerSid":  "",
+                                                 "integrityRid":  "0x2000",
+                                                 "integrityLabel":  "Medium"
+                                             },
+                                   "timedOut":  false,
+                                   "exitCode":  0,
+                                   "exitHex":  "0x00000000",
+                                   "durationMs":  580,
+                                   "stdout":  "1.144.0\n2c33b50b16c472efe58357d1d2a8a5414bc23fbf\nx64\n",
+                                   "stderr":  ""
+                               },
+                 "VSCodeGuiSandbox":  {
+                                          "token":  {
+                                                        "userSid":  "S-1-5-21-<REDACTED>-1005",
+                                                        "isAppContainer":  false,
+                                                        "capabilityCount":  0,
+                                                        "appContainerSid":  "",
+                                                        "integrityRid":  "0x2000",
+                                                        "integrityLabel":  "Medium"
+                                                    },
+                                          "exitedEarly":  false,
+                                          "stillAliveAtEnd":  true,
+                                          "exitCode":  0,
+                                          "exitHex":  "0x00000000",
+                                          "maxJobProcessCount":  13,
+                                          "finalJobProcessCountBeforeStop":  12,
+                                          "firstVisibleWindowMs":  1390,
+                                          "visibleWindowDetected":  true,
+                                          "windows":  [
+                                                          {
+                                                              "hwnd":  "0x72c52",
+                                                              "pid":  11896,
+                                                              "className":  "Touch Tooltip Window",
+                                                              "title":  "Tooltip",
+                                                              "visible":  false,
+                                                              "width":  0,
+                                                              "height":  0
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x112156",
+                                                              "pid":  11896,
+                                                              "className":  "UAC_InputIndicatorOverlayWnd",
+                                                              "title":  "",
+                                                              "visible":  true,
+                                                              "width":  50,
+                                                              "height":  50
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x13218e",
+                                                              "pid":  11896,
+                                                              "className":  "UAC Input Indicator",
+                                                              "title":  "",
+                                                              "visible":  true,
+                                                              "width":  50,
+                                                              "height":  50
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x1f0f18",
+                                                              "pid":  59604,
+                                                              "className":  "Chrome_WidgetWin_0",
+                                                              "title":  "",
+                                                              "visible":  false,
+                                                              "width":  0,
+                                                              "height":  0
+                                                          },
+                                                          {
+                                                              "hwnd":  "0xe211c",
+                                                              "pid":  11896,
+                                                              "className":  "Chrome_WidgetWin_1",
+                                                              "title":  "editor-check.txt - Visual Studio Code",
+                                                              "visible":  true,
+                                                              "width":  1215,
+                                                              "height":  810
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x1020bc",
+                                                              "pid":  52908,
+                                                              "className":  "crashpad_SessionEndWatcher",
+                                                              "title":  "",
+                                                              "visible":  false,
+                                                              "width":  135,
+                                                              "height":  37
+                                                          },
+                                                          {
+                                                              "hwnd":  "0xa2bd2",
+                                                              "pid":  11896,
+                                                              "className":  "Electron_SystemPreferencesHostWindow",
+                                                              "title":  "",
+                                                              "visible":  false,
+                                                              "width":  0,
+                                                              "height":  0
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x72c54",
+                                                              "pid":  11896,
+                                                              "className":  "Chrome_WidgetWin_0",
+                                                              "title":  "",
+                                                              "visible":  false,
+                                                              "width":  1244,
+                                                              "height":  781
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x52c2a",
+                                                              "pid":  11896,
+                                                              "className":  "Base_PowerMessageWindow",
+                                                              "title":  "",
+                                                              "visible":  false,
+                                                              "width":  0,
+                                                              "height":  0
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x72c34",
+                                                              "pid":  11896,
+                                                              "className":  "CicLoaderWndClass",
+                                                              "title":  "",
+                                                              "visible":  false,
+                                                              "width":  135,
+                                                              "height":  37
+                                                          },
+                                                          {
+                                                              "hwnd":  "0xe24c2",
+                                                              "pid":  11896,
+                                                              "className":  "CiceroUIWndFrame",
+                                                              "title":  "CiceroUIWndFrame",
+                                                              "visible":  false,
+                                                              "width":  133,
+                                                              "height":  133
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x72c58",
+                                                              "pid":  11896,
+                                                              "className":  "CiceroUIWndFrame",
+                                                              "title":  "TF_FloatingLangBar_WndTitle",
+                                                              "visible":  false,
+                                                              "width":  33,
+                                                              "height":  20
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x15218a",
+                                                              "pid":  59604,
+                                                              "className":  "IME",
+                                                              "title":  "Default IME",
+                                                              "visible":  false,
+                                                              "width":  0,
+                                                              "height":  0
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x62c0e",
+                                                              "pid":  11896,
+                                                              "className":  "MSCTFIME UI",
+                                                              "title":  "MSCTFIME UI",
+                                                              "visible":  false,
+                                                              "width":  0,
+                                                              "height":  0
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x62c38",
+                                                              "pid":  11896,
+                                                              "className":  "IME",
+                                                              "title":  "Default IME",
+                                                              "visible":  false,
+                                                              "width":  0,
+                                                              "height":  0
+                                                          },
+                                                          {
+                                                              "hwnd":  "0x1420e8",
+                                                              "pid":  52908,
+                                                              "className":  "IME",
+                                                              "title":  "Default IME",
+                                                              "visible":  false,
+                                                              "width":  0,
+                                                              "height":  0
+                                                          }
+                                                      ],
+                                          "durationMs":  4637,
+                                          "stdout":  "\r\n[main 2026-11-17T18:32:47.626Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: <PROGRAMDATA_CAGELOCAL>\\tools\\vscode\\2c33b50b16\\resources\\app\\node-compile-cache\\main, active: <PROGRAMDATA_CAGELOCAL>\\tools\\vscode\\2c33b50b16\\resources\\app\\node-compile-cache\\main\\v24.22.1-x64-60e4fe36)\n[main 2026-11-17T18:32:47.666Z] StorageMainService: creating application shared storage\n[main 2026-11-17T18:32:48.216Z] [shared storage] Creating shared storage database at \u0027<WORKER_USERPROFILE>\\.vscode-shared\\sharedStorage\\state.vscdb\u0027 (wasCreated: false)\n[main 2026-11-17T18:32:48.217Z] [shared storage] Initializing fallback application storage (path: <WORKER_USERPROFILE>\\AppData\\Local\\CodeGuiProfile\\User\\globalStorage\\state.vscdb)\n[main 2026-11-17T18:32:48.266Z] [shared storage] Fallback application storage initialized with 59 items\n[main 2026-11-17T18:32:49.255Z] update#setState idle\n[main 2026-11-17T18:32:49.311Z] AgentHostProcessManager: agent host started\n",
+                                          "stderr":  "(node:11896) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.\n(Use `Code --trace-deprecation ...` to show where the warning was created)\n[main 2026-11-17T18:32:50.618Z] #1: https://update.code.visualstudio.com/api/update/win32-x64-user/stable/2c33b50b16c472efe58357d1d2a8a5414bc23fbf?u=none - error undefined net::ERR_TUNNEL_CONNECTION_FAILED\n[main 2026-11-17T18:32:50.618Z] update#isLatestVersion(): failed to check for updates\n[main 2026-11-17T18:32:50.621Z] Error: net::ERR_TUNNEL_CONNECTION_FAILED\n    at SimpleURLLoaderWrapper.\u003canonymous\u003e (node:electron/js2c/browser_init:2:139483)\n    at SimpleURLLoaderWrapper.emit (node:events:514:28)\n"
+                                      },
+                 "ClaudeDesktopSandbox":  {
+                                              "token":  {
+                                                            "userSid":  "S-1-5-21-<REDACTED>-1005",
+                                                            "isAppContainer":  false,
+                                                            "capabilityCount":  0,
+                                                            "appContainerSid":  "",
+                                                            "integrityRid":  "0x2000",
+                                                            "integrityLabel":  "Medium"
+                                                        },
+                                              "exitedEarly":  false,
+                                              "stillAliveAtEnd":  true,
+                                              "exitCode":  0,
+                                              "exitHex":  "0x00000000",
+                                              "maxJobProcessCount":  7,
+                                              "finalJobProcessCountBeforeStop":  7,
+                                              "firstVisibleWindowMs":  9287,
+                                              "visibleWindowDetected":  true,
+                                              "windows":  [
+                                                              {
+                                                                  "hwnd":  "0x200f18",
+                                                                  "pid":  55328,
+                                                                  "className":  "Touch Tooltip Window",
+                                                                  "title":  "Tooltip",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x72c4c",
+                                                                  "pid":  55328,
+                                                                  "className":  "UAC_InputIndicatorOverlayWnd",
+                                                                  "title":  "",
+                                                                  "visible":  true,
+                                                                  "width":  50,
+                                                                  "height":  50
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x1a1a4e",
+                                                                  "pid":  55328,
+                                                                  "className":  "UAC Input Indicator",
+                                                                  "title":  "",
+                                                                  "visible":  true,
+                                                                  "width":  50,
+                                                                  "height":  50
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x1421f2",
+                                                                  "pid":  7020,
+                                                                  "className":  "Chrome_WidgetWin_0",
+                                                                  "title":  "",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x62c2a",
+                                                                  "pid":  55328,
+                                                                  "className":  "Chrome_WidgetWin_1",
+                                                                  "title":  "Claude",
+                                                                  "visible":  true,
+                                                                  "width":  614,
+                                                                  "height":  609
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x92c4e",
+                                                                  "pid":  55328,
+                                                                  "className":  "#32770",
+                                                                  "title":  "Claude",
+                                                                  "visible":  true,
+                                                                  "width":  571,
+                                                                  "height":  188
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x72c60",
+                                                                  "pid":  55328,
+                                                                  "className":  "Chrome_WidgetWin_0",
+                                                                  "title":  "",
+                                                                  "visible":  false,
+                                                                  "width":  1244,
+                                                                  "height":  781
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x42c32",
+                                                                  "pid":  10732,
+                                                                  "className":  "crashpad_SessionEndWatcher",
+                                                                  "title":  "",
+                                                                  "visible":  false,
+                                                                  "width":  135,
+                                                                  "height":  37
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x32c24",
+                                                                  "pid":  55328,
+                                                                  "className":  "Base_PowerMessageWindow",
+                                                                  "title":  "",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x52c2c",
+                                                                  "pid":  55328,
+                                                                  "className":  "CicLoaderWndClass",
+                                                                  "title":  "",
+                                                                  "visible":  false,
+                                                                  "width":  135,
+                                                                  "height":  37
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x14218e",
+                                                                  "pid":  55328,
+                                                                  "className":  "CiceroUIWndFrame",
+                                                                  "title":  "CiceroUIWndFrame",
+                                                                  "visible":  false,
+                                                                  "width":  133,
+                                                                  "height":  133
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0xa2c50",
+                                                                  "pid":  55328,
+                                                                  "className":  "CiceroUIWndFrame",
+                                                                  "title":  "TF_FloatingLangBar_WndTitle",
+                                                                  "visible":  false,
+                                                                  "width":  33,
+                                                                  "height":  20
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x1519ca",
+                                                                  "pid":  7020,
+                                                                  "className":  "IME",
+                                                                  "title":  "Default IME",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x3b0f24",
+                                                                  "pid":  55328,
+                                                                  "className":  "MSCTFIME UI",
+                                                                  "title":  "MSCTFIME UI",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x201710",
+                                                                  "pid":  55328,
+                                                                  "className":  "IME",
+                                                                  "title":  "Default IME",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x2e10fa",
+                                                                  "pid":  55328,
+                                                                  "className":  "IME",
+                                                                  "title":  "Default IME",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x11225c",
+                                                                  "pid":  55328,
+                                                                  "className":  "MSCTFIME UI",
+                                                                  "title":  "MSCTFIME UI",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              },
+                                                              {
+                                                                  "hwnd":  "0x42c2e",
+                                                                  "pid":  10732,
+                                                                  "className":  "IME",
+                                                                  "title":  "Default IME",
+                                                                  "visible":  false,
+                                                                  "width":  0,
+                                                                  "height":  0
+                                                              }
+                                                          ],
+                                              "durationMs":  12795,
+                                              "stdout":  "\r\n",
+                                              "stderr":  "(node:55328) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 __growthbook_network_fetch__ listeners added to [EventEmitter]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit\n(Use `Claude --trace-warnings ...` to show where the warning was created)\n(node:55328) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 coworkHipaaRestricted listeners added to [EventEmitter]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit\n[55328:1118/023300.031:WARNING:electron\\shell\\common\\api\\electron_api_native_image.cc:228] Argument must be a file path or a NativeImage\r\n[55328:1118/023300.839:WARNING:ui\\aura\\window.cc:1509] StackChildLayerRelativeTo called with unmanaged layer(s). child=WebContentsViewAura child_managed=0 target=WebContentsViewAura target_managed=0\r\n[55328:1118/023300.841:WARNING:ui\\aura\\window.cc:1509] StackChildLayerRelativeTo called with unmanaged layer(s). child=WebContentsViewAura child_managed=0 target=WebContentsViewAura target_managed=0\r\n(node:55328) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 destroyed listeners added to [WebContents]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit\n(node:55328) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 31 destroyed listeners added to [WebContents]. MaxListeners is 30. Use emitter.setMaxListeners() to increase limit\n(node:55328) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 change listeners added to [EventEmitter]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit\n"
+                                          }
+             },
+    "appSummary":  {
+                       "claudeCodeRing1Passed":  true,
+                       "claudeCodeRing2Passed":  true,
+                       "nodeSharedDDrivePassed":  true,
+                       "edgeHkcuProxyPassed":  true,
+                       "vscodeCliPassed":  true,
+                       "vscodeGuiPassed":  true,
+                       "claudeDesktopObserved":  {
+                                                     "present":  true,
+                                                     "error":  null,
+                                                     "stillAliveAtEnd":  true,
+                                                     "visibleWindowDetected":  true,
+                                                     "exitCode":  0,
+                                                     "exitHex":  "0x00000000"
+                                                 }
+                   },
+    "coreAppsPassed":  true,
+    "brokerStats":  {
+                        "port":  17981,
+                        "gateOpen":  true,
+                        "acceptedCount":  23,
+                        "rejectedCallerCount":  2,
+                        "blockedByGateCount":  1,
+                        "proxiedRequestCount":  5,
+                        "deniedDestinationCount":  16
+                    },
+    "suiteExitCode":  0
+}
