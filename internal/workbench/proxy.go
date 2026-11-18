@@ -56,7 +56,7 @@ func (s *Server) proxyStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	_, appliedErr := managedproxy.Applied(s.profile, cfg.ProxyURL, cfg.ProxyRevision)
-	active := appliedErr == nil
+	active := appliedErr == nil && (s.windowsLocal == nil || p.IPNodesOnly)
 	running := managedproxy.Running(ctx, s.profile, p)
 	state, label := "unconfigured", "尚未配置"
 	_, selected := p.Find(p.Selected)
@@ -67,7 +67,13 @@ func (s *Server) proxyStatus(w http.ResponseWriter, r *http.Request) {
 		state, label = "stopped", "代理已停止"
 		if running {
 			state, label = "prepared", "待启动环境"
-			if s.vmRunning() {
+			if s.windowsLocal != nil {
+				gate := s.windowsLocal.network.state()
+				state, label = "prepared", gate.Message
+				if gate.Open {
+					state, label = "ready", gate.Message
+				}
+			} else if s.vmRunning() {
 				state, label = "paused", "外网未放行"
 				if client, e := s.gateClient(); e == nil {
 					if gate, e := client.Status(ctx); e == nil {
@@ -96,7 +102,11 @@ func (s *Server) proxyStatus(w http.ResponseWriter, r *http.Request) {
 	if routeErr != nil && selected {
 		routeError = routeErr.Error()
 	}
-	jsonReply(w, map[string]any{"route": route, "route_error": routeError, "sources": sources, "selected": p.Selected, "port": p.Port, "running": running, "active": active, "state": state, "state_label": label, "network_open": state == "ready", "core_available": coreErr == nil, "version": version.Version, "revision": p.Revision, "bootstrap_dns": strings.Join(managedproxy.BootstrapDNSURLs(), "、"), "udp_blocked": true, "ipv6_blocked": true})
+	bootstrapDNS := strings.Join(managedproxy.BootstrapDNSURLs(), "、")
+	if s.windowsLocal != nil {
+		bootstrapDNS = ""
+	}
+	jsonReply(w, map[string]any{"route": route, "route_error": routeError, "sources": sources, "selected": p.Selected, "port": p.Port, "running": running, "active": active, "state": state, "state_label": label, "network_open": state == "ready", "core_available": coreErr == nil, "version": version.Version, "revision": p.Revision, "bootstrap_dns": bootstrapDNS, "udp_blocked": true, "ipv6_blocked": true})
 }
 func (s *Server) proxyMutation(w http.ResponseWriter, r *http.Request) {
 	var input proxyInput
@@ -116,6 +126,9 @@ func (s *Server) proxyMutation(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) subscriptionClient(host bool) (*http.Client, error) {
 	if host {
+		if s.windowsLocal != nil {
+			return nil, errors.New("本地账户原型只通过已应用的 Cage 节点下载订阅。首次请导入本地配置或手动添加节点。")
+		}
 		return managedproxy.BootstrapClient(), nil
 	}
 	cfg, err := loadConfig(s.configPath)
@@ -129,7 +142,22 @@ func (s *Server) subscriptionClient(host bool) (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &http.Client{Transport: &http.Transport{Proxy: nil, DialContext: e.DialContext}, Timeout: 30 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error {
+	dial := e.DialContext
+	if s.windowsLocal != nil {
+		p, err := managedproxy.Applied(s.profile, cfg.ProxyURL, cfg.ProxyRevision)
+		s.mu.Lock()
+		paused := s.networkPaused
+		s.mu.Unlock()
+		ctx := s.operationContext()
+		if err != nil || !p.IPNodesOnly || paused || !managedproxy.Running(ctx, s.profile, p) {
+			return nil, errors.New("请先在此工作台选择并应用一个可用的 Cage 节点，再下载订阅。")
+		}
+		// The import job serializes core changes. Use the same filtered
+		// destination / DoH path as the worker, including on redirects.
+		route := &localAppRoute{grant: &localNetworkGrant{cfg: cfg, raw: e, ctx: ctx}}
+		dial = cage.ProxyDialer(route)
+	}
+	return &http.Client{Transport: &http.Transport{Proxy: nil, DialContext: dial}, Timeout: 30 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error {
 		if len(via) >= 3 || r.URL.Scheme != "https" || r.URL.User != nil {
 			return errors.New("订阅重定向被拒绝")
 		}
@@ -137,6 +165,10 @@ func (s *Server) subscriptionClient(host bool) (*http.Client, error) {
 	}}, nil
 }
 func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64) error {
+	if s.windowsLocal != nil {
+		in.Interval = 0 // Native subscriptions are refreshed manually.
+		defer s.windowsLocal.network.readSelection(s.profile)
+	}
 	p, err := managedproxy.Load(s.profile)
 	if err != nil {
 		return err
@@ -147,6 +179,17 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 	}
 	ctx := s.operationContext()
 	if action == "stop" {
+		if s.windowsLocal != nil {
+			s.mu.Lock()
+			s.safety.pauseVersion++
+			err = s.saveNetworkIntentLocked(true)
+			s.mu.Unlock()
+			s.windowsLocal.network.revoke("代理已手动停止。")
+			if err != nil {
+				return err
+			}
+			return managedproxy.Stop(s.profile)
+		}
 		if err = s.closeProxyGate("内置代理已停止，外网保持关闭"); err != nil {
 			return err
 		}
@@ -253,12 +296,24 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 				return err
 			}
 		}
-		if err = p.Import(in.Name, in.URL, data, in.ID, in.Interval, usage); err != nil {
+		candidate := p
+		if s.windowsLocal != nil {
+			candidate.IPNodesOnly = true
+		}
+		if err = candidate.Import(in.Name, in.URL, data, in.ID, in.Interval, usage); err != nil {
 			s.proxySourceFailure(in.ID, err)
 			return err
 		}
-		candidate := p
-		if candidate.Selected == "" {
+		// Validation uses a temporary selection. Persist source data only.
+		p.Sources = candidate.Sources
+		if s.windowsLocal != nil {
+			source := len(candidate.Sources) - 1
+			if action == "refresh" {
+				source = index
+			}
+			candidate.Selected = candidate.Sources[source].Nodes[0].ID
+			candidate.Chain = nil
+		} else if candidate.Selected == "" {
 			candidate.Selected = candidate.Sources[0].Nodes[0].ID
 		}
 		if _, ok := candidate.Find(candidate.Selected); !ok {
@@ -281,6 +336,17 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 				return err
 			}
 			return p.Save(s.profile)
+		}
+		if s.windowsLocal != nil {
+			s.mu.Lock()
+			paused := s.networkPaused
+			s.mu.Unlock()
+			if paused || !p.IPNodesOnly || !managedproxy.Running(ctx, s.profile, p) {
+				// Importing material while offline must not restart a stopped
+				// route. The next explicit apply generates a fresh revision.
+				p.Revision = ""
+				return p.Save(s.profile)
+			}
 		}
 		return s.applyProxy(p, cfg, resumeVersion, false)
 	}
@@ -305,6 +371,10 @@ func (s *Server) proxySourceFailure(id string, failure error) {
 	}
 }
 func (s *Server) closeProxyGate(reason string) error {
+	if s.windowsLocal != nil {
+		s.windowsLocal.network.revoke(reason)
+		return nil
+	}
 	if !s.vmRunning() {
 		return nil
 	}
@@ -318,6 +388,9 @@ func (s *Server) activateProxy(p managedproxy.Store, old cage.Config) (returned 
 }
 
 func (s *Server) applyProxy(p managedproxy.Store, old cage.Config, resumeVersion *uint64, selectExit bool) (returned error) {
+	if s.windowsLocal != nil {
+		p.IPNodesOnly = true
+	}
 	ctx := s.operationContext()
 	previous, err := managedproxy.Load(s.profile)
 	if err != nil {
@@ -329,7 +402,7 @@ func (s *Server) applyProxy(p managedproxy.Store, old cage.Config, resumeVersion
 	}
 	// Changing the endpoint requires an environment restart; node-only switches
 	// keep its SSH sessions and VM alive and revoke the gate synchronously.
-	restartVM := s.vmRunning() && old.ProxyURL != p.Endpoint()
+	restartVM := s.windowsLocal == nil && s.vmRunning() && old.ProxyURL != p.Endpoint()
 	if err := s.closeProxyGate("代理节点切换中，旧连接及检测授权已关闭"); err != nil {
 		return err
 	}
@@ -378,7 +451,7 @@ func (s *Server) applyProxy(p managedproxy.Store, old cage.Config, resumeVersion
 	s.location = nil
 	s.safety.Report = nil
 	s.mu.Unlock()
-	if s.vmRunning() {
+	if s.windowsLocal == nil && s.vmRunning() {
 		client, err := s.gateClient()
 		if err != nil {
 			return err
@@ -397,7 +470,11 @@ func (s *Server) applyProxy(p managedproxy.Store, old cage.Config, resumeVersion
 	if restartVM {
 		return s.startEnvironment(false)
 	}
-	s.setMessage("节点已应用；启动 Cage 环境后完成联网检查")
+	if s.windowsLocal != nil {
+		s.setMessage("所选节点已应用；隔离应用打开时将核验出口")
+	} else {
+		s.setMessage("节点已应用；启动 Cage 环境后完成联网检查")
+	}
 	return nil
 }
 
@@ -467,6 +544,9 @@ func (s *Server) proxyLogs(w http.ResponseWriter, r *http.Request) {
 	// Whitelisted lifecycle messages avoid publishing upstream raw log lines,
 	// which can contain subscription secrets, credentials and host paths.
 	lines := []string{"客机公网 UDP、IPv6、ICMP：阻断", "业务 DNS：经选定节点转发", "代理基础设施 DNS：" + strings.Join(managedproxy.BootstrapDNSURLs(), "、") + "（主机网络，并行查询）"}
+	if s.windowsLocal != nil {
+		lines[2] = "节点服务器使用配置中的公网 IPv4；基础设施域名查询在本地拒绝。"
+	}
 	if managedproxy.Running(r.Context(), s.profile, p) {
 		lines = append(lines, "内置核心运行中；已读回当前节点选择")
 	} else {

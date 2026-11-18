@@ -109,7 +109,7 @@ namespace CageLocalTool
             return idx >= 0 ? full.Substring(idx + 1) : full;
         }
 
-        private static void EnsureWorkerGroupMembership(string workerUsername, string workerSid)
+        private static void EnsureWorkerGroupMembership(string workerUsername, string workerSid, bool verifyOnly = false)
         {
             bool inUsers = false;
             IntPtr buf = IntPtr.Zero;
@@ -139,6 +139,10 @@ namespace CageLocalTool
                     {
                         inUsers = true;
                     }
+                    else if (verifyOnly)
+                    {
+                        throw new InvalidOperationException("The isolated account must belong only to the local Users group.");
+                    }
                 }
             }
             finally
@@ -151,6 +155,10 @@ namespace CageLocalTool
 
             if (!inUsers)
             {
+                if (verifyOnly)
+                {
+                    throw new InvalidOperationException("The isolated account is missing its local Users group.");
+                }
                 byte[] sidBytes = new byte[new SecurityIdentifier(workerSid).BinaryLength];
                 new SecurityIdentifier(workerSid).GetBinaryForm(sidBytes, 0);
                 IntPtr sidPtr = Marshal.AllocHGlobal(sidBytes.Length);
@@ -332,7 +340,7 @@ namespace CageLocalTool
                 string targetExe = Path.Combine(binDir, "CageLocal.exe");
                 File.Copy(selfExe, targetExe, true);
 
-                Dictionary<string, object> wfpSummary = WfpApply("install", instanceId, workerSid, brokerPort);
+                Dictionary<string, object> wfpSummary = WfpApply("install", instanceId, workerSid, brokerPort, controllerSid);
                 wfpInstalled = true;
                 if (!(bool)wfpSummary["allVerified"])
                 {
@@ -542,6 +550,13 @@ namespace CageLocalTool
                 throw new InvalidDataException("grant-share requires --profile, --target, and --access <ro|rw|revoke>.");
             }
             LocalProfileModel profile = LoadProfile(profilePath, true);
+            var result = ChangeProjectGrant(profile, targetDir, access);
+            Console.WriteLine(ToJson(result));
+            return 0;
+        }
+
+        private static string ValidateProjectTarget(LocalProfileModel profile, string targetDir)
+        {
             if (!Directory.Exists(targetDir))
             {
                 throw new DirectoryNotFoundException("Share target directory does not exist: " + targetDir);
@@ -549,16 +564,24 @@ namespace CageLocalTool
 
             string userProfile = Path.GetFullPath(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)).TrimEnd('\\');
             string windowsDir = Path.GetFullPath(Environment.GetFolderPath(Environment.SpecialFolder.Windows)).TrimEnd('\\');
-            string cleanTarget = targetDir.TrimEnd('\\');
+            string cleanTarget = Path.GetFullPath(targetDir).TrimEnd('\\');
             string pathRoot = Path.GetPathRoot(cleanTarget).TrimEnd('\\');
-            if (string.Equals(cleanTarget, pathRoot, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(cleanTarget, userProfile, StringComparison.OrdinalIgnoreCase) ||
-                cleanTarget.StartsWith(userProfile + "\\", StringComparison.OrdinalIgnoreCase) ||
-                cleanTarget.StartsWith(windowsDir + "\\", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(cleanTarget, profile.rootDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) ||
-                cleanTarget.StartsWith(profile.rootDir.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase))
+            if (pathRoot.Length != 2 || pathRoot[1] != ':' || new DriveInfo(pathRoot).DriveType != DriveType.Fixed ||
+                string.Equals(cleanTarget, pathRoot, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Choose a project directory on a local fixed drive.");
+            if (typeof(CageLocal).Assembly.Location.StartsWith(cleanTarget + "\\", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The selected directory contains the local account tool.");
+            string workerProfile = null;
+            using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\" + profile.workerSid))
+                if (key != null) workerProfile = key.GetValue("ProfileImagePath") as string;
+            string[] protectedPaths = { userProfile, workerProfile, windowsDir, ProgramDataParentDir(), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) };
+            foreach (string protectedPath in protectedPaths)
             {
-                throw new InvalidDataException("Refusing to grant share ACL on protected host/root directory: " + targetDir);
+                if (!string.IsNullOrEmpty(protectedPath) && (SameWindowsName(cleanTarget, protectedPath) ||
+                    cleanTarget.StartsWith(protectedPath + "\\", StringComparison.OrdinalIgnoreCase) ||
+                    protectedPath.StartsWith(cleanTarget + "\\", StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidDataException("Choose a project outside protected program, account and system directories.");
             }
 
             for (DirectoryInfo dir = new DirectoryInfo(cleanTarget); dir != null; dir = dir.Parent)
@@ -568,9 +591,21 @@ namespace CageLocalTool
                     throw new InvalidDataException("Reparse point found along target path: " + dir.FullName);
                 }
             }
+            return cleanTarget;
+        }
 
-            SecurityIdentifier workerSid = new SecurityIdentifier(profile.workerSid);
-            DirectorySecurity acl = Directory.GetAccessControl(cleanTarget);
+        private static void ApplyProjectGrant(LocalProfileModel profile, string cleanTarget, string access)
+        {
+            using (var folder = PinnedProjectDirectory.Open(cleanTarget))
+            {
+                var acl = folder.ReadDacl();
+                UpdateProjectDacl(acl, new SecurityIdentifier(profile.workerSid), access);
+                folder.WriteDacl(acl);
+            }
+        }
+
+        private static void UpdateProjectDacl(DirectorySecurity acl, SecurityIdentifier workerSid, string access)
+        {
             acl.RemoveAccessRuleAll(new FileSystemAccessRule(workerSid, FileSystemRights.FullControl, AccessControlType.Allow));
             acl.RemoveAccessRuleAll(new FileSystemAccessRule(workerSid, FileSystemRights.FullControl, AccessControlType.Deny));
 
@@ -598,14 +633,7 @@ namespace CageLocalTool
                     PropagationFlags.None,
                     AccessControlType.Deny));
             }
-            Directory.SetAccessControl(cleanTarget, acl);
 
-            Dictionary<string, object> result = new Dictionary<string, object>();
-            result["target"] = cleanTarget;
-            result["access"] = access;
-            result["workerSid"] = profile.workerSid;
-            Console.WriteLine(ToJson(result));
-            return 0;
         }
     }
 }

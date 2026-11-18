@@ -5,6 +5,7 @@ import { isRemoteClient } from "./client-context.mjs";
 import { MacOSAccountGate, useAccount } from "./account";
 import { GuestSystemPicker, HostCloneSummary, validGuestChoice } from "./guest-system-picker";
 import { InitializationStorage } from "./initialization-storage";
+import { WindowsLocalAccount } from "./windows-local-account";
 import { GuestProfileOptions, guestOptionsForSystem } from "./guest-profile";
 import { ProxySettings } from "./proxy-settings";
 import { SetupProgress } from "./setup-progress";
@@ -40,7 +41,7 @@ export function InitializationGate({ children }) {
     setError("");
     (async () => {
       const next = await api("/environment/initialization");
-      if (next.required && !next.tracked && !next.started && !account?.initial_mac_setup) await api("/environment/initialization", { action: "begin" });
+      if (next.required && !next.windows_local_prototype && !next.tracked && !next.started && !account?.initial_mac_setup) await api("/environment/initialization", { action: "begin" });
       if (live) setState(next);
     })().catch(error => { if (live) setError(error.message); });
     return () => { live = false; };
@@ -49,6 +50,12 @@ export function InitializationGate({ children }) {
   if (account?.initial_mac_setup) return <MacOSAccountGate><MacOSFirstSetup /></MacOSAccountGate>;
   if (error) return <InitializationFrame><section className="initialization-content"><h1>继续准备 Cage</h1><p role="alert"><SafetyMessage message={error} /></p><button className="primary" onClick={() => retry(value => value + 1)}>重新连接</button><DiagnosticSettings /></section></InitializationFrame>;
   if (!state) return <InitializationFrame><section className="initialization-content"><h1>正在读取环境状态</h1><p role="status"><LoaderCircle size={18} className="spin" />正在检查已有配置和安装进度…</p></section></InitializationFrame>;
+  if (state.required && state.windows_local_prototype) return <InitializationFrame>
+    <div className="initialization-content"><WindowsLocalAccount onEnter={async () => {
+      await api("/environment/initialization", { action: "enter-windows-local" });
+      setState({ required: false });
+    }} /></div>
+  </InitializationFrame>;
   return state.required ? <MacOSAccountGate><Initialization initial={state} onComplete={() => setState({ required: false })} /></MacOSAccountGate> : children;
 }
 

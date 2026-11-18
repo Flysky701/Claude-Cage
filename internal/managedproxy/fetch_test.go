@@ -131,6 +131,51 @@ func TestInfrastructureDNSAllUnavailableAndCancellation(t *testing.T) {
 	}
 }
 
+func TestIPNodeRuntimeHasNoExternalBootstrap(t *testing.T) {
+	s, _ := Load(t.TempDir())
+	s.IPNodesOnly = true
+	source := []byte(`proxies:
+  - {name: choose, type: http, server: 203.0.113.5, port: 443, tls: true, sni: cert.example}
+  - {name: other, type: socks5, server: 203.0.113.6, port: 1080}
+  - {name: domain, type: http, server: node.invalid, port: 443}
+  - {name: local, type: http, server: 127.0.0.1, port: 8888}`)
+	if err := s.Import("fixture", "", source, "fixture", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	if s.Selected != "" || len(s.Sources[0].Nodes) != 2 || len(s.Sources[0].Skipped) != 2 {
+		t.Fatal("import did not preserve manual selection / address restrictions")
+	}
+	s.Selected = s.Sources[0].Nodes[0].ID
+	wire, err := s.Runtime(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		DNS     map[string]any
+		Proxies []map[string]any
+	}
+	if err := yaml.Unmarshal(wire, &config); err != nil {
+		t.Fatal(err)
+	}
+	if len(config.Proxies) != 1 || config.Proxies[0]["server"] != "203.0.113.5" || config.Proxies[0]["sni"] != "cert.example" {
+		t.Fatal("runtime included an unselected node or lost its TLS identity")
+	}
+	for key, want := range map[string]string{
+		"default-nameserver":      "https://127.0.0.1:1/dns-query#REJECT",
+		"proxy-server-nameserver": "rcode://refused", "direct-nameserver": "rcode://refused",
+		"nameserver": "https://1.1.1.1/dns-query#" + Group,
+	} {
+		if !reflect.DeepEqual(config.DNS[key], []any{want}) {
+			t.Fatalf("unexpected %s: %v", key, config.DNS[key])
+		}
+	}
+	// Validate the route again for old stores that predate IP-only import.
+	s.Sources[0].Nodes[0].Config["server"] = "old.example"
+	if _, err := s.Runtime(t.TempDir()); err == nil {
+		t.Fatal("applied an old domain-only endpoint")
+	}
+}
+
 func TestRuntimeUsesRedundantBootstrapWithoutChangingBusinessDNS(t *testing.T) {
 	s, _ := Load(t.TempDir())
 	if err := s.Import("test", "", []byte(testNodes), "source", 0, ""); err != nil {

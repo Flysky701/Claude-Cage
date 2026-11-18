@@ -150,7 +150,7 @@ func (s *Server) closeService() error {
 		}
 		s.controlSession.close()
 		s.nativeControl.close()
-		if s.windowsGuest == nil {
+		if s.windowsGuest == nil && s.windowsLocal == nil {
 			s.closeErr = s.closeProxyGate("控制服务正在退出，外网保持关闭")
 		}
 		s.closeErr = errors.Join(s.closeErr, managedproxy.Stop(s.profile))

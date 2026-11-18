@@ -30,6 +30,8 @@ import { ExitPolicyFields } from "./exit-policy";
 import { canonicalExitPolicy } from "./safety-state.mjs";
 import { EnvironmentVersions } from "./environment-versions";
 import { EnvironmentStorage } from "./environment-storage";
+import { WindowsLocalAccount } from "./windows-local-account";
+import { windowsLocalAccount } from "./guest-capabilities.mjs";
 import { EnvironmentCache } from "./environment-cache";
 import { ResourceSettings } from "./resources";
 import { DiagnosticSettings } from "./diagnostics.jsx";
@@ -57,13 +59,17 @@ export function SettingsPanel({
   onConfirm,
   initialSection = "keyboard",
 }) {
+  const nativeAccount = windowsLocalAccount(status) && !isRemoteClient();
+  const visibleSections = nativeAccount
+    ? sections.filter(([id]) => ["account", "project", "network", "appearance", "about"].includes(id))
+    : sections;
   const [localKeyboard, setLocalKeyboard] = useState(() => clientKeyboard(current.keyboard));
   const [accountDirty, setAccountDirty] = useState(false);
   const [proxyDraft, setProxyDraft] = useState("");
   const proxyDirty = Boolean(proxyDraft);
   const [resourceDirty, setResourceDirty] = useState(false);
   const [draft, setDraft] = useState({ ...current }),
-    [section, setSection] = useState(initialSection),
+    [section, setSection] = useState(() => visibleSections.some(([id]) => id === initialSection) ? initialSection : "project"),
     [probe, setProbe] = useState(null),
     [probing, setProbing] = useState(false),
     [probeFailed, setProbeFailed] = useState(false),
@@ -227,7 +233,7 @@ export function SettingsPanel({
         </button>
         <h2>设置</h2>
         <nav aria-label="设置分组">
-          {sections.map(([id, label, Icon]) => (
+          {visibleSections.map(([id, label, Icon]) => (
             <button
               key={id}
               className={section === id ? "selected" : ""}
@@ -271,6 +277,7 @@ export function SettingsPanel({
                     await onSaved();
                   }}
                 />
+                {!nativeAccount && <>
                 <label>
                   加密 DNS
                   <input
@@ -325,6 +332,7 @@ export function SettingsPanel({
                     probing={probing}
                   />
                 </section>
+                </>}
               </>
             )}
             {section === "region" && (
@@ -594,7 +602,10 @@ export function SettingsPanel({
                 </div>
               </>
             )}
-            {section === "project" && (
+            {section === "project" && (nativeAccount ? <>
+              <div className="section-title"><h3>环境与恢复</h3></div>
+              <WindowsLocalAccount />
+            </> :
               <>
                 <div className="section-title">
                   <h3>环境与恢复</h3>

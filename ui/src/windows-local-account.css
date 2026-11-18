@@ -1,0 +1,83 @@
+.windows-local-terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--paper);
+}
+
+.native-workbench-page { min-height: 0; overflow: hidden; }
+.native-workbench-page .management-header { display: flex; align-items: center; gap: 12px; }
+.native-workbench-page .management-header h1 { flex: 1; }
+.native-service { overflow: auto; padding: 20px; display: flex; align-items: flex-start; flex-direction: column; gap: 12px; }
+.native-service p { margin: 0; }
+.native-service form, .native-service label { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.native-service small { color: var(--muted); }
+.native-ssh-address { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 20px; margin: 0; }
+.native-ssh-address dt { color: var(--muted); }
+.native-ssh-address dd { margin: 0; overflow-wrap: anywhere; }
+.native-ssh-key { overflow-wrap: anywhere; }
+.native-ssh-nav { display: flex; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.native-ssh-nav [aria-pressed="true"] { font-weight: 650; color: var(--strong); }
+.native-ssh-client { max-height: 60%; flex-shrink: 0; }
+.native-ssh-form input[type="number"] { width: 6em; }
+.native-service-login { width: 100%; height: max(460px, 60vh); flex-shrink: 0; }
+
+.windows-local-terminal-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  min-height: 30px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.windows-local-console {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.55 var(--font-code, Consolas, monospace);
+}
+
+.windows-local-console pre {
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
+.windows-local-console form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--input);
+}
+
+.windows-local-console input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  border: 0;
+  background: var(--input);
+  color: var(--strong);
+  font: inherit;
+}
+
+.windows-local-console input:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 1px;
+}

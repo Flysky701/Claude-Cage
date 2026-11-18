@@ -61,7 +61,16 @@ import { useWindowVisibility } from "./window-visibility";
 import { AppUpdateButton, useAppUpdates } from "./app-updates";
 import "./appearance.css";
 import { stopAndExit } from "./quit";
-import { guestCapability } from "./guest-capabilities.mjs";
+import { guestCapability, windowsLocalAccount } from "./guest-capabilities.mjs";
+import { WindowsLocalTerminalPane } from "./windows-local-account";
+import { WindowsLocalBrowserPane } from "./windows-local-browser";
+import { WindowsLocalAppPane, WindowsLocalDesktopImport } from "./windows-local-apps";
+import { WindowsLocalSSH } from "./windows-local-ssh";
+import { WindowsLocalServices } from "./windows-local-services";
+import { WindowsLocalProjects } from "./windows-local-projects";
+
+const localAccountGroup = { workspace: "~", name: "隔离工作目录", folders: ["~"] };
+const localPages = { browser: "浏览器", desktop: "Claude Desktop", editor: "文件编辑器", accounts: "Claude 账号管理", tailnet: "Tailscale", "ssh-client": "SSH", projects: "项目共享" };
 
 function App() {
   const { account } = useAccount();
@@ -71,8 +80,8 @@ function App() {
     window.addEventListener("cage-client-preferences", refresh);
     return () => window.removeEventListener("cage-client-preferences", refresh);
   }, []);
-  const claudeProfiles = useClaudeAccounts();
   const [managementPage, setManagementPage] = useState("");
+  const [localTarget, setLocalTarget] = useState("");
   const [tailnetLogin, setTailnetLogin] = useState(null);
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [terminalChoice, setTerminalChoice] = useState(null);
@@ -129,6 +138,9 @@ function App() {
     ? { ...clientStatus, job: { running: true, kind: "start", message: "正在启动 Cage 环境…" } }
     : clientStatus;
   const system = status?.guest_system || account?.guest_system;
+  const localAccountMode = windowsLocalAccount(status);
+  const localTerminalAvailable = localAccountMode && guestCapability(status, "terminal");
+  const claudeProfiles = useClaudeAccounts(Boolean(status && !localAccountMode));
   const macGuest = system === "macos";
   const nativeGuestLabel = {macos: "macOS", "windows-11": "Windows", "windows-remote": "Windows 云端"}[system];
   const { active } = layout;
@@ -151,15 +163,15 @@ function App() {
   activeRef.current = active;
   readyRef.current = Boolean(status?.ready);
   const storageRecovery = status?.storage_recovery?.required;
-  const browserAvailable = guestCapability(status, "browser");
+  const browserAvailable = !localAccountMode && guestCapability(status, "browser");
   const projectsAvailable = guestCapability(status, "projects");
   const editorAvailable = guestCapability(status, "editor");
   const clipboardAvailable = guestCapability(status, "clipboard");
-  const desktopAvailable = guestCapability(status, "desktop");
+  const desktopAvailable = !localAccountMode && guestCapability(status, "desktop");
   const current = tabs.find((t) => t.id === active),
     terminal = !desktopOpen && current?.kind === "terminal",
     busy = Boolean(status?.job?.running),
-    showHome = storageRecovery || !desktopOpen && (home || !status?.vm_running || !current);
+    showHome = storageRecovery || !desktopOpen && (home || !current || (!localAccountMode && !status?.vm_running));
   const setupProgress = status?.job?.setup_progress && (busy || status.job.error);
   const cliSessions = useCLISessions(Boolean(status && !busy && !storageRecovery && guestCapability(status, "claude-cli")), windowVisible);
   useEffect(() => {
@@ -267,17 +279,17 @@ function App() {
   useEffect(() => {
     if (audio.error) setToast(audio.error);
   }, [audio.error]);
-  const groups = projectGroups(status);
+  const groups = localAccountMode ? [localAccountGroup] : projectGroups(status);
   const projects = groups.map(group => group.workspace);
-  const selectedWorkspace = selectedProject || status?.workspace;
+  const selectedWorkspace = localAccountMode ? localAccountGroup.workspace : selectedProject || status?.workspace;
   const workspace = groups.find(group => group.folders.includes(selectedWorkspace))?.workspace || selectedWorkspace;
   const contentWorkspace =
     terminal && !showHome ? current.workspace : workspace;
   const setupProxy = !nativeGuestLabel && needsProxySetup(settings, status, proxy);
   const network = connectionError
     ? { mode: "unknown", label: "外网状态待确认" }
-    : networkState(status);
-  const runtimeLabel = connectionError
+    : localAccountMode ? { mode: status.local_network?.open ? "open" : "closed", label: status.local_network?.open ? "已连接所选节点" : "外网已关闭" } : networkState(status);
+  const runtimeLabel = localAccountMode && !connectionError ? "Windows 本地账户" : connectionError
     ? "连接中断"
     : busy
       ? network.mode === "checking" || status?.job?.kind === "safety"
@@ -324,7 +336,7 @@ function App() {
   const downloads = [...(browser.downloads || []), ...desktopFiles.downloads];
   useDownloadNotifications(downloads, notify, Boolean(browser.uploads?.length || desktopFiles.uploads.length));
   const refreshSettings = async () => {
-    const results = await Promise.allSettled([api("/settings"), api("/proxy")]);
+    const results = await Promise.allSettled([api("/settings"), localAccountMode ? null : api("/proxy")]);
     if (results[0].status === "fulfilled") setSettings(results[0].value);
     else notify(results[0].reason.message);
     if (results[1].status === "fulfilled") setProxy(results[1].value);
@@ -337,6 +349,20 @@ function App() {
     setSettingsSection(section);
     setSettingsOpen(true);
   };
+  async function localPage(page, target = "") {
+    if (page && page !== "projects" && tabs.some(t => t.terminalKind === "windows-local")) {
+      notify("请保存终端工作并关闭 PowerShell 标签，再打开此应用。");
+      return;
+    }
+    if (localPages[managementPage] && managementPage !== page && managementPage !== "projects") {
+      const ok = await confirm({title: "关闭当前应用会话？", body: "切换前请保存正在编辑的内容。已保存的文件、账号和浏览器资料会保留。", confirm: "关闭并继续"});
+      if (!ok) return;
+    }
+    setLocalTarget(target);
+    setManagementPage(page);
+    setDesktopOpen(false);
+    if (!page) setHome(true);
+  }
   const select = async (id, focusContent = true) => {
     setTailnetLogin(null);
     setManagementPage("");
@@ -410,8 +436,9 @@ function App() {
       ? "about:blank" : settings?.browser_home_url || "https://www.bing.com/",
     incognito = Boolean(current?.incognito),
   ) => {
+    if (localAccountMode) { await localPage("browser", url); return null; }
     if (!browserAvailable) {
-      notify("此 Windows 云端环境的浏览器尚未接通。当前可使用隔离 PowerShell 终端。");
+      notify("此环境的浏览器尚未接通。当前可使用隔离 PowerShell 终端。");
       return null;
     }
     setTailnetLogin(null);
@@ -460,6 +487,7 @@ function App() {
   };
   const openSettingsPageResult = result => result.id ? showBrowserResult(result) : openBrowserPage(result.url, false);
   const openBrowser = () => {
+    if (localAccountMode) return localPage("browser", "about:blank");
     const tab =
       tabs.find(
         (t) => t.id === lastBrowserTab.current && t.kind !== "terminal",
@@ -469,6 +497,14 @@ function App() {
     return tab ? select(tab.id) : newPage();
   };
   const newTerminal = (path = workspace, anchor = terminalTrigger.current) => {
+    if (localAccountMode) {
+      if (!localTerminalAvailable || connectionError) return;
+      if (managementPage && managementPage !== "projects") { notify("请先关闭当前应用会话，再新建终端。"); return; }
+      const existing = tabs.find(tab => tab.terminalKind === "windows-local");
+      if (existing) void select(existing.id);
+      else showTerminal({ id: "windows-local", kind: "windows-local", workspace: localAccountGroup.workspace, title: "PowerShell" });
+      return;
+    }
     if (system === "windows-remote" && !guestCapability(status, "claude-cli")) {
       createTerminal(status.workspace || "", "shell").catch((e) => notify(e.message));
       return;
@@ -560,6 +596,7 @@ function App() {
       onSelect={(kind) => createTerminal(terminalChoice.path, kind).catch((e) => notify(e.message))} />
   );
   const openEditor = async (path = workspace) => {
+    if (localAccountMode) { await localPage("editor", path === "~" ? "" : path); return; }
     if (!browserAvailable || !editorAvailable) {
       notify("此 Windows 云端环境的文件编辑器尚未接通。当前可在隔离 PowerShell 中操作文件。");
       return;
@@ -590,6 +627,10 @@ function App() {
     }
   };
   const closeTab = async (tab, anchor) => {
+    if (tab.terminalKind === "windows-local") {
+      setTabs(list => list.map(item => item.id === tab.id ? { ...item, closing: true } : item));
+      return;
+    }
     if (macGuest && tab.native_window) { closeBrowser(); return; }
     if (tab.cli_session_id) return archiveSession({id:tab.cli_session_id, title:tab.title}, anchor);
     if (tab.kind === "terminal") {
@@ -697,7 +738,8 @@ function App() {
   useEffect(() => {
     let live = true,
       timer,
-      polling = false;
+      polling = false,
+      proxyRead = false;
     const poll = async () => {
       if (!live || polling) return;
       clearTimeout(timer);
@@ -710,6 +752,15 @@ function App() {
         setStatus(next);
         setStartRequest(pending => pending?.id && pending.id === next.job.id ? null : pending);
         setConnectionError("");
+        if (windowsLocalAccount(next)) return;
+        if (!proxyRead) {
+          proxyRead = true;
+          try {
+            const snapshot = await api("/proxy");
+            if (!live) return;
+            setProxy(snapshot);
+          } catch { /* Settings remain available if the proxy cannot be read. */ }
+        }
         if (
           !next.job.running &&
           next.job.id &&
@@ -813,13 +864,6 @@ function App() {
         window.dispatchEvent(new Event("cage-session-ready"));
         if (!live) return;
         setSettings(config);
-        try {
-          const proxyState = await api("/proxy");
-          if (!live) return;
-          setProxy(proxyState);
-        } catch {
-          // Network settings remain available when the core cannot be read.
-        }
         refreshStatus.current = poll;
         await poll();
       } catch (e) {
@@ -1005,7 +1049,7 @@ function App() {
         if (projectsAvailable && !busy && running) setProjectDialog({ path: "" });
         return;
       }
-      if (k === "t" && !event.shiftKey) handle = newPage;
+      if (k === "t" && !event.shiftKey && browserAvailable) handle = newPage;
       if (k === "n" && event.shiftKey) handle = () => openBrowserPage(undefined, true);
       if (k === "d") handle = () => document.dispatchEvent(new Event("cage-add-favorite"));
       if (k === "enter" && event.shiftKey) handle = newTerminalHere;
@@ -1034,7 +1078,7 @@ function App() {
         event.stopImmediatePropagation();
         if (
           !busy &&
-          (status?.ready ||
+          (status?.ready || (localTerminalAvailable && k === "enter") ||
             (running && k === "enter") ||
             (k === "w" && terminal))
         )
@@ -1099,7 +1143,7 @@ function App() {
       )
         return;
       if (command === "newTab" && status?.ready) await newPage();
-      if (command === "newTerminal" && status?.vm_running)
+      if (command === "newTerminal" && (status?.vm_running || localTerminalAvailable))
         await newTerminalHere();
       if (command === "closeTab") {
         if (document.querySelector("[data-browser-dialog], .mac-login-fullscreen")) {
@@ -1448,12 +1492,14 @@ function App() {
       >
         {!sidebarCollapsed && (
           <WorkspaceSidebar
-            onClaudeAccounts={() => setManagementPage("claude-accounts")}
-            claudeAccountsOpen={managementPage === "claude-accounts"}
-            tailscaleOpen={managementPage === "tailscale"}
+            onClaudeAccounts={localAccountMode ? () => localPage("accounts") : () => setManagementPage("claude-accounts")}
+            claudeAccountsOpen={managementPage === "claude-accounts" || managementPage === "accounts"}
+            tailscaleOpen={managementPage === "tailscale" || (managementPage === "tailnet" && localTarget !== "ssh")}
+            onLocalSSH={localAccountMode ? () => managementPage === "tailnet" ? localPage("tailnet", "ssh") : localPage("ssh-client") : undefined}
+            localSSHOpen={managementPage === "ssh-client" || (managementPage === "tailnet" && localTarget === "ssh")}
             updateAction={<AppUpdateButton updates={appUpdates} />}
-            workspace={selectedProject || status.workspace}
-            guestSystem={account?.guest_system || status.guest_system || guestSystem?.guest_system || "debian-13"}
+            workspace={localAccountMode ? localAccountGroup.workspace : selectedProject || status.workspace}
+            guestSystem={system || guestSystem?.guest_system || "debian-13"}
             projects={projects}
             projectGroups={groups}
             tabs={displayTabs}
@@ -1476,13 +1522,15 @@ function App() {
             busy={busy || storageRecovery}
             ready={status.ready}
             running={running}
+            desktopAvailable={localAccountMode ? status.ready : running}
+            terminalAvailable={localAccountMode ? localTerminalAvailable && !connectionError : running}
             runtimeLabel={runtimeLabel}
             network={network}
-            onHome={() => { setManagementPage(""); setDesktopOpen(false); setHome(true); }}
-            browserAvailable={browserAvailable}
+            onHome={() => { if (localAccountMode) { void localPage(""); return; } setManagementPage(""); setDesktopOpen(false); setHome(true); }}
+            browserAvailable={localAccountMode ? guestCapability(status,"browser") : browserAvailable}
             editorAvailable={editorAvailable}
             projectsAvailable={projectsAvailable}
-            onOpenProject={(path = "") => setProjectDialog({ path })}
+            onOpenProject={(path = "") => localAccountMode ? localPage("projects") : setProjectDialog({ path })}
             onSelect={select}
             onClose={closeTab}
             onRename={renameTab}
@@ -1495,18 +1543,18 @@ function App() {
             onNewTerminal={newTerminal}
             terminalMenuAt={terminalMenuAt}
             onBrowser={openBrowser}
-            onTailscale={() => {
+            onTailscale={localAccountMode ? () => localPage("tailnet") : () => {
               setManagementPage("tailscale");
               if (window.matchMedia("(max-width: 520px)").matches) setSidebarCollapsed(true);
             }}
             desktopOpen={!managementPage && desktopOpen}
             onClaudeWeb={() => openBrowserPage("https://claude.ai/")}
-            onClaudeDesktop={() => { setManagementPage(""); setHome(false); setDesktopOpen(true); }}
+            onClaudeDesktop={() => { if (localAccountMode) { void localPage("desktop"); return; } setManagementPage(""); setHome(false); setDesktopOpen(true); }}
             onEditor={openEditor}
             onSettings={openSettings}
             onAccountConfirm={confirm}
             onAccountStatus={notify}
-            onSafety={() => setSafetyOpen(true)}
+            onSafety={localAccountMode ? undefined : () => setSafetyOpen(true)}
             onCollapse={() =>
               persist("cage-sidebar-collapsed", true, setSidebarCollapsed)
             }
@@ -1537,7 +1585,32 @@ function App() {
               </button>
             </div>
           )}
-          {managementPage && (
+          {localAccountMode && localPages[managementPage] && (
+            <main className="management-page native-workbench-page">
+              <header className="chrome management-header">{sidebarButton()}<h1>{managementPage === "tailnet" && localTarget === "ssh" ? "SSH" : localPages[managementPage]}</h1>
+                <button className="quiet-button" onClick={() => localPage("")}>关闭会话</button></header>
+              {managementPage === "browser" && <WindowsLocalBrowserPane initialURL={localTarget} />}
+              {(managementPage === "ssh-client" || (managementPage === "tailnet" && localTarget === "ssh")) && <nav aria-label="SSH 连接方向" className="native-ssh-nav">
+                <button aria-pressed={managementPage === "ssh-client"} onClick={() => localPage("ssh-client")}>连接远程主机</button>
+                <button aria-pressed={managementPage === "tailnet"} onClick={() => localPage("tailnet", "ssh")}>其他设备登录本机</button>
+              </nav>}
+              {managementPage === "ssh-client" && <WindowsLocalSSH network={status.local_network} onNetwork={() => openSettings("network")} />}
+              {managementPage === "projects" && <WindowsLocalProjects onOpenEditor={editorAvailable ? openEditor : undefined} />}
+              {["editor","desktop"].includes(managementPage) && (guestCapability(status,managementPage)
+                ? <WindowsLocalAppPane key={managementPage} app={managementPage} project={localTarget}/>
+                : <section className="native-service"><p>{localPages[managementPage]} 尚未安装到隔离环境。</p>
+                  {managementPage === "desktop" && <WindowsLocalDesktopImport selected={Boolean(status.local_network?.selected)}
+                    visible={!settingsOpen} onInstalled={() => refreshStatus.current?.()} />}
+                  <button onClick={async () => { try { await api("/windows-local/status"); await refreshStatus.current?.(); } catch (e) { notify(e.message); } }}>重新检查安装状态</button>
+                  <button onClick={() => openSettings("network")}>网络与代理</button></section>)}
+              {["accounts","tailnet"].includes(managementPage) && (guestCapability(status, managementPage === "accounts" ? "claude-accounts" : "tailscale")
+                ? <WindowsLocalServices key={managementPage} service={managementPage} sshView={managementPage === "tailnet" && localTarget === "ssh"}
+                    onSSH={() => localPage("tailnet", "ssh")} onConfirm={confirm} network={Boolean(status.local_network?.open)}
+                    networkMessage={status.local_network?.message} onNetwork={() => openSettings("network")} />
+                : <section className="native-service"><p>此隔离账户尚未部署{managementPage === "accounts" ? " Claude Code" : " Cage Tailscale"} 组件。</p></section>)}
+            </main>
+          )}
+          {managementPage && !localAccountMode && (
             <main className="management-page" aria-labelledby={managementPage + "-title"}>
               <header className="chrome management-header">
                 {sidebarButton()}
@@ -1582,7 +1655,7 @@ function App() {
                 <button onClick={() => openSettings("project")}>查看并更新</button>
               </div>
             )}
-            {!storageRecovery && (status.vm_running || terminal) && (
+            {!storageRecovery && (localAccountMode || status.vm_running || terminal) && (
               <>
                 {macGuest && !desktopOpen && !showHome && webPanes.length > 0 && (
                   <section className={`pane-lane browser-lane split-${paneSide(webPanes[0].id)}`}>
@@ -1636,7 +1709,12 @@ function App() {
                     onPointerDownCapture={() => focusHeader(tab)} onFocusCapture={() => focusHeader(tab)}>
                     {visible && terminalHeader(tab)}
                     <div className="pane-body">
-                      <TerminalView
+                      {tab.terminalKind === "windows-local" ? <WindowsLocalTerminalPane closing={tab.closing}
+                        active={visible && !settingsOpen && !managementPage} onExit={() => {
+                        setTabs(list => list.filter(item => item.id !== tab.id));
+                        setLayout({ active: "" });
+                        setHome(true);
+                      }} /> : <TerminalView
                         session={{ ...tab, id: tab.sessionId }}
                         onLoginTab={({ id }) => showBrowserResult({ id, kind: "web", login: true, incognito: true, title: "账号授权" })}
                         onControls={(control) =>
@@ -1648,7 +1726,7 @@ function App() {
                         focused={active === tab.id}
                         onStatus={notify}
                         onAccountChanged={view => { if (view?.desktop_terminal_id && view.desktop_terminal_id !== tab.sessionId) void openSessionTerminal({id:tab.cli_session_id}); }}
-                      />
+                      />}
                     </div>
                   </section>;
                 })}
@@ -1658,7 +1736,16 @@ function App() {
               <div className="welcome">
                 <div className="welcome-content">
                   <img className="welcome-logo" src={logo} alt="Cage" />
-                  {storageRecovery ? <>
+                  {localAccountMode ? <>
+                    <h1>Windows 本地账户工作台</h1>
+                    <p className="welcome-subtitle">在隔离工作目录中打开 PowerShell，输入命令并查看输出。</p>
+                    <div className="welcome-shortcuts">
+                      <button className="primary" data-terminal-location="start" disabled={!localTerminalAvailable || busy || Boolean(connectionError)}
+                        onClick={newTerminalHere}><TerminalSquare size={16} />新建终端</button>
+                      <button onClick={() => openEditor("~")} disabled={!editorAvailable}><FileCode2 size={16} />打开编辑器</button>
+                    </div>
+                    <button className="text-button" onClick={() => openSettings("network")}>选择 Cage 代理节点</button>
+                  </> : storageRecovery ? <>
                     <h1>环境存储需要恢复</h1>
                     <p className="welcome-subtitle"><SafetyMessage message={status.storage_recovery.error} /></p>
                     <p className="field-help">在设置中恢复环境存储后，再启动浏览器和终端。诊断包可以从同一页面导出。</p>
@@ -1876,6 +1963,13 @@ function App() {
           </main>
           <footer className="status-bar">
             {sidebarCollapsed && <AppUpdateButton updates={appUpdates} />}
+            {localAccountMode ? <>
+              <span>Windows 本地账户</span>
+              <span className="status-divider" />
+              <button onClick={() => openSettings("network")}>{network.label}</button>
+              <span className="status-spacer" />
+              <span role="status" className="status-feedback">{toast}</span>
+            </> : <>
             <button onClick={() => setSafetyOpen(true)} title="网络与隔离检查">
               <EnvironmentShield
                 size={14}
@@ -1939,6 +2033,7 @@ function App() {
               <Power size={12} />
               <span>停止环境</span>
             </button>
+            </>}
           </footer>
         </div>
       </div>

@@ -16,17 +16,20 @@ import (
 	"github.com/miekg/dns"
 )
 
-// GateProxy adapts explicit HTTP proxy clients to the existing egress gate.
-// It never uses host DNS or a direct transport, and exposes no gate controls.
-// token is a dedicated workload credential, not the upstream proxy credential.
-func GateProxy(gate *EgressGate, token string) (http.Handler, error) {
-	if len(token) != 64 || strings.Trim(token, "0123456789abcdef") != "" {
-		return nil, errors.New("invalid workload proxy credential")
-	}
-	authorization := []byte("Basic " + base64.StdEncoding.EncodeToString([]byte("proxy:"+token)))
-	// Existing remote sessions may still have the previous username in their environment.
-	legacyAuthorization := []byte("Basic " + base64.StdEncoding.EncodeToString([]byte("cage:"+token)))
-	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
+// ProxyEgress checks each resolved destination and performs DNS through the
+// same controlled route. Revoking the route must close active connections.
+type ProxyEgress interface {
+	DialContext(context.Context, string, string) (net.Conn, error)
+	ExchangeDNS(context.Context, *dns.Msg) (*dns.Msg, error)
+}
+
+// ProxyDialer resolves names through the supplied gate and dials only an
+// address accepted by that gate. It can be used directly with http.Transport.
+func ProxyDialer(gate ProxyEgress) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		if network != "tcp" && network != "tcp4" {
+			return nil, ErrGateClosed
+		}
 		host, port, err := net.SplitHostPort(address)
 		if err != nil {
 			return nil, ErrGateClosed
@@ -56,6 +59,19 @@ func GateProxy(gate *EgressGate, token string) (http.Handler, error) {
 		}
 		return nil, ErrGateClosed
 	}
+}
+
+// GateProxy adapts explicit HTTP proxy clients to an egress gate.
+// It never uses host DNS or a direct transport, and exposes no gate controls.
+// token is a dedicated workload credential, not the upstream proxy credential.
+func GateProxy(gate ProxyEgress, token string) (http.Handler, error) {
+	if len(token) != 64 || strings.Trim(token, "0123456789abcdef") != "" {
+		return nil, errors.New("invalid workload proxy credential")
+	}
+	authorization := []byte("Basic " + base64.StdEncoding.EncodeToString([]byte("proxy:"+token)))
+	// Existing remote sessions may still have the previous username in their environment.
+	legacyAuthorization := []byte("Basic " + base64.StdEncoding.EncodeToString([]byte("cage:"+token)))
+	dial := ProxyDialer(gate)
 	transport := &http.Transport{Proxy: nil, DialContext: dial, DisableKeepAlives: true,
 		ResponseHeaderTimeout: 30 * time.Second, TLSHandshakeTimeout: 10 * time.Second}
 	slots := make(chan struct{}, 64)

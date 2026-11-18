@@ -379,7 +379,7 @@ namespace CageLocalTool
             {
                 if (args.Length == 0)
                 {
-                    Console.Error.WriteLine("Usage: CageLocal.exe <selftest|provision|teardown|grant-share|worker-daemon|run-suite> ...");
+                    Console.Error.WriteLine("Usage: CageLocal.exe <selftest|provision|teardown|grant-share|worker-daemon|run-suite|workbench-inspect|workbench-probe|workbench-terminal|workbench-browser> ...");
                     return 2;
                 }
                 string cmd = args[0];
@@ -388,7 +388,13 @@ namespace CageLocalTool
                 if (cmd == "teardown") return TeardownCommand(args);
                 if (cmd == "grant-share") return GrantShareCommand(args);
                 if (cmd == "worker-daemon") return WorkerDaemonCommand(args);
+                if (cmd == "ssh-key" || cmd == "ssh-run" || cmd == "ssh-pipe") return WorkerSsh(args);
                 if (cmd == "run-suite") return RunSuiteCommand(args);
+                if (cmd == "workbench-accounts" || cmd == "workbench-tailnet") return WorkbenchCommand(args);
+                if (cmd == "workbench-desktop" || cmd == "workbench-editor") return WorkbenchCommand(args);
+                if (cmd == "workbench-projects") return WorkbenchCommand(args);
+                if (cmd == "workbench-inspect" || cmd == "workbench-probe" || cmd == "workbench-terminal") return WorkbenchCommand(args);
+                if (cmd == "workbench-browser") return WorkbenchCommand(args);
 
                 Console.Error.WriteLine("Unknown subcommand: " + cmd);
                 return 2;

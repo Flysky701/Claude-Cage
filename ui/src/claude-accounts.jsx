@@ -6,7 +6,7 @@ import crabIcon from "./claude-account-crab.svg";
 import "./claude-accounts.css";
 
 // Ordinary reads never start an upstream usage query.
-export function useClaudeAccounts() {
+export function useClaudeAccounts(enabled = true) {
   const [registry, setRegistry] = useState(null);
   const [error, setError] = useState("");
   const generation = useRef(0);
@@ -33,7 +33,10 @@ export function useClaudeAccounts() {
       else if (visiblePanel) polling.current = false;
     }
   }, []);
-  useEffect(() => { load(); return () => { generation.current++; }; }, [load]);
+  useEffect(() => {
+    if (enabled) load();
+    return () => { generation.current++; };
+  }, [enabled, load]);
   return { accounts: registry?.accounts ?? null, detected: registry?.detected,
     detectionStatus: registry?.detection_status, detectionError: registry?.detection_error,
     usageRunning: registry?.usage_panel_running, usageUnavailable: registry?.usage_unavailable_reason,

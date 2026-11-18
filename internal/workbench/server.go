@@ -58,6 +58,7 @@ type Server struct {
 	screenSharing                                    macOSScreenSharing
 	macResources                                     macOSResourceObserver
 	windowsGuest                                     *guestos.WindowsProfile
+	windowsLocal                                     *windowsLocalPrototype
 	windowsState                                     windowsGuestState
 	windowsProjectHistory                            map[string]string
 	clipboardFiles                                   map[string]clipboardFileSelection
@@ -226,6 +227,9 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 		if s.macosGuest != nil && s.windowsGuest != nil {
 			return errors.New("一个配置只能绑定一个客机系统")
 		}
+		if s.macosGuest == nil && s.windowsGuest == nil {
+			s.windowsLocal = configuredWindowsLocal(profile)
+		}
 		if s.windowsGuest != nil {
 			pending, err := guestos.WindowsCloneCleanupPending(profile)
 			if err != nil {
@@ -252,7 +256,7 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 			s.preferences.BalancedDisplay = false
 			_ = json.Unmarshal(b, &s.preferences)
 		}
-		if !s.storageRecoveryStatus().Required {
+		if s.windowsLocal == nil && !s.storageRecoveryStatus().Required {
 			if err = s.prepareEnvironment(); err != nil {
 				if s.windowsGuest == nil {
 					return err
@@ -273,17 +277,19 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 		// A previously running VM cannot keep an unmanaged endpoint online.
 		if s.macosGuest != nil {
 			_ = s.closeProxyGate("控制服务已重新连接，外网等待重新检查")
-		} else if cfg, e := loadConfig(configPath); s.windowsGuest == nil && (e != nil || cfg.RequireManagedProxy(profile) != nil) {
+		} else if cfg, e := loadConfig(configPath); s.windowsLocal == nil && s.windowsGuest == nil && (e != nil || cfg.RequireManagedProxy(profile) != nil) {
 			_ = s.closeProxyGate("尚未配置有效节点，外网保持关闭")
 		}
 		if s.networkPaused && s.windowsGuest == nil {
 			_ = s.closeProxyGate("网络保持暂停，请手动恢复后再联网")
 		}
-		s.startMonitors()
-		if err = s.restorePhone(); err != nil {
-			s.phones.status = "无法恢复手机配对，请移除旧记录后重试"
+		if s.windowsLocal == nil {
+			s.startMonitors()
+			if err = s.restorePhone(); err != nil {
+				s.phones.status = "无法恢复手机配对，请移除旧记录后重试"
+			}
+			defer s.stopPhone()
 		}
-		defer s.stopPhone()
 	}
 	s.identity, err = currentController()
 	if err != nil {
@@ -378,6 +384,22 @@ func (s *Server) handler() http.Handler {
 		jsonReply(w, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("GET /api/status", s.status)
+	if s.windowsLocal != nil {
+		mux.HandleFunc("GET /api/windows-local/status", s.windowsLocal.serve)
+		mux.HandleFunc("POST /api/windows-local/probe", s.windowsLocal.serve)
+		mux.HandleFunc("GET /api/windows-local/terminal", s.windowsLocalTerminal)
+		mux.HandleFunc("GET /api/windows-local/browser", s.windowsLocalBrowser)
+		mux.HandleFunc("GET /api/windows-local/apps/{app}", s.windowsLocalApp)
+		mux.HandleFunc("POST /api/windows-local/apps/desktop/import", s.windowsLocalDesktopImport)
+		mux.HandleFunc("GET /api/windows-local/network", s.windowsLocal.networkStatus)
+		mux.HandleFunc("GET /api/windows-local/projects", s.windowsLocalProjects)
+		mux.HandleFunc("POST /api/windows-local/projects", s.windowsLocalProjects)
+		for path, command := range map[string]string{"accounts": "workbench-accounts", "tailnet": "workbench-tailnet"} {
+			mux.HandleFunc("GET /api/windows-local/services/"+path, func(w http.ResponseWriter, r *http.Request) {
+				s.serveWindowsLocalVisual(w, r, command)
+			})
+		}
+	}
 	mux.HandleFunc("GET /api/environment/initialization", s.initialization)
 	mux.HandleFunc("POST /api/environment/initialization", s.initialization)
 	mux.HandleFunc("GET /api/remote/manifest", s.remoteManifest)
@@ -561,7 +583,7 @@ func (s *Server) handler() http.Handler {
 				return
 			}
 		}
-		if strings.HasPrefix(r.URL.Path, "/api/agent/native") || r.URL.Path == "/api/agent/routes" {
+		if s.windowsLocal == nil && (strings.HasPrefix(r.URL.Path, "/api/agent/native") || r.URL.Path == "/api/agent/routes") {
 			mux.ServeHTTP(w, r)
 			return
 		}
@@ -624,6 +646,10 @@ func (s *Server) handler() http.Handler {
 			r = r.WithContext(ctx)
 		}
 		defer interruptHTTPOnCancel(w, r)()
+		if s.windowsLocal != nil && !s.windowsLocal.supports(r) {
+			http.Error(w, "此功能尚未接入 Windows 本地账户工作台。", http.StatusConflict)
+			return
+		}
 		response := &diagnosticResponse{ResponseWriter: w}
 		w = response
 		defer func() {
@@ -677,6 +703,12 @@ func requestError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusBadRequest)
 }
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
+	if s.windowsLocal != nil {
+		view := s.windowsLocal.workbenchStatus()
+		view["job"] = s.jobs.snapshot()
+		jsonReply(w, view)
+		return
+	}
 	if s.windowsGuest != nil && !s.storageRecoveryStatus().Required {
 		s.refreshWindowsComponents()
 	}

@@ -72,6 +72,7 @@ const proxyAgentPrompt = `请将本机 Cage 的最终出口设为【节点名称
 最后用 cage agent call proxy.status 读回 selected，按 ID 核对节点名称，并分别报告代理是否已应用（active）和客机外网是否已放行（network_open）。若任务失败或超时，请报告原因，先核对状态再决定下一步。请勿在对话中回显订阅地址或凭据。`;
 
 export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, initializing = false }) {
+  const localAccount = status?.guest_system === "windows-local";
   const [proxy, setProxy] = useState(null),
     [tab, setTab] = useState("nodes"),
     [search, setSearch] = useState(""),
@@ -261,7 +262,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
       url: form.url,
       content: form.content,
       interval_hours: form.interval_hours,
-      host_download: form.host_download,
+      host_download: !localAccount && form.host_download,
     };
     if (mode === "manual" && !form.id) {
       if (!manualValid) return;
@@ -281,7 +282,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
       if (manual.type === "ssh" && manual.hostKey.trim())
         node["host-key"] = manual.hostKey.split(/\r?\n/).map((key) => key.trim()).filter(Boolean);
       value = {
-        ...form,
+        ...value,
         name: form.name || node.name,
         url: "",
         content: JSON.stringify({ proxies: [node] }),
@@ -344,7 +345,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
           >
             <CircleHelp size={17} aria-hidden="true" />
           </button>
-          <button
+          {!localAccount && <button
             type="button"
             title="复制代理配置提示词给本机 AI 助手"
             onClick={async () => {
@@ -358,9 +359,11 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
           >
             <Copy size={14} aria-hidden="true" />
             复制提示词
-          </button>
+          </button>}
         </div>
-        <p>选择最终出口，按需添加中转，供 Cage 内所有程序共用。</p>
+        <p>{localAccount
+          ? "导入本地配置或手动添加使用公网 IPv4 的节点，在「节点」中选择出口并点击「应用代理」。隔离应用会共用这个出口。"
+          : "选择最终出口，按需添加中转，供 Cage 内所有程序共用。"}</p>
       </div>
       {promptCopyState === "copied" && (
         <p className="field-help" role="status">提示词已复制。粘贴给本机 AI 助手后，将【节点名称】换成想使用的出口。</p>
@@ -371,7 +374,13 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
           <textarea aria-label="代理配置提示词" readOnly rows={5} value={proxyAgentPrompt} />
         </>
       )}
-      {helpOpen && (
+      {helpOpen && localAccount && (
+        <section id="proxy-help" className="proxy-help" aria-label="代理使用说明">
+          <p>首次设置时，在「订阅」中添加来源。可导入本地文件、粘贴节点配置，或手动填写节点。每个出口和中转都需要填写服务器的公网 IPv4。TLS 校验域名可保留在配置的 servername 或 sni 中。</p>
+          <p>打开隔离浏览器或终端后，工作台会核验所选节点的出口。此后的 HTTPS 订阅下载和手动更新也经过所选节点。停止代理后，隔离应用会断网。</p>
+        </section>
+      )}
+      {helpOpen && !localAccount && (
         <section
           id="proxy-help"
           className="proxy-help"
@@ -668,7 +677,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                 onClick={() => {
                   setTab("sources");
                   setForm({ ...emptyForm });
-                  setMode("url");
+                  setMode(localAccount && !proxy.active ? "file" : "url");
                 }}
               >
                 <Plus size={14} />
@@ -698,14 +707,14 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                 </option>
               ))}
             </InlineSelect>
-            <button
+            {!localAccount && <button
               disabled={busy || !proxy.running || !nodes.length}
               title="检测 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
               onClick={() => measure(nodes.map((n) => n.id))}
             >
               <Activity size={14} />
               测速
-            </button>
+            </button>}
           </div>
           {!allNodes.length ? (
             <div className="proxy-empty">
@@ -716,7 +725,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                 onClick={() => {
                   setTab("sources");
                   setForm({ ...emptyForm });
-                  setMode("url");
+                  setMode(localAccount && !proxy.active ? "file" : "url");
                 }}
               >
                 <Plus size={15} />
@@ -761,17 +770,19 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                       {n.id === proxy.selected ? "当前出口" : "当前中转"}
                     </span>
                   )}
-                  <span className="proxy-delay">
-                    {delays[n.id] || "未测速"}
-                  </span>
-                  <button
-                    aria-label={`测速 ${n.name}`}
-                    title="检测此节点到 www.gstatic.com 的 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
-                    disabled={busy || !proxy.running}
-                    onClick={() => measure([n.id])}
-                  >
-                    <Activity size={14} />
-                  </button>
+                  {!localAccount && (
+                    <>
+                      <span className="proxy-delay">{delays[n.id] || "未测速"}</span>
+                      <button
+                        aria-label={`测速 ${n.name}`}
+                        title="检测此节点到 www.gstatic.com 的 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
+                        disabled={busy || !proxy.running}
+                        onClick={() => measure([n.id])}
+                      >
+                        <Activity size={14} />
+                      </button>
+                    </>
+                  )}
                 </div>
               ))}
               {!nodes.length && (
@@ -783,17 +794,21 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
       )}
       {tab === "sources" && (
         <>
-          <label className="check-line">
-            <input
-              type="checkbox"
-              checked={hostRefresh}
-              onChange={(e) => setHostRefresh(e.target.checked)}
-            />
-            手动更新订阅时通过主机网络下载
-          </label>
-          <p className="field-help">
-            自动更新始终使用当前配置的代理，不会切换到主机下载。
-          </p>
+          {!localAccount && (
+            <>
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={hostRefresh}
+                  onChange={(e) => setHostRefresh(e.target.checked)}
+                />
+                手动更新订阅时通过主机网络下载
+              </label>
+              <p className="field-help">
+                自动更新始终使用当前配置的代理，不会切换到主机下载。
+              </p>
+            </>
+          )}
           <div className="proxy-toolbar">
             <span>
               {proxy.sources.length} 个来源 · {allNodes.length} 个节点
@@ -802,7 +817,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
               disabled={busy}
               onClick={() => {
                 setForm({ ...emptyForm });
-                setMode("url");
+                setMode(localAccount && !proxy.active ? "file" : "url");
               }}
             >
               <Plus size={14} />
@@ -815,7 +830,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                 <strong>{s.name}</strong>
                 <small>
                   {s.remote ? s.host : "本地导入"} · {s.nodes.length} 个节点 ·{" "}
-                  {s.interval_hours && s.remote
+                  {!localAccount && s.interval_hours && s.remote
                     ? `每 ${s.interval_hours} 小时更新`
                     : "手动更新"}
                 </small>
@@ -847,12 +862,12 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
               <div className="proxy-source-actions">
                 {s.remote && (
                   <button
-                    disabled={busy}
+                    disabled={busy || (localAccount && (!proxy.active || !proxy.running))}
                     aria-label={`更新 ${s.name}`}
                     onClick={() =>
                       mutate("refresh", {
                         id: s.id,
-                        host_download: hostRefresh,
+                        host_download: !localAccount && hostRefresh,
                       })
                     }
                   >
@@ -942,7 +957,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                       placeholder="https://…"
                     />
                   </label>
-                  <label>
+                  {!localAccount && <label>
                     自动更新间隔
                     <InlineSelect
                       aria-label="自动更新间隔"
@@ -966,8 +981,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                         </option>
                       ))}
                     </InlineSelect>
-                  </label>
-                  {!form.id && (
+                  </label>}
+                  {!localAccount && !form.id && (
                     <label className="check-line">
                       <input
                         type="checkbox"
@@ -980,7 +995,9 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                     </label>
                   )}
                   <p className="field-help">
-                    默认经当前配置的代理下载。首次没有可用节点时，可勾选主机下载或导入本地文件；失败不会自动改用其他路径。
+                    {localAccount
+                      ? "订阅链接只通过已应用的 Cage 节点下载。首次使用请切换到「本地配置」或「手动节点」，导入后选择并应用出口。"
+                      : "默认经当前配置的代理下载。首次没有可用节点时，可勾选主机下载或导入本地文件；失败不会自动改用其他路径。"}
                   </p>
                 </>
               )}
@@ -1046,7 +1063,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                         onChange={(e) =>
                           setManual({ ...manual, server: e.target.value })
                         }
-                        placeholder="域名或 IP"
+                        placeholder={localAccount ? "节点服务器的公网 IPv4" : "域名或 IP"}
                       />
                     </label>
                     <label>
@@ -1155,7 +1172,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDraftChange, ini
                     readingFile ||
                     (!form.id &&
                       (mode === "url"
-                        ? !form.url || !form.name
+                        ? !form.url || !form.name || (localAccount && (!proxy.active || !proxy.running))
                         : mode === "file"
                           ? !form.content.trim() || !form.name
                           : !manualValid))

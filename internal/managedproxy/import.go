@@ -31,6 +31,10 @@ func Parse(data []byte, sourceID string) ([]Node, error) {
 
 // Node-only import keeps remote files from changing listeners, routes, or file paths.
 func parseNodes(data []byte, sourceID string) ([]Node, []NodeIssue, error) {
+	return parseSourceNodes(data, sourceID, false)
+}
+
+func parseSourceNodes(data []byte, sourceID string, ipNodesOnly bool) ([]Node, []NodeIssue, error) {
 	if len(data) == 0 || len(data) > MaxImport {
 		return nil, nil, errors.New("配置为空或超过 8 MiB")
 	}
@@ -81,6 +85,8 @@ func parseNodes(data []byte, sourceID string) ([]Node, []NodeIssue, error) {
 			issue.Reason = "节点协议暂不支持"
 		case server == "" || len(server) > 253:
 			issue.Reason = "节点服务器缺失或过长"
+		case ipNodesOnly && !literalNodeIP(server):
+			issue.Reason = "本地账户节点的 server 需要填写公网 IPv4。TLS 的域名可保留在 servername 或 sni。"
 		default:
 			if err := normalizeWebSocket(p); err != nil {
 				issue.Reason = err.Error()

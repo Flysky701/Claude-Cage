@@ -233,6 +233,19 @@ func requestConnection(r *http.Request) string {
 // the local account gate. Only business API requests cross SSH: neither the
 // remote server's scripts nor its bootstrap/update routes enter the client.
 func (s *Server) routeRemote(w http.ResponseWriter, r *http.Request) bool {
+	if s.windowsLocal != nil {
+		if !strings.HasPrefix(r.URL.Path, "/api/client/") {
+			return false
+		}
+		// This controller's workload is bound to its Windows account. The
+		// general desktop SSH switcher dials from the host and cannot serve it.
+		if r.Method == http.MethodGet && r.URL.Path == "/api/client/context" {
+			jsonReply(w, ClientContext{Mode: "local", ConnectionID: "local", ClientPlatform: runtime.GOOS, ServerPlatform: runtime.GOOS})
+		} else {
+			http.Error(w, "请在专用账户的 SSH 页面管理连接。", http.StatusConflict)
+		}
+		return true
+	}
 	if s.remote == nil || !strings.HasPrefix(r.URL.Path, "/api/") {
 		return false
 	}
@@ -273,6 +286,10 @@ func (s *Server) routeRemote(w http.ResponseWriter, r *http.Request) bool {
 	}
 	if remote && r.URL.Path == "/api/projects/client-share" {
 		http.NotFound(w, r)
+		return true
+	}
+	if remote && strings.HasPrefix(r.URL.Path, "/api/windows-local/") {
+		http.Error(w, "请在本机工作台打开 Windows 原生本地账户", http.StatusForbidden)
 		return true
 	}
 	if remote && (r.URL.Path == "/api/environment/storage" || r.URL.Path == "/api/environment/storage/recover") {

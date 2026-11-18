@@ -30,39 +30,30 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     if (-not $Elevate) {
         throw "Provisioning requires one-time Windows Administrator consent. Re-run with -Elevate."
     }
-    $callerSidArg = $callerSid
+    $arguments = 'provision --controller-sid {0} --profile-out "{1}" --broker-port {2}' -f $callerSid, $resolvedProfile, $BrokerPort
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $resolvedProfile) | Out-Null
-    $engine = (Get-Process -Id $PID).Path
-    $cmdLine = ('-NoProfile -ExecutionPolicy Bypass -File "{0}" -ProfilePath "{1}" -BrokerPort {2} -CallerSid "{3}" -ElevatedWorker' -f $PSCommandPath, $resolvedProfile, $BrokerPort, $callerSidArg)
-    # Use a helper script block invocation via Start-Process -Verb RunAs
-    $helperScript = Join-Path (Split-Path -Parent $resolvedProfile) 'elevated-provision-runner.ps1'
-    $errOut = Join-Path (Split-Path -Parent $resolvedProfile) 'provision-error.log'
-    if (Test-Path -LiteralPath $errOut) { Remove-Item -LiteralPath $errOut -Force }
-    $scriptBody = @"
-`$ErrorActionPreference = 'Continue'
-`$out = & '$exe' provision --controller-sid '$callerSidArg' --profile-out '$resolvedProfile' --broker-port $BrokerPort 2> '$errOut'
-`$rc = `$LASTEXITCODE
-if (`$rc -ne 0) { exit `$rc }
-[IO.File]::WriteAllText('$receiptOut', (`$out -join "`n"), [Text.UTF8Encoding]::new(`$false))
-exit 0
-"@
-    [IO.File]::WriteAllText($helperScript, $scriptBody, [Text.UTF8Encoding]::new($false))
+    $process = Start-Process -FilePath $exe -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -Wait -PassThru
     try {
-        $proc = Start-Process -FilePath $engine -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $helperScript + '"') -Verb RunAs -WindowStyle Hidden -PassThru
-        $proc.WaitForExit()
-        if ($proc.ExitCode -ne 0) {
-            $errText = if (Test-Path -LiteralPath $errOut) { [IO.File]::ReadAllText($errOut) } else { '' }
-            throw ("Elevated provisioning exited with code {0}: {1}" -f $proc.ExitCode, $errText.Trim())
-        }
+        if ($process.ExitCode -ne 0) { throw "Elevated provisioning exited with code $($process.ExitCode)." }
     } finally {
-        if (Test-Path -LiteralPath $helperScript) { Remove-Item -LiteralPath $helperScript -Force -ErrorAction SilentlyContinue }
+        $process.Dispose()
     }
-    if (-not (Test-Path -LiteralPath $resolvedProfile -PathType Leaf)) {
-        throw "Provisioning completed without creating profile file."
-    }
-    if (Test-Path -LiteralPath $receiptOut -PathType Leaf) {
-        Get-Content -LiteralPath $receiptOut -Raw | Write-Output
-    }
+    # The elevated helper writes both protected records before returning.
+    $binding = Get-Content -LiteralPath $resolvedProfile -Encoding UTF8 -Raw | ConvertFrom-Json
+    $rules = Get-Content -LiteralPath $binding.wfpReceiptFile -Encoding UTF8 -Raw | ConvertFrom-Json
+    $result = [ordered]@{
+        provisioned = $true
+        profilePath = $resolvedProfile
+        instanceId = $binding.instanceId
+        workerUsername = $binding.workerUsername
+        workerSid = $binding.workerSid
+        isAdmin = $false
+        hiddenFromLogon = $true
+        brokerPort = $binding.brokerPort
+        wfp = $rules
+    } | ConvertTo-Json -Depth 6 -Compress
+    [IO.File]::WriteAllText($receiptOut, $result, [Text.UTF8Encoding]::new($false))
+    Write-Output $result
     exit 0
 }
 

@@ -1,12 +1,13 @@
 import React from "react";
 
-const labels = { macos: "macOS", "windows-11": "Windows", "debian-12": "Debian", "debian-13": "Linux", "ubuntu-22.04": "Ubuntu", "ubuntu-24.04": "Ubuntu" };
+const labels = { macos: "macOS", "windows-11": "Windows", "windows-local": "Windows 本地账户", "debian-12": "Debian", "debian-13": "Linux", "ubuntu-22.04": "Ubuntu", "ubuntu-24.04": "Ubuntu" };
 
 export function GuestSystemIcon({ system }) {
   const label = labels[system];
   if (!label) return null;
-  return <span className="guest-system-icon" role="img" aria-label={`客户机系统：${label}`} title={`客户机系统：${label}`}>
-    {system === "windows-11" ? <svg viewBox="0 0 24 24" aria-hidden="true">
+  const description = system === "windows-local" ? label : `客户机系统：${label}`;
+  return <span className="guest-system-icon" role="img" aria-label={description} title={description}>
+    {system.startsWith("windows-") ? <svg viewBox="0 0 24 24" aria-hidden="true">
       <path fill="currentColor" d="M2 2h9v9H2zm11 0h9v9h-9zM2 13h9v9H2zm11 0h9v9h-9z" />
     </svg> : system === "macos" ? <svg viewBox="0 0 24 24" aria-hidden="true">
       {/* Apple mark: Simple Icons, CC0-1.0. */}

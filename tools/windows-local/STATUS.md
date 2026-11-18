@@ -6,7 +6,19 @@
 
 ## 总结论
 
-**Phase 1 独立隔离底座与核心应用兼容基线已通过实测**：离线构建与自检通过（`SELFTEST_PASS`），无特权验证在 `PrivateCreateDesktop` 私有桌面模式下通过全部 18 项边界断言（`boundariesPassed: true`）、全部 6 项宿主完整性/零残留检查（`hostChecksPassed: true`，`lingeringWorkerProcesses: 0`）及全部 6 项核心应用检查（`coreAppsPassed: true`），官方解包 Claude Desktop 也在私有桌面内启动并呈现主窗口。**Phase 2（接入 Cage 工作台 `mode: "local"`）及完整在线业务链路尚未实施，状态为“未验证”。**
+第一阶段的离线报告记录了私有桌面的 18 项隔离断言、6 项宿主检查和 6 项核心应用检查通过，官方解包 Claude Desktop 能在私有桌面呈现主窗口。下表保留该次验证范围。
+
+工作台原型使用现有专用账户，每次打开隔离会话均核对账户和七条 WFP 规则。PowerShell、Edge、VS Code、项目共享、Tailscale 与 Claude 账号页共用该绑定。未选择并应用 Cage 节点时，工作台保持离线。[启动说明](README.md#打开工作台原型)
+
+本次在 Windows x64 上实际操作了隔离 Edge 的本地表单、在 VS Code 搜索框输入文字，并对临时空目录做了授权和撤销。在可见工作台里打开了截图对应的五个侧栏入口。账号页和隔离终端均能从官方 Claude Code 读取未登录状态。Tailscale 返回了实际版本和停用状态。入站 SSH 的用户名、地址和端口来自该节点。出站 SSH 使用系统 OpenSSH，已离线检查主机公钥校验、单节点代理转发和双向字节传输。
+
+受控出口使用实际 Windows 命名管道和本机模拟上游验证了双向传输、无节点时阻断，以及停用后立即断流。节点与中转均需要公网 IPv4，可保留 TLS 域名。真实公网出口、Claude 登录及额度、Tailscale 入网和 SSH 登录仍需手动选择节点及授权。本轮使用的账户尚未安装 Claude Desktop。Linux 工作台包与 macOS 共用代理模块已交叉编译。macOS 工作台的两项依赖未在本机离线缓存中，完整编译未验证。macOS 与 Linux 本轮没有运行原生客户端验收。
+
+2026-11-18 在可见的 Windows Edge 窗口中，从首次设置进入原图形工作台，刷新后仍显示项目侧栏。从首页「新建终端」打开 PowerShell 标签，`whoami.exe` 返回预置标准账户。连续输入验证了变量计算结果 42、相同的进程 ID 和切换后的工作目录。在隔离目录中写入一个临时文件，关闭标签后从新终端读回相同内容并清理了该文件。
+
+2026-11-18 在 Windows x64 上用 Edge 进行了终端验收。同一页面连续执行两条命令，确认进程 ID 相同，先前设置的变量参与计算并返回 42。中文和标准错误均显示在页面，默认工作目录为专用账户下的 `AppData\LocalLow\CageTerminal`。对宿主开发目录测试文件的写入请求被拒绝。运行 60 秒等待命令时点击「关闭终端」，页面收到清理完成的通知并重新开放启动按钮。独立的工具验证也覆盖了 `exit`。此次复用了上一轮的 Windows 账户和网络规则。
+
+2026-11-18 在 Windows x64 新建并保留了一个专用标准账户。以普通控制用户运行工作台，用 Edge 从首次设置页点击「试运行 PowerShell」，页面显示实际版本 `5.1.26100.9444`。该次调用读回 7/7 条 WFP 规则，验证 worker 和 PowerShell 进程的 SID 均匹配档案，完整性等级为 Medium。测试工作台按本次配置正常退出。macOS 和 Linux 没有启用此入口，两平台客户端本次未实测。
 
 ## 分类状态明细
 
@@ -30,7 +42,7 @@
 | --- | --- | --- |
 | Edge 无头沙箱与 `HKCU` 代理 | `EdgeHeadlessSandboxAndHkcuProxy` 在 `--headless=new --disable-gpu --disable-features=HttpsFirstBalancedModeAutoEnable,HttpsUpgrades` 下通过 worker `HKCU` 代理（`127.0.0.1:17981`）获取本地合成页面并输出 `CAGE_LOCAL_EDGE_PROXY_OK`（`exitCode: 0`，`1963 ms`） | 页面内 JS `Intl.DateTimeFormat().resolvedOptions().timeZone` 仍读回宿主系统时区 `Asia/Shanghai`（未跟随环境变量 `TZ=Asia/Tokyo`）；未验证有头浏览器交互、多标签页、扩展、下载及真实 HTTPS/TLS 上游 |
 | Claude Desktop（官方解包） | `ClaudeDesktopSandbox` 在私有桌面内启动（`observe-gui`），`9287 ms` 检测到主窗口（`614x609`，标题 `Claude`），观察期末存活（`stillAliveAtEnd: true`，峰值 `7` 个进程，`exitCode: 0`），清理后无残留 | 仅完成冷启动与主窗口拉起观测；未验证真实账户登录、Chat/Code 交互、文件附件/下载、剪贴板传递与 Cowork 服务 |
-| 网络代理与断线保护 | `LocalProxyBroker` 已验证 PID 门禁、本地合成源站 HTTP `GET` / `CONNECT` 往返及 `SetGateOpen(false)` 立即断流 | 尚未接入 Cage `internal/managedproxy` 真实上游链路、受控 DNS 解析、TLS 上游握手及高并发长连接场景 |
+| 网络代理与断线保护 | 第一阶段验证了 PID 门禁和本地合成源站。工作台现接入 `internal/managedproxy`，离线验证了活动连接撤销 | 真实节点的出口、DNS、TLS 上游握手及高并发长连接场景尚未验收 |
 | 一键部署与完整卸载脚本 | 已在当前测试机实测生效预置的部署产物与 7/7 WFP 规则；`Initialize-CageLocal.ps1` 与 `Teardown-CageLocal.ps1` 已完成代码实现 | 本轮无特权验证未调用 `-Elevate` 销毁并重新部署现役档案，现场提权部署/卸载闭环待后续人工窗口确认 |
 | `grant-share` 权限护栏 | 已在 `verify-local.ps1` 实测针对验证夹具目录的 `rw` / `ro` / `revoke` 授权与撤销 | 拒绝 `<HOST_USERPROFILE>`、系统目录、`rootDir` 及 `ReparsePoint` 的负向分支尚未有独立自动化单测报告 |
 
@@ -41,6 +53,6 @@
 
 ### 4. 未验证（待 Phase 2 实施或后续取证）
 
-- **Phase 2 Cage 工作台 `mode: "local"` 接入（待实施 / 未验证）**：`internal/guestos/windows_profile.go`、`internal/workbench/server.go`、`runtime.go`、`windows_guest.go`、`windows_safety.go`、`windows_projects.go`、`windows_cli.go`、`windows_browser.go` 与 `scripts/guest-os/guest-clipboard-windows/`（`Program.cs`、`LocalGuestTransport.cs`）尚未接入 `CageLocal.exe`。
+- **多会话支持**仍待实现。目前一次使用一个隔离会话。关闭终端后保留其工作目录。
 - **真实在线与多应用日常工作流**：Claude Code / Desktop 真实登录与付费模型请求、VS Code 扩展与真实项目编辑、有头 Edge 完整浏览器操作、多会话并发共存、工作台内本机开发服务受控访问、以及受控主动剪贴板/文件上传下载通道均未验证。
 - **全盘与非个人目录 ACL 审计**：本方案在共享宿主 Windows 上通过标准本地账户 ACL 隔离 `<HOST_USERPROFILE>` 与私有夹具目录，尚未对系统上其他非个人用户目录或全部系统服务做全盘遍历审计，不宣称与独立 Hyper-V 虚拟机等价。

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -49,6 +50,7 @@ type Store struct {
 	Revision     string                       `json:"revision"`
 	Selected     string                       `json:"selected"`
 	Chain        []string                     `json:"chain,omitempty"`
+	IPNodesOnly  bool                         `json:"ip_nodes_only,omitempty"`
 	Sources      []Source                     `json:"sources"`
 	ExitPolicies map[string]exitpolicy.Policy `json:"exit_policies,omitempty"`
 }
@@ -131,6 +133,11 @@ func (s Store) Find(id string) (Node, bool) {
 	}
 	return Node{}, false
 }
+
+func literalNodeIP(server string) bool {
+	ip, err := netip.ParseAddr(server)
+	return err == nil && publicIP(ip)
+}
 func (s Store) Count() int {
 	n := 0
 	for _, src := range s.Sources {
@@ -149,7 +156,7 @@ func (s *Store) Import(name, rawURL string, data []byte, id string, interval int
 	if id == "" {
 		id = Token()[:16]
 	}
-	nodes, skipped, err := parseNodes(data, id)
+	nodes, skipped, err := parseSourceNodes(data, id, s.IPNodesOnly)
 	if err != nil {
 		return err
 	}
@@ -268,8 +275,20 @@ func (s Store) Route() ([]string, error) {
 }
 
 func (s Store) Runtime(profile string) ([]byte, error) {
-	if _, err := s.Route(); err != nil {
+	route, err := s.Route()
+	if err != nil {
 		return nil, err
+	}
+	allowed := map[string]bool{}
+	if s.IPNodesOnly {
+		for _, id := range route {
+			node, _ := s.Find(id)
+			server, _ := node.Config["server"].(string)
+			if !literalNodeIP(server) {
+				return nil, fmt.Errorf("节点 %q 需要提供公网 IPv4 才能应用，域名可保留在 TLS 配置中", node.Name)
+			}
+			allowed[id] = true
+		}
 	}
 	dialers := map[string]string{}
 	for i, id := range s.Chain {
@@ -281,6 +300,9 @@ func (s Store) Runtime(profile string) ([]byte, error) {
 	proxies := []map[string]any{}
 	for _, src := range s.Sources {
 		for _, n := range src.Nodes {
+			if s.IPNodesOnly && !allowed[n.ID] {
+				continue
+			}
 			config := make(map[string]any, len(n.Config))
 			for key, value := range n.Config {
 				config[key] = value
@@ -301,6 +323,14 @@ func (s Store) Runtime(profile string) ([]byte, error) {
 	// Infrastructure DNS bootstraps only the core's server domains. Guest DNS
 	// remains behind Cage Egress, and there is no host-system resolver fallback.
 	dns := map[string]any{"enable": true, "ipv6": false, "use-hosts": false, "use-system-hosts": false, "default-nameserver": BootstrapDNSURLs(), "proxy-server-nameserver": BootstrapDNSURLs(), "nameserver": []string{"https://1.1.1.1/dns-query#" + Group}}
+	if s.IPNodesOnly {
+		// Mihomo requires a numeric address in default-nameserver even when
+		// all resolver and node endpoints are numeric. The REJECT outbound
+		// and loopback address give it no external bootstrap destination.
+		dns["default-nameserver"] = []string{"https://127.0.0.1:1/dns-query#REJECT"}
+		dns["proxy-server-nameserver"] = []string{"rcode://refused"}
+		dns["direct-nameserver"] = []string{"rcode://refused"}
+	}
 	config := map[string]any{"mixed-port": s.Port, "bind-address": "127.0.0.1", "allow-lan": false, "authentication": []string{"cage:" + s.Auth}, "skip-auth-prefixes": []string{}, "mode": "rule", "ipv6": false, "log-level": "warning", "find-process-mode": "off", "external-controller-unix": Socket(profile), "tun": map[string]any{"enable": false}, "dns": dns, "geo-auto-update": false, "profile": map[string]any{"store-selected": false}, "proxies": proxies, "proxy-groups": []any{map[string]any{"name": Group, "type": "select", "proxies": []string{s.Selected}}}, "rules": []string{"MATCH," + Group}}
 	// Measure a request on the established connection rather than folding
 	// protocol and TLS setup into the node's displayed HTTP latency.

@@ -1,6 +1,9 @@
-// Local workbenches can install or repair components that are not ready yet.
-// The headless Windows server only implements the features it advertises.
+export function windowsLocalAccount(status) {
+  return status?.guest_system === "windows-local" && status.windows_local_prototype === true;
+}
+
+// Windows remote and native-account workbenches advertise supported operations.
 export function guestCapability(status, name) {
-  return status?.guest_system !== "windows-remote" ||
+  return (!windowsLocalAccount(status) && status?.guest_system !== "windows-remote") ||
     status.guest_capabilities?.available?.[name] === true;
 }

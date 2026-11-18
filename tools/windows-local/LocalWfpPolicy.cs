@@ -299,7 +299,7 @@ namespace CageLocalTool
             return true;
         }
 
-        internal static Dictionary<string, object> WfpApply(string action, string instanceId, string workerSid, int brokerPort)
+        internal static Dictionary<string, object> WfpApply(string action, string instanceId, string workerSid, int brokerPort, string controllerSid = null)
         {
             if (action != "install" && action != "status" && action != "remove")
             {
@@ -308,12 +308,22 @@ namespace CageLocalTool
             Guid sublayerKey = DeriveWfpKey(instanceId, workerSid, "sublayer");
             WfpRuleSpec[] specs = BuildWfpSpecs();
             byte[] userSdBytes = BuildUserDescriptorBytes(workerSid);
+            byte[] filterSecurity = null;
+            if (action == "install")
+            {
+                // FWPM_ACTRL_READ on just this instance's filters allows live
+                // verification without elevation or a machine-wide BFE ACL change.
+                var descriptor = new RawSecurityDescriptor("D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x80;;;" + controllerSid + ")");
+                filterSecurity = new byte[descriptor.BinaryLength];
+                descriptor.GetBinaryForm(filterSecurity, 0);
+            }
 
             IntPtr engine = IntPtr.Zero;
             CheckWfp(FwpmEngineOpen0(null, 10, IntPtr.Zero, IntPtr.Zero, out engine), "FwpmEngineOpen0");
             try
             {
                 fixed (byte* sdPtr = userSdBytes)
+                fixed (byte* filterSecurityPtr = filterSecurity)
                 {
                     FwpByteBlob userBlob = new FwpByteBlob { size = (uint)userSdBytes.Length, data = (IntPtr)sdPtr };
                     if (action == "install" || action == "remove")
@@ -383,7 +393,7 @@ namespace CageLocalTool
                                                 action = new FwpmAction0 { type = spec.Action }
                                             };
                                             ulong addedId;
-                                            CheckWfp(FwpmFilterAdd0(engine, ref filter, IntPtr.Zero, out addedId), "FwpmFilterAdd0(" + spec.Name + ")");
+                                            CheckWfp(FwpmFilterAdd0(engine, ref filter, (IntPtr)filterSecurityPtr, out addedId), "FwpmFilterAdd0(" + spec.Name + ")");
                                         }
                                     }
                                 }

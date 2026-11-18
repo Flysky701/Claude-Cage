@@ -222,6 +222,10 @@ namespace CageLocalTool
             allowed.Add(controllerSid);
             allowed.Add(WellKnownSystemSid);
             allowed.Add(WellKnownAdminsSid);
+            if (!allowed.Contains(acl.GetOwner(typeof(SecurityIdentifier)).Value))
+            {
+                throw new InvalidDataException("Unexpected owner of protected file: " + path);
+            }
             AuthorizationRuleCollection rules = acl.GetAccessRules(true, true, typeof(SecurityIdentifier));
             foreach (FileSystemAccessRule rule in rules)
             {

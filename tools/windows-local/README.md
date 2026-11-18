@@ -1,8 +1,40 @@
-# Windows 原生轻量隔离（Phase 1：`CageLocal.exe`）
+# Windows 原生本地账户
 
 本目录实现了 Cage 的 **Windows 原生轻量隔离底座（Phase 1）**：不依赖 Hyper-V 虚拟机、Sandboxie、闭源内核驱动或第三方商业软件，完全基于 100% 开源（MIT）代码与 Windows 系统内置安全机制构建独立执行边界，并通过 `verification-phase1.json` 完成离线编译、内核网络隔离、私有桌面、应用兼容与 Zero-Leak 清理验证。
 
-> 当前状态与已测/未测范围见 [STATUS.md](STATUS.md)，最新 Phase 1 实测报告见 [verification-phase1.json](verification-phase1.json)。**Phase 2（接入 Cage 工作台 `mode: "local"`）尚未实施，当前处于未验证状态。**
+工作台可在既有的 Windows 标准账户中打开 PowerShell、Edge、VS Code、项目共享、Claude 账号和 Tailscale。Claude Desktop 需要单独准备官方安装包。[实测范围](STATUS.md) 和 [第一阶段记录](verification-phase1.json)。
+
+## 打开工作台原型
+
+在 Windows x64 上，从仓库根目录运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows-local\Start-CageLocalWorkbench.ps1
+```
+
+脚本在 Edge 中打开本机工作台，默认读取 `tmp/windows-local/profile/local-profile.json`，也可通过 `-ProfilePath` 指定已有档案。首次打开时按提示设置原型的 Cage 登录账户，在「Windows 原生本地账户」页确认显示的是已部署的 Windows 标准账户，然后点「进入工作台」。这一步会保存账户绑定。之后用同一档案打开原型，可以继续使用原有的 Cage 登录和工作目录。首次部署见下方「一次性管理员初始化」。
+
+在工作台首页点「新建终端」，或点项目侧栏「隔离工作目录」右侧的终端按钮。PowerShell 标签打开后，在底部输入命令并按 Enter，结果和错误会出现在上方。上下方向键可以找回本次会话的命令。下列示例分两行输入，第二行会读到第一行设置的变量。
+
+```powershell
+$n = 40
+$n + 2
+```
+
+每次连接都会重新核对专用账户和七条网络隔离规则，再在私有桌面上启动低完整性的 PowerShell。当前目录和变量在这次连接中保留。默认工作目录为该 Windows 账户下的 `AppData\LocalLow\CageTerminal`，其中的文件跨会话保留。关闭终端或页面会结束 Shell 及其所属的子进程。原型一次打开一个隔离会话。PowerShell 支持按行输入，全屏控制台及交互式密码提示仍待接入。
+
+- 点「浏览器」可操作隔离 Edge，点旁边的 Claude 图标可打开 claude.ai。
+- 点「项目」选择要共享的宿主目录，确认读写权限后保存。已授权项目可在隔离 VS Code 打开。Windows 的完整性保护可能进一步限制编辑器对宿主目录的写入。
+- 点「Claude 账号管理」可添加或切换档案、查看登录状态。登录及额度查询需要可用的 Cage 节点。打开新的 PowerShell 时，Claude Code 会使用当前选定的账号档案。
+- 点「Tailscale」查看专用账户的节点状态。连网后可登录私网，管理获准通过 SSH 登录此节点的公钥。关闭窗口会结束本次节点进程。
+- 点「SSH → 连接远程主机」可创建专用 SSH 密钥，在手动应用的 Cage 代理节点上向一个指定的公网地址逐条执行远程命令。连接前需要目标服务器的主机公钥，并在目标账号上授权专用账户公钥。此模式使用非交互式密钥认证，每条命令建立独立连接。
+- 首次联网时，进入「设置 → 网络与代理」，从本地配置导入或手动填写节点，选中节点后点「应用代理」。隔离应用会在出口验证通过后联网。停止代理或验证失败会关闭出口。
+
+可按需用 `Install-CageLocalProxyCore.ps1` 准备受支持的离线代理核心，用 `Install-CageLocalServices.ps1 -CageResources <Cage资源目录>` 准备本机已安装的 Claude Code、Git Bash 和 Cage 私网组件。选好节点并取得官方 Windows x64 安装包后，进入「Claude Desktop」，点「选择官方安装包」，在系统对话框中选择 .msix 文件。工作台核验签名、包清单和账户归属后可打开应用。命令行也可使用 `Import-CageLocalDesktop.ps1 -PackagePath <本机MSIX路径>`，导入后在页面点「重新检查安装状态」。
+
+关闭原型窗口会请求退出本次工作台。开发调试可使用 `-NoBrowser` 创建独立的临时工作台配置，取得一次性入口、进程号与配置路径，再以 `-StopConfigPath` 传入同一配置路径退出。前端或 Go 源码变动后使用 `-RebuildBackend` 更新工作台。
+
+如需继续使用早期原型的 Cage 登录和 Edge 窗口资料，启动时用 `-ResumeConfigPath` 指定当时的 `_output/windows-local/run-…/config.json`。脚本会在原目录中打开工作台。
 
 ## 架构分层
 
@@ -106,23 +138,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows-local\Teardo
 4. **会话边界与对象清理**：默认使用独立私有桌面并省略 `WinSta0` 的 `WINSTA_ACCESSCLIPBOARD` 权限；针对跨用户 `CreateProcessWithLogonW` 在交互会话中所需的 `WinSta0`、`\Sessions\<id>\BaseNamedObjects`、`\Sessions\<id>\AppContainerNamedObjects` 与 `\Device\NamedPipe\Sessions\<id>\AppContainerNamedObjects` 临时权限（同时覆盖 `workerSid` 与临时登录会话 `workerLogonSid`），均在 `LocalWorkerSession.Dispose()` 时恢复为会话前原 DACL；`WaitForJobDrain` 确保退出时 `lingeringWorkerProcesses == 0`。
 5. **报告脱敏**：`verify-local.ps1` 中的 `Protect-VerificationJson` 会在生成 [verification-phase1.json](verification-phase1.json) 前剥离 `hostStateBefore`/`hostStateAfter` 并替换宿主用户名、机器名、`S-1-5-21-...` SID、宿主与 worker 本地路径及工作区绝对路径，确保仓库文档与验证文件不泄露主机隐私。
 
-## Phase 2：接入 Cage 工作台（`mode: "local"`）实施规划
+## 工作台接线与后续范围
 
-以下为后续在分支或工作台主干接入 `mode: "local"` 的具体落点（**当前尚未实现与验证**）：
+Windows 原型由 `Start-CageLocalWorkbench.ps1` 显式启用。绑定保存在当前工作台的配置目录内。普通 Cage、macOS 和 Linux 继续使用各自已有的运行环境。
 
-1. **Profile 识别与命令分流（`internal/guestos/windows_profile.go`）**
-   - 扩展 `WindowsProfile.Mode` 校验（目前仅允许 `""` / `"hyperv"` / `"remote"`），新增 `"local"` 与 `func (p *WindowsProfile) Local() bool`。
-   - `local` 绑定使用已有的 `VMID`（对应 `instanceId`）、`GUIUserSID`（对应 `workerSid`）、`GUIUser`（对应 `workerUsername`）、`InstanceDirectory`（`rootDir`）、`RelayExecutable` 与 `PairingFile`（`worker.dpapi` / `local-profile.json`），不要求 Hyper-V `MachineID` 或 `NetworkPairingFile`。
-   - 在 `WindowsRelayCommand` 中为 `p.Local()` 接入受控操作路由，保持路径参数只通过 `stdin` 传递、不经命令行暴露凭据。
-2. **服务器状态与生命周期（`internal/workbench/server.go`、`runtime.go`、`windows_guest.go`）**
-   - 在 `server.go` 中识别 `s.windowsGuest.Local()`，对外暴露对应的 `guest_system` 与能力矩阵。
-   - 在 `runtime.go`（`environmentPrepared`、`attach`、`startEnvironment`、`stopEnvironment`、`apply`）与 `windows_guest.go`（`windowsStatus`、`attachWindowsGuestContext`、`startWindowsGuest`、`stopWindowsGuest`、`windowsCapabilitiesLocked`）增加 `Local()` 分支：
-     - 跳过 `guestos.InspectHyperV`（Hyper-V 二代机、SecureBoot、vTPM、零网卡检查）及云端 `appcontainer-headless` / Session 0 校验；
-     - 改为核验本地 `LocalProfileModel`、DPAPI/ACL 完整性、WFP 7/7 规则状态（`allVerified`）与 `LocalWorkerSession` 会话健康度；
-     - 能力状态按实际已接入组件逐步放开，未接入项保持不可用。
-3. **项目授权与工作台组件 RPC 复用（`internal/workbench/windows_projects.go`、`windows_cli.go`、`windows_terminal.go`、`windows_browser_client.go`、`scripts/guest-os/guest-clipboard-windows/`）**
-   - **项目共享**：在 `projects.go` `ensureProjectShare` / `windows_projects.go` 中对 `Local()` 模式调用 `CageLocal.exe grant-share --access <ro|rw|revoke>` 替代 Hyper-V `reversesshfs` 挂载链路。
-   - **认证命名管道与组件宿主**：在 Phase 1 已打通的 `LocalWorkerSession` 标准账户会话 + 私有桌面内托管组件进程，复用 `scripts/guest-os/guest-clipboard-windows/Program.cs` 的 `GuestOperations` 注册表与 `LocalGuestTransport.cs` 的命名管道 ACL 护栏（禁用继承、显式拒绝 `NetworkSid`、只允许 `workerSid` + `SYSTEM` + `Administrators`、`TokenImpersonationLevel.Identification`）。对同机 `mode: "local"` 跳过或重绑定 `LocalGuestTransport.VerifyMachine` 检查，使现有 `terminal`、`cli`、`browser`、`desktop`、`attachments`、`cache-maintenance` 等协议逐项落地。
-4. **受控出口、真实上游与时区一致性（`internal/workbench/windows_safety.go`、`windows_network.go`、`internal/managedproxy`）**
-   - 将 Phase 1 的合成源站 `SyntheticOriginServer` 替换为接入 `internal/managedproxy` 的受控上游出口与受控 DNS 解析，并将 `LocalProxyBroker.SetGateOpen` 与工作台安全闸门（`cage.GateClient`）联动，同时把 `windows_safety.go` 的观测逻辑对接 `LocalWorkerDaemon` 实际边界读回，不沿用 Hyper-V 无网卡或 `windows-remote` 策略结论。
-   - 补齐浏览器/应用级时区一致性方案（解决 Phase 1 观测到的 Chromium/Edge ICU JS 时区读取宿主系统时区问题）。
+- `internal/workbench/windows_local_prototype.go` 校验账户并提供能力状态。`windows_local_terminal.go`、`windows_local_browser.go`、`windows_local_apps.go` 和 `windows_local_projects.go` 承接登录后同源工作台操作。
+- `LocalWorkbenchTerminal.cs`、`LocalWorkbenchBrowser.cs`、`LocalWorkbenchApps.cs` 和 `LocalWorkbenchServices.cs` 在专用账户会话内启动相应组件。
+- `windows_local_network.go` 和 `LocalWorkbenchNetwork.cs` 将本次会话的代理转发到工作台选定的 Cage 节点。每一跳须提供公网 IPv4 地址，支持用独立 TLS 域名校验证书。
+- 尚待实测的项目包括真实账号登录、节点出口、SSH 私网连接和 Claude Desktop 日常使用。Chromium 时区、并行会话及文件传输的覆盖情况见 [STATUS.md](STATUS.md)。

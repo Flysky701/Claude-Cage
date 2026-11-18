@@ -178,6 +178,9 @@ namespace CageLocalTool
         internal static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
 
         [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint clientPid);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -884,6 +887,10 @@ namespace CageLocalTool
                 pipe.Connect(15000);
                 using (StreamReader reader = new StreamReader(pipe, Utf8NoBom, false, 65536, true))
                 using (StreamWriter writer = new StreamWriter(pipe, Utf8NoBom, 65536, true))
+                using (WorkerTerminal terminal = new WorkerTerminal())
+                using (WorkerServices services = new WorkerServices())
+                using (WorkerBrowser browser = new WorkerBrowser())
+                using (WorkerApp app = new WorkerApp())
                 {
                     writer.AutoFlush = true;
                     string selfLogonSid = QueryProcessLogonSid(Process.GetCurrentProcess().Handle);
@@ -956,6 +963,51 @@ namespace CageLocalTool
                             {
                                 resp["ok"] = true;
                                 resp["result"] = WorkerRing2Exec(req, localAppDataDir, brokerPort, timezoneIana, actualDesktop);
+                            }
+                            else if (op == "app-open")
+                            {
+                                resp["result"] = app.Open(req, profileDir, appDataDir, localAppDataDir, tempDir, brokerPort, timezoneIana, actualDesktop, (string)selfToken["userSid"]);
+                                resp["ok"] = true;
+                            }
+                            else if (op == "app-frame" || op == "app-input")
+                            {
+                                resp["result"] = op == "app-frame" ? app.Frame() : app.Input(req);
+                                resp["ok"] = true;
+                            }
+                            else if (op == "service-open")
+                            {
+                                services.Open((string)req["service"], profileDir, appDataDir, localAppDataDir, tempDir, brokerPort, timezoneIana);
+                                resp["ok"] = true;
+                            }
+                            else if (op == "service-action")
+                            {
+                                resp["result"] = services.Action(req);
+                                resp["ok"] = true;
+                            }
+                            else if (op == "terminal-open")
+                            {
+                                resp["result"] = terminal.Open(profileDir, appDataDir, localAppDataDir, brokerPort, timezoneIana, actualDesktop, (string)selfToken["userSid"]);
+                                resp["ok"] = true;
+                            }
+                            else if (op == "browser-close")
+                            {
+                                browser.Dispose();
+                                resp["ok"] = true;
+                            }
+                            else if (op == "browser-open" || op == "browser-action")
+                            {
+                                resp["result"] = op == "browser-open" ? browser.Open(profileDir, appDataDir, localAppDataDir, brokerPort, timezoneIana, actualDesktop, req.ContainsKey("signIn") && Object.Equals(req["signIn"], true)) : browser.Action(req);
+                                resp["ok"] = true;
+                            }
+                            else if (op == "terminal-read")
+                            {
+                                resp["result"] = terminal.Read();
+                                resp["ok"] = true;
+                            }
+                            else if (op == "terminal-input")
+                            {
+                                terminal.Input((string)req["text"]);
+                                resp["ok"] = true;
                             }
                             else
                             {
@@ -1868,6 +1920,8 @@ namespace CageLocalTool
             private readonly NamedPipeServerStream pipeServer;
             private StreamReader pipeReader;
             private StreamWriter pipeWriter;
+            private Mutex desktopAccessLock;
+            private bool ownsDesktopAccessLock;
             private readonly string secretHex;
             private int nextId;
             private bool disposed;
@@ -1876,7 +1930,7 @@ namespace CageLocalTool
             internal IntPtr JobHandle { get { return hJob; } }
             internal Dictionary<string, object> HandshakeInfo { get; private set; }
 
-            internal LocalWorkerSession(LocalProfileModel profile, string timezoneIana, bool useDefaultDesktop)
+            internal LocalWorkerSession(LocalProfileModel profile, string timezoneIana, bool useDefaultDesktop, bool refreshTerminalWorker = false)
             {
                 this.profile = profile;
                 byte[] cipherPwd = File.ReadAllBytes(profile.credentialFile);
@@ -1888,6 +1942,15 @@ namespace CageLocalTool
                 ProcessInformation pi = new ProcessInformation();
                 try
                 {
+                    // These DACLs are shared by all profiles on this Windows desktop.
+                    // Serialize both the workbench probe and the compatibility suite.
+                    desktopAccessLock = new Mutex(false, @"Local\CageLocal.DesktopAccess");
+                    try { ownsDesktopAccessLock = desktopAccessLock.WaitOne(0); }
+                    catch (AbandonedMutexException) { ownsDesktopAccessLock = true; }
+                    if (!ownsDesktopAccessLock)
+                    {
+                        throw new InvalidOperationException("Another Cage local session is already using this desktop.");
+                    }
                     hWinSta = GetProcessWindowStation();
                     originalWinStaDacl = GrantWinStaWorkerAccess(hWinSta, profile.workerSid);
                     int sessionId = Process.GetCurrentProcess().SessionId;
@@ -1931,6 +1994,7 @@ namespace CageLocalTool
                     {
                         throw new FileNotFoundException("Worker binary missing in provisioned binDir.", workerExe);
                     }
+                    if (refreshTerminalWorker) RefreshTerminalWorker(workerExe, profile.controllerSid);
 
                     string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
                     string sysDir = Environment.SystemDirectory;
@@ -1979,8 +2043,6 @@ namespace CageLocalTool
                     CheckWin32(ResumeThread(pi.hThread) != uint.MaxValue, "ResumeThread(daemon)");
                     CloseHandle(pi.hThread);
                     pi.hThread = IntPtr.Zero;
-                    CloseHandle(pi.hProcess);
-                    pi.hProcess = IntPtr.Zero;
 
                     IAsyncResult waitPipe = pipeServer.BeginWaitForConnection(null, null);
                     if (!waitPipe.AsyncWaitHandle.WaitOne(15000))
@@ -1988,11 +2050,17 @@ namespace CageLocalTool
                         throw new TimeoutException("Timed out waiting for CageLocal worker-daemon pipe connection.");
                     }
                     pipeServer.EndWaitForConnection(waitPipe);
+                    uint clientPid;
+                    CheckWin32(GetNamedPipeClientProcessId(pipeServer.SafePipeHandle, out clientPid), "GetNamedPipeClientProcessId");
+                    if (clientPid != (uint)pi.dwProcessId)
+                    {
+                        throw new UnauthorizedAccessException("The connected pipe client is not the launched worker.");
+                    }
                     pipeReader = new StreamReader(pipeServer, Utf8NoBom, false, 65536, true);
                     pipeWriter = new StreamWriter(pipeServer, Utf8NoBom, 65536, true);
                     pipeWriter.AutoFlush = true;
 
-                    string helloLine = pipeReader.ReadLine();
+                    string helloLine = ReadReplyWithTimeout();
                     if (string.IsNullOrEmpty(helloLine))
                     {
                         throw new EndOfStreamException("Worker daemon closed pipe before auth.");
@@ -2003,8 +2071,11 @@ namespace CageLocalTool
                     {
                         throw new UnauthorizedAccessException("Worker daemon failed pipe authentication.");
                     }
+                    // This private response comes from the process handle held above,
+                    // identified by the kernel's pipe-client PID and the one-time nonce.
                     string workerLogonSid = hello.ContainsKey("logonSid") ? Convert.ToString(hello["logonSid"]) : "";
-                    if (string.IsNullOrEmpty(workerLogonSid) || !System.Text.RegularExpressions.Regex.IsMatch(workerLogonSid, @"\AS-1-5-5-[0-9]+-[0-9]+\z"))
+                    if (!hello.ContainsKey("userSid") || !string.Equals(profile.workerSid, Convert.ToString(hello["userSid"]), StringComparison.OrdinalIgnoreCase) ||
+                        !System.Text.RegularExpressions.Regex.IsMatch(workerLogonSid, @"\AS-1-5-5-[0-9]+-[0-9]+\z"))
                     {
                         throw new InvalidOperationException("Worker daemon failed to report valid logon SID.");
                     }
@@ -2022,6 +2093,7 @@ namespace CageLocalTool
                 }
                 catch
                 {
+                    if (pi.hProcess != IntPtr.Zero) TerminateProcess(pi.hProcess, 1);
                     Dispose();
                     throw;
                 }
@@ -2040,7 +2112,17 @@ namespace CageLocalTool
                 return pids.Contains(pid);
             }
 
-            internal Dictionary<string, object> Call(string op, Dictionary<string, object> payload)
+            private string ReadReplyWithTimeout(int milliseconds = 5000)
+            {
+                var reply = pipeReader.ReadLineAsync();
+                if (!reply.Wait(milliseconds))
+                {
+                    throw new TimeoutException("Timed out waiting for the isolated worker.");
+                }
+                return reply.Result;
+            }
+
+            internal Dictionary<string, object> Call(string op, Dictionary<string, object> payload, int replyTimeoutMs = 0)
             {
                 Dictionary<string, object> req = payload != null
                     ? new Dictionary<string, object>(payload)
@@ -2050,7 +2132,8 @@ namespace CageLocalTool
                 req["op"] = op;
                 pipeWriter.WriteLine(ToJson(req));
 
-                string line = pipeReader.ReadLine();
+                if (replyTimeoutMs == 0 && (op == "inspect" || op == "shutdown")) replyTimeoutMs = 5000;
+                string line = replyTimeoutMs > 0 ? ReadReplyWithTimeout(replyTimeoutMs) : pipeReader.ReadLine();
                 if (string.IsNullOrEmpty(line))
                 {
                     throw new EndOfStreamException("Worker daemon pipe closed during op: " + op);
@@ -2073,12 +2156,12 @@ namespace CageLocalTool
                 disposed = true;
                 if (pipeWriter != null)
                 {
-                    try { Call("shutdown", null); } catch { }
+                    if (HandshakeInfo != null) { try { Call("shutdown", null); } catch { } }
                     try { pipeWriter.Dispose(); } catch { }
                 }
                 if (pipeReader != null) { try { pipeReader.Dispose(); } catch { } }
                 if (pipeServer != null) { try { pipeServer.Dispose(); } catch { } }
-                if (hJob != IntPtr.Zero) { try { WaitForJobDrain(hJob, 2000); CloseHandle(hJob); } catch { } }
+                if (hJob != IntPtr.Zero) { try { WaitForJobDrain(hJob, 2000); } catch { } finally { CloseHandle(hJob); } }
                 if (hDesktop != IntPtr.Zero) { try { CloseDesktop(hDesktop); } catch { } }
                 RestoreAndCloseNtObject(hPipeAppContainerNamedObjects, originalPipeAppContainerNamedDacl);
                 RestoreAndCloseNtObject(hAppContainerNamedObjects, originalAppContainerNamedDacl);
@@ -2087,6 +2170,8 @@ namespace CageLocalTool
                 {
                     try { SetObjectDacl(hWinSta, originalWinStaDacl); } catch { }
                 }
+                if (ownsDesktopAccessLock) desktopAccessLock.ReleaseMutex();
+                if (desktopAccessLock != null) desktopAccessLock.Dispose();
             }
         }
     }

@@ -1,7 +1,13 @@
 // Package agentvm holds the files of this repository the binary embeds.
 package agentvm
 
-import _ "embed"
+import "embed"
+
+// WindowsLocalDesktopScripts contains the controller-side scripts used to
+// verify and import the official package selected in the local workbench.
+//
+//go:embed tools/windows-local/Import-CageLocalDesktop.ps1 scripts/guest-os/claude-desktop-windows.ps1
+var WindowsLocalDesktopScripts embed.FS
 
 // CageVersion is the default version for source builds without linker flags.
 // Release builds may override internal/version.Version explicitly.

@@ -1,0 +1,7 @@
+.windows-local-app { display:flex; flex-direction:column; height:100%; min-height:0; background:var(--paper); }
+.windows-local-app-view { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.windows-local-app-view img { display:block; max-height:100%; max-width:100%; width:auto; height:auto; cursor:default; }
+.windows-local-app-view img:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
+.windows-local-app form { padding:6px 10px; display:flex; gap:8px; align-items:center; border-top:1px solid var(--line); }
+.windows-local-app input { flex:1; min-width:0; }
+.windows-local-app-message { margin:auto; text-align:center; }

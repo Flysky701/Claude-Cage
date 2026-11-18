@@ -58,6 +58,15 @@ type RemoteEntry struct {
 }
 
 func (s *Server) remoteManifest(w http.ResponseWriter, r *http.Request) {
+	if p := s.windowsLocal; p != nil {
+		c := p.components.Load()
+		active := p.active.Load() != nil
+		jsonReply(w, RemoteEntry{APIProtocol: remoteAPIProtocol, InstanceID: s.instanceID, Version: version.Version,
+			Platform: runtime.GOOS, Runtime: "windows-local", Origin: s.origin,
+			Capabilities: map[string]bool{"projects_browse": false, "terminal": active, "browser": active && c != nil && c.BrowserInstalled,
+				"desktop": active && c != nil && c.DesktopInstalled, "audio": false}})
+		return
+	}
 	if s.windowsGuest != nil && s.windowsGuest.Remote() {
 		s.mu.Lock()
 		available := s.windowsCapabilitiesLocked()["available"].(map[string]bool)

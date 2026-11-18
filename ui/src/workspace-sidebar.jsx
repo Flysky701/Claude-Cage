@@ -53,6 +53,8 @@ export function WorkspaceSidebar({
   busy,
   ready,
   running,
+  terminalAvailable = running,
+  desktopAvailable = running,
   runtimeLabel,
   network,
   onHome,
@@ -72,6 +74,8 @@ export function WorkspaceSidebar({
   onBrowser,
   onTailscale,
   tailscaleOpen,
+  onLocalSSH,
+  localSSHOpen,
   onClaudeAccounts,
   claudeAccountsOpen,
   onClaudeWeb,
@@ -143,11 +147,13 @@ export function WorkspaceSidebar({
             <img src={claudeLogo} width="18" height="18" alt="" />
           </button>
         </div>
-        <button className={`sidebar-link ${tailscaleOpen ? "selected" : ""}`} aria-current={tailscaleOpen ? "page" : undefined} onClick={onTailscale} aria-label="打开 Tailscale"><Network size={17} />Tailscale</button>
-        {ssh && <button className="sidebar-link ssh-navigation" onClick={ssh.open} aria-label="SSH 主机"><Server size={17} />SSH</button>}
-        <button className={`sidebar-link ${desktopOpen ? "selected" : ""}`} onClick={onClaudeDesktop} disabled={!running || busy} title="安装或打开 Claude Desktop"><Monitor size={17} />Claude Desktop</button>
+        <button className={`sidebar-link ${tailscaleOpen ? "selected" : ""}`} aria-current={tailscaleOpen ? "page" : undefined} onClick={onTailscale} disabled={!onTailscale} aria-label="打开 Tailscale"><Network size={17} />Tailscale</button>
+        {(onLocalSSH || ssh) && <button className={`sidebar-link ssh-navigation ${localSSHOpen ? "selected" : ""}`}
+          onClick={onLocalSSH || ssh.open} aria-current={localSSHOpen ? "page" : undefined}
+          aria-label={onLocalSSH ? "隔离节点 SSH" : "SSH 主机"}><Server size={17} />SSH</button>}
+        <button className={`sidebar-link ${desktopOpen ? "selected" : ""}`} onClick={onClaudeDesktop} disabled={!desktopAvailable || busy} title="安装或打开 Claude Desktop"><Monitor size={17} />Claude Desktop</button>
         <button className={`sidebar-link ${claudeAccountsOpen ? "selected" : ""}`} onClick={onClaudeAccounts}
-          aria-current={claudeAccountsOpen ? "page" : undefined}>
+          disabled={!onClaudeAccounts} aria-current={claudeAccountsOpen ? "page" : undefined}>
           <UsersRound size={17} />Claude 账号管理
         </button>
       </nav>
@@ -235,7 +241,7 @@ export function WorkspaceSidebar({
                 <button
                   className="icon-button"
                   aria-label={`打开 ${project} 的编辑器`}
-                  title="在 code-server 中打开项目目录"
+                  title={guestSystem === "windows-local" ? "在隔离编辑器中打开项目目录" : "在 code-server 中打开项目目录"}
                   disabled={!ready || busy || !editorAvailable}
                   onClick={() => onEditor(path)}
                 >
@@ -245,9 +251,9 @@ export function WorkspaceSidebar({
                   className="icon-button"
                   aria-label={`在 ${project} 新建终端`}
                   title="新建终端"
-                  aria-haspopup="menu"
+                  aria-haspopup={guestSystem === "windows-local" ? undefined : "menu"}
                   data-terminal-location={path}
-                  disabled={!running || busy}
+                  disabled={!terminalAvailable || busy}
                   onClick={(event) => {
                     setCollapsed((previous) => ({
                       ...previous,
@@ -311,7 +317,7 @@ export function WorkspaceSidebar({
                       {showAllSessions ? "收起显示" : "展开显示"}
                     </button>
                   )}
-                  {!rows.length && !running && (
+                  {!rows.length && !terminalAvailable && (
                     <p className="sidebar-empty">启动后可新建终端</p>
                   )}
                 </div>
@@ -324,7 +330,7 @@ export function WorkspaceSidebar({
         )}
       </div>
       <div className="sidebar-bottom">
-        <button className="sidebar-status" onClick={onSafety}>
+        <button className="sidebar-status" onClick={onSafety} disabled={!onSafety}>
           <i className={`status-dot ${network.mode}`} />
           <span>{healthy ? "环境运行正常" : runtimeLabel}</span>
           <EnvironmentShield size={17} healthy={healthy} />

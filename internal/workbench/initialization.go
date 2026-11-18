@@ -19,13 +19,18 @@ type initializationRecord struct {
 }
 
 type initializationView struct {
-	Required bool `json:"required"`
-	Started  bool `json:"started"`
-	Tracked  bool `json:"tracked"`
-	Prepared bool `json:"prepared"`
+	WindowsLocalPrototype bool `json:"windows_local_prototype,omitempty"`
+	Required              bool `json:"required"`
+	Started               bool `json:"started"`
+	Tracked               bool `json:"tracked"`
+	Prepared              bool `json:"prepared"`
 }
 
 func (s *Server) initializationState() (initializationView, error) {
+	if p := s.windowsLocal; p != nil {
+		active := p.active.Load() != nil
+		return initializationView{WindowsLocalPrototype: true, Required: !active, Prepared: active}, nil
+	}
 	if !s.localVMStorage() || s.storageRecoveryStatus().Required {
 		return initializationView{}, nil
 	}
@@ -90,7 +95,7 @@ func (s *Server) initialization(w http.ResponseWriter, r *http.Request) {
 		jsonReply(w, state)
 		return
 	}
-	if !s.hasTrustedView(r) || !s.localVMStorage() {
+	if s.windowsLocal == nil && (!s.hasTrustedView(r) || !s.localVMStorage()) {
 		http.Error(w, "请在本机 Cage 窗口完成初始化", http.StatusForbidden)
 		return
 	}
@@ -105,6 +110,18 @@ func (s *Server) initialization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.op.Unlock()
+	if p := s.windowsLocal; p != nil {
+		if input.Action != "enter-windows-local" {
+			http.Error(w, "请从首次设置进入本地账户工作台。", http.StatusConflict)
+			return
+		}
+		if err := p.activate(r.Context(), true); err != nil {
+			requestError(w, err)
+			return
+		}
+		jsonReply(w, map[string]bool{"completed": true})
+		return
+	}
 	if s.busy() {
 		http.Error(w, "环境操作仍在进行，请等待完成后继续", http.StatusConflict)
 		return
