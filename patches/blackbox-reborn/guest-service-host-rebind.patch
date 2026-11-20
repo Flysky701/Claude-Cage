@@ -1,0 +1,110 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
+@@ -147,6 +147,24 @@
+         
+     }
+ 
++    public void onRebind(Intent proxyIntent) {
++        ProxyServiceRecord stub = ProxyServiceRecord.create(proxyIntent);
++        Intent intent = stub.mServiceIntent;
++        if (intent == null) return;
++        ServiceRecord record = findRecord(intent);
++        if (!hasPublishedBinding(stub, record)) return;
++
++        Service service = record.getService();
++        intent.setExtrasClassLoader(service.getClassLoader());
++        record.incrementAndGetBindCount(intent);
++        if (record.takeRebind(intent)) service.onRebind(intent);
++    }
++
++    private boolean hasPublishedBinding(ProxyServiceRecord stub, ServiceRecord record) {
++        return record != null && record.getService() != null && stub.mToken != null
++                && stub.mToken.equals(record.getToken()) && record.hasBinder(stub.mServiceIntent);
++    }
++
+     public boolean onUnbind(Intent proxyIntent) {
+         ProxyServiceRecord stubRecord = ProxyServiceRecord.create(proxyIntent);
+         Intent intent = stubRecord.mServiceIntent;
+@@ -155,11 +173,11 @@
+         try {
+             UnbindRecord state = BlackBoxCore.getBActivityManager().onServiceUnbind(proxyIntent, stubRecord.mUserId);
+             ServiceRecord record = findRecord(intent);
+-            if (state == null || record == null || record.getService() == null) return false;
++            if (state == null || !hasPublishedBinding(stubRecord, record)) return false;
+             Service service = record.getService();
+             intent.setExtrasClassLoader(service.getClassLoader());
+             if (record.decreaseConnectionCount(intent)) {
+-                boolean rebind = service.onUnbind(intent);
++                boolean rebind = record.takeGuestBound(intent) && service.onUnbind(intent);
+                 // The guest callback can itself change the started state.
+                 UnbindRecord afterCallback = BlackBoxCore.getBActivityManager()
+                         .onServiceUnbind(proxyIntent, stubRecord.mUserId);
+@@ -167,10 +185,13 @@
+                         && afterCallback.getBindCount() == 0 && !record.hasConnections()) {
+                     destroyService(proxyIntent, intent, record, stubRecord.mUserId,
+                             afterCallback.getCancelledStartId());
+-                } else {
+-                    record.setRebind(intent, rebind);
+-                }
+-            }
++                    return false;
++                }
++                record.setRebind(intent, rebind);
++            }
++            // The host must notify us when Android reuses its cached Binder,
++            // independently of whether the guest requested onRebind.
++            return true;
+         } catch (Throwable error) {
+             error.printStackTrace();
+         }
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/proxy/ProxyService.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/proxy/ProxyService.java
+@@ -56,8 +56,12 @@
+ 
+     @Override
+     public boolean onUnbind(Intent intent) {
+-        AppServiceDispatcher.get().onUnbind(intent);
+-        return false;
++        return AppServiceDispatcher.get().onUnbind(intent);
++    }
++
++    @Override
++    public void onRebind(Intent intent) {
++        AppServiceDispatcher.get().onRebind(intent);
+     }
+ 
+     @Override
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/entity/ServiceRecord.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/entity/ServiceRecord.java
+@@ -19,6 +19,7 @@
+     public class BoundInfo {
+         private IBinder mIBinder;
+         private boolean mPublished;
++        private boolean mGuestBound;
+         private boolean mRebind;
+         private AtomicInteger mBindCount = new AtomicInteger(0);
+ 
+@@ -37,6 +38,7 @@
+         public void setIBinder(IBinder IBinder) {
+             mIBinder = IBinder;
+             mPublished = true;
++            mGuestBound = true;
+         }
+     }
+ 
+@@ -125,7 +127,15 @@
+         BoundInfo binding = getOrCreateBoundInfo(intent);
+         boolean rebind = binding.mRebind;
+         binding.mRebind = false;
++        if (rebind) binding.mGuestBound = true;
+         return rebind;
++    }
++
++    public boolean takeGuestBound(Intent intent) {
++        BoundInfo binding = getOrCreateBoundInfo(intent);
++        boolean guestBound = binding.mGuestBound;
++        binding.mGuestBound = false;
++        return guestBound;
+     }
+ 
+     public void setRebind(Intent intent, boolean rebind) {

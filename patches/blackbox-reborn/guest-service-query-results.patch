@@ -1,0 +1,107 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
+@@ -11,6 +11,7 @@
+ import android.os.IBinder;
+ import android.os.RemoteException;
+ 
++import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+@@ -231,28 +232,57 @@
+     }
+ 
+     public RunningServiceInfo getRunningServiceInfo(String callerPackage, int userId) {
++        RunningServiceInfo result = new RunningServiceInfo();
++        if (callerPackage == null) return result;
++
++        List<ActivityManager.RunningServiceInfo> ownServices = new ArrayList<>();
++        synchronized (mRunningServiceRecords) {
++            for (RunningServiceRecord record : mRunningServiceRecords.values()) {
++                ServiceInfo service = record.mServiceInfo;
++                if (service != null && callerPackage.equals(service.packageName)) {
++                    ActivityManager.RunningServiceInfo info = new ActivityManager.RunningServiceInfo();
++                    info.service = new ComponentName(service.packageName, service.name);
++                    info.process = service.processName;
++                    info.started = record.mStarted;
++                    info.clientCount = record.mBindCount.get();
++                    ownServices.add(info);
++                }
++            }
++        }
++
+         ActivityManager manager = (ActivityManager)
+                 BlackBoxCore.getContext().getSystemService(Context.ACTIVITY_SERVICE);
+-        List<ActivityManager.RunningServiceInfo> runningServices = manager.getRunningServices(Integer.MAX_VALUE);
+-        Map<Integer, ActivityManager.RunningServiceInfo> serviceInfoMap = new HashMap<>();
+-        for (ActivityManager.RunningServiceInfo runningService : runningServices) {
+-            serviceInfoMap.put(runningService.pid, runningService);
+-        }
+-
+-        RunningServiceInfo info = new RunningServiceInfo();
+-        for (RunningServiceRecord value : mRunningServiceRecords.values()) {
+-            ServiceInfo serviceInfo = value.mServiceInfo;
+-            ProcessRecord processRecord = BProcessManagerService.get().findProcessRecord(callerPackage, serviceInfo.processName, userId);
+-            if (processRecord == null)
+-                continue;
+-            ActivityManager.RunningServiceInfo runningServiceInfo = serviceInfoMap.get(processRecord.pid);
+-            if (runningServiceInfo != null) {
+-                runningServiceInfo.process = processRecord.processName;
+-                runningServiceInfo.service = new ComponentName(serviceInfo.packageName, serviceInfo.name);
+-                info.mRunningServiceInfoList.add(runningServiceInfo);
+-            }
+-        }
+-        return info;
++        Map<Integer, ActivityManager.RunningServiceInfo> hostServices = new HashMap<>();
++        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
++            hostServices.put(service.pid, service);
++        }
++
++        for (ActivityManager.RunningServiceInfo info : ownServices) {
++            ProcessRecord process = BProcessManagerService.get()
++                    .findProcessRecord(callerPackage, info.process, userId);
++            if (process == null) continue;
++            ActivityManager.RunningServiceInfo hostService = hostServices.get(process.pid);
++            if (hostService == null) continue;
++            info.process = process.processName;
++            copyHostServiceFields(info, hostService);
++            result.mRunningServiceInfoList.add(info);
++        }
++        return result;
++    }
++
++    private static void copyHostServiceFields(
++            ActivityManager.RunningServiceInfo info, ActivityManager.RunningServiceInfo host) {
++        info.pid = host.pid;
++        info.uid = host.uid;
++        info.foreground = host.foreground;
++        info.activeSince = host.activeSince;
++        info.crashCount = host.crashCount;
++        info.lastActivityTime = host.lastActivityTime;
++        info.restarting = host.restarting;
++        info.flags = host.flags & ~ActivityManager.RunningServiceInfo.FLAG_STARTED;
++        if (info.started) info.flags |= ActivityManager.RunningServiceInfo.FLAG_STARTED;
++        info.clientPackage = host.clientPackage;
++        info.clientLabel = host.clientLabel;
+     }
+ 
+     public IBinder peekService(Intent intent, String resolvedType, int userId) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
+@@ -508,11 +508,15 @@
+ 
+         @Override
+         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
++            int maxNum = (int) args[0];
++            if (maxNum <= 0) return new ArrayList<>();
+             RunningServiceInfo runningServices = BActivityManager.get().getRunningServices(BActivityThread.getAppPackageName(), BActivityThread.getUserId());
+             if (runningServices == null) {
+                 return new ArrayList<>();
+             }
+-            return runningServices.mRunningServiceInfoList;
++            int size = runningServices.mRunningServiceInfoList.size();
++            if (size <= maxNum) return runningServices.mRunningServiceInfoList;
++            return new ArrayList<>(runningServices.mRunningServiceInfoList.subList(0, maxNum));
+         }
+     }
+ 

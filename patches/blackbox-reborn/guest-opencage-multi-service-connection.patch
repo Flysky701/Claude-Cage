@@ -1,0 +1,440 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/ServiceConnectionDelegate.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/delegate/ServiceConnectionDelegate.java
+@@ -9,46 +9,118 @@
+ import android.os.Build;
+ import android.os.Parcel;
+ 
++import java.util.ArrayList;
++import java.util.Collections;
+ import java.util.HashMap;
++import java.util.List;
+ import java.util.Map;
++import java.util.Objects;
+ 
+ import black.android.app.BRIServiceConnectionO;
+ import top.niunaijun.blackbox.utils.compat.BuildCompat;
+ 
+ 
+ public class ServiceConnectionDelegate extends IServiceConnection.Stub {
+-    private static final Map<IBinder, ServiceConnectionDelegate> sServiceConnectDelegate = new HashMap<>();
++    private static final Map<IBinder, ConnectionGroup> GROUPS = new HashMap<>();
+     private final IServiceConnection mConn;
+     private final ComponentName mComponentName;
++    private final int mUserId;
+ 
+-    private ServiceConnectionDelegate(IServiceConnection mConn, ComponentName targetComponent) {
+-        this.mConn = mConn;
+-        this.mComponentName = targetComponent;
++    private ServiceConnectionDelegate(IServiceConnection connection, ComponentName component, int userId) {
++        mConn = connection;
++        mComponentName = component;
++        mUserId = userId;
+     }
+ 
+-    public static ServiceConnectionDelegate getDelegate(IBinder iBinder) {
+-        return sServiceConnectDelegate.get(iBinder);
++    public int getUserId() {
++        return mUserId;
+     }
+ 
+-    public static IServiceConnection createProxy(IServiceConnection base, Intent intent) {
+-        final IBinder iBinder = base.asBinder();
+-        ServiceConnectionDelegate delegate = sServiceConnectDelegate.get(iBinder);
+-        if (delegate == null) {
+-            try {
+-                iBinder.linkToDeath(new IBinder.DeathRecipient() {
+-                    @Override
+-                    public void binderDied() {
+-                        sServiceConnectDelegate.remove(iBinder);
+-                        iBinder.unlinkToDeath(this, 0);
+-                    }
+-                }, 0);
+-            } catch (RemoteException e) {
+-                e.printStackTrace();
++    public static synchronized Binding acquire(IServiceConnection base, Intent intent,
++                                               String resolvedType, int userId) throws RemoteException {
++        IBinder binder = base.asBinder();
++        ConnectionGroup group = GROUPS.get(binder);
++        if (group == null) {
++            group = new ConnectionGroup(binder);
++            binder.linkToDeath(group, 0);
++            GROUPS.put(binder, group);
++        }
++
++        TargetKey target = new TargetKey(intent, resolvedType, userId);
++        ServiceConnectionDelegate delegate = group.delegates.get(target);
++        if (delegate != null) return new Binding(delegate, false);
++
++        delegate = new ServiceConnectionDelegate(base, intent.getComponent(), userId);
++        group.delegates.put(target, delegate);
++        return new Binding(delegate, true);
++    }
++
++    public static synchronized void discard(IBinder binder, Binding binding) {
++        ConnectionGroup group = GROUPS.get(binder);
++        if (group == null || !binding.created) return;
++        group.delegates.values().remove(binding.delegate);
++        if (group.delegates.isEmpty()) {
++            GROUPS.remove(binder);
++            binder.unlinkToDeath(group, 0);
++        }
++    }
++
++    public static synchronized List<ServiceConnectionDelegate> removeAll(IBinder binder) {
++        ConnectionGroup group = GROUPS.remove(binder);
++        if (group == null) return Collections.emptyList();
++        binder.unlinkToDeath(group, 0);
++        return new ArrayList<>(group.delegates.values());
++    }
++
++    public static final class Binding {
++        public final ServiceConnectionDelegate delegate;
++        public final boolean created;
++
++        private Binding(ServiceConnectionDelegate delegate, boolean created) {
++            this.delegate = delegate;
++            this.created = created;
++        }
++    }
++
++    private static final class ConnectionGroup implements IBinder.DeathRecipient {
++        final IBinder original;
++        final Map<TargetKey, ServiceConnectionDelegate> delegates = new HashMap<>();
++
++        ConnectionGroup(IBinder original) {
++            this.original = original;
++        }
++
++        @Override
++        public void binderDied() {
++            synchronized (ServiceConnectionDelegate.class) {
++                if (GROUPS.get(original) == this) GROUPS.remove(original);
+             }
+-            delegate = new ServiceConnectionDelegate(base, intent.getComponent());
+-            sServiceConnectDelegate.put(iBinder, delegate);
+         }
+-        return delegate;
++    }
++
++    private static final class TargetKey {
++        final Intent.FilterComparison intent;
++        final String resolvedType;
++        final int userId;
++
++        TargetKey(Intent target, String resolvedType, int userId) {
++            this.intent = new Intent.FilterComparison(new Intent(target));
++            this.resolvedType = resolvedType;
++            this.userId = userId;
++        }
++
++        @Override
++        public boolean equals(Object other) {
++            if (!(other instanceof TargetKey)) return false;
++            TargetKey key = (TargetKey) other;
++            return userId == key.userId && intent.equals(key.intent)
++                    && Objects.equals(resolvedType, key.resolvedType);
++        }
++
++        @Override
++        public int hashCode() {
++            return Objects.hash(intent, resolvedType, userId);
++        }
+     }
+ 
+     @Override
+@@ -99,7 +171,7 @@
+         if (BuildCompat.isOreo()) {
+             BRIServiceConnectionO.get(mConn).connected(mComponentName, service, dead);
+         } else {
+-            mConn.connected(name, service);
++            mConn.connected(mComponentName, service);
+         }
+     }
+ }
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
+@@ -17,6 +17,7 @@
+ import java.lang.ref.WeakReference;
+ import java.lang.reflect.Method;
+ import java.util.ArrayList;
++import java.util.List;
+ import java.util.Objects;
+ 
+ import black.android.app.BRActivityManagerNative;
+@@ -340,61 +341,75 @@
+                 ? requested.getComponent().getPackageName() : requested.getPackage();
+         boolean privateOnly = io.github.flysky701.cage.open.GuestServicePolicy.privateOnly(
+                 requestedPackage, requested == null ? null : requested.getAction());
+-        try {
+-            Intent intent = (Intent) args[2];
+-            String resolvedType = (String) args[3];
+-            IServiceConnection connection = (IServiceConnection) args[4];
+-
+-            if (intent == null) {
+-                Slog.w(TAG, "BindServiceCommon: Intent is null, proceeding with original call");
+-                return method.invoke(who, args);
+-            }
+-
+-            
+-
+-            int userId = intent.getIntExtra("_B_|_UserId", -1);
+-            userId = userId == -1 ? BActivityThread.getUserId() : userId;
+-            ResolveInfo resolveInfo = BlackBoxCore.getBPackageManager().resolveService(intent, 0, resolvedType, userId);
+-            if (privateOnly && resolveInfo == null) return 0;
+-            if (resolveInfo != null || AppSystemEnv.isOpenPackage(intent.getComponent())) {
+-                Intent proxyIntent = BlackBoxCore.getBActivityManager().bindService(intent,
+-                        connection == null ? null : connection.asBinder(),
+-                        resolvedType,
+-                        userId);
+-                if (connection != null) {
+-                    if (intent.getComponent() == null && resolveInfo != null) {
+-                        intent.setComponent(new ComponentName(resolveInfo.serviceInfo.packageName, resolveInfo.serviceInfo.name));
++        if (requested == null) return method.invoke(who, args);
++        String resolvedType = (String) args[3];
++        IServiceConnection connection = (IServiceConnection) args[4];
++        int requestedUserId = requested.getIntExtra("_B_|_UserId", -1);
++        int userId = requestedUserId == -1 ? BActivityThread.getUserId() : requestedUserId;
++        ResolveInfo resolved = BlackBoxCore.getBPackageManager().resolveService(requested, 0, resolvedType, userId);
++        if (resolved == null) {
++            if (privateOnly) return 0;
++            if (AppSystemEnv.isOpenPackage(requested.getComponent())) {
++                args[callingPackageIndex] = BlackBoxCore.getHostPkg();
++            }
++            return method.invoke(who, args);
++        }
++
++        Intent target = new Intent(requested).setComponent(
++                new ComponentName(resolved.serviceInfo.packageName, resolved.serviceInfo.name));
++        if (connection == null) {
++            return bindVirtualService(who, method, args, callingPackageIndex,
++                    target, resolvedType, userId, null);
++        }
++
++        IBinder original = connection.asBinder();
++        synchronized (original) {
++            // Serialize operations for this dispatcher only. Connection callbacks do not take this lock.
++            ServiceConnectionDelegate.Binding binding =
++                    ServiceConnectionDelegate.acquire(connection, target, resolvedType, userId);
++            boolean accepted = false;
++            try {
++                Object result = bindVirtualService(who, method, args, callingPackageIndex,
++                        target, resolvedType, userId, binding.delegate);
++                accepted = result instanceof Number && ((Number) result).intValue() > 0;
++                return result;
++            } finally {
++                if (!accepted && binding.created) {
++                    ServiceConnectionDelegate.discard(original, binding);
++                    try {
++                        BlackBoxCore.getBActivityManager().unbindService(binding.delegate.asBinder(), userId);
++                    } catch (RuntimeException error) {
++                        Slog.w(TAG, "Unable to roll back virtual service binding", error);
+                     }
+-                    IServiceConnection proxy = ServiceConnectionDelegate.createProxy(connection, intent);
+-                    args[4] = proxy;
+-
+-                    // Keep Android's ServiceConnection; unbindService maps the original Binder to this delegate.
+-                }
+-
+-                
+-                if (proxyIntent != null && proxyIntent.getComponent() != null && 
+-                    proxyIntent.getComponent().getPackageName().equals(BlackBoxCore.getHostPkg())){
+-                    int flagsIndex = getFlagsIndex(args);
+-                    if (flagsIndex >= 0) {
+-                        int flags = MethodParameterUtils.toInt(args[flagsIndex]);
+-                        flags &= ~Context.BIND_EXTERNAL_SERVICE;
+-                        args[flagsIndex] = flags;
+-                    }
+-                }
+-                args[callingPackageIndex] = BlackBoxCore.getHostPkg();
+-
+-                if (proxyIntent != null) {
+-                    args[2] = proxyIntent;
+-                    return method.invoke(who, args);
+-                }
+-            }
+-            if (privateOnly) return 0;
+-            return method.invoke(who, args);
+-        } catch (Exception e) {
+-            Slog.e(TAG, "BindServiceCommon: Unexpected error", e);
+-            if (privateOnly) return 0;
+-            return method.invoke(who, args);
+-        }
++                }
++            }
++        }
++    }
++
++    private static Object bindVirtualService(Object who, Method method, Object[] args,
++                                             int callingPackageIndex, Intent target, String resolvedType,
++                                             int userId, ServiceConnectionDelegate delegate) throws Throwable {
++        Intent proxyIntent = BlackBoxCore.getBActivityManager().bindService(target,
++                delegate == null ? null : delegate.asBinder(), resolvedType, userId);
++        if (proxyIntent == null || proxyIntent.getComponent() == null
++                || !BlackBoxCore.getHostPkg().equals(proxyIntent.getComponent().getPackageName())) {
++            return 0;
++        }
++
++        Object[] proxyArgs = args.clone();
++        proxyArgs[2] = proxyIntent;
++        proxyArgs[4] = delegate;
++        proxyArgs[callingPackageIndex] = BlackBoxCore.getHostPkg();
++        int flagsIndex = getFlagsIndex(proxyArgs);
++        if (flagsIndex >= 0) {
++            Object flags = proxyArgs[flagsIndex];
++            if (flags instanceof Long) {
++                proxyArgs[flagsIndex] = (Long) flags & ~(long) Context.BIND_EXTERNAL_SERVICE;
++            } else {
++                proxyArgs[flagsIndex] = (Integer) flags & ~Context.BIND_EXTERNAL_SERVICE;
++            }
++        }
++        return method.invoke(who, proxyArgs);
+     }
+ 
+     private static int getFlagsIndex(Object[] args) {
+@@ -460,12 +475,35 @@
+             if (iServiceConnection == null) {
+                 return method.invoke(who, args);
+             }
+-            BlackBoxCore.getBActivityManager().unbindService(iServiceConnection.asBinder(), BActivityThread.getUserId());
+-            ServiceConnectionDelegate delegate = ServiceConnectionDelegate.getDelegate(iServiceConnection.asBinder());
+-            if (delegate != null) {
+-                args[0] = delegate;
+-            }
+-            return method.invoke(who, args);
++            IBinder original = iServiceConnection.asBinder();
++            synchronized (original) {
++                List<ServiceConnectionDelegate> delegates = ServiceConnectionDelegate.removeAll(original);
++                if (delegates.isEmpty()) return method.invoke(who, args);
++
++                boolean unbound = false;
++                Throwable failure = null;
++                for (ServiceConnectionDelegate delegate : delegates) {
++                    try {
++                        BlackBoxCore.getBActivityManager().unbindService(delegate.asBinder(), delegate.getUserId());
++                    } catch (Exception error) {
++                        Slog.w(TAG, "Unable to release virtual service binding", error);
++                        if (failure == null) failure = error;
++                    }
++                    try {
++                        unbound |= Boolean.TRUE.equals(method.invoke(who, delegate));
++                    } catch (Exception error) {
++                        if (failure == null) failure = error;
++                    }
++                }
++                // A dispatcher may also have a platform-only binding.
++                try {
++                    unbound |= Boolean.TRUE.equals(method.invoke(who, args));
++                } catch (Exception error) {
++                    if (failure == null) failure = error;
++                }
++                if (failure != null) throw failure;
++                return unbound;
++            }
+         }
+     }
+ 
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
+@@ -114,45 +114,36 @@
+ 
+             if (binder != null) {
+                 ConnectedServiceRecord connectedService = mConnectedServices.get(binder);
+-                boolean isBound = false;
+-                if (connectedService != null) {
+-                    isBound = true;
+-                } else {
+-                    connectedService = new ConnectedServiceRecord();
++                if (connectedService == null) {
++                    connectedService = new ConnectedServiceRecord(binder, runningServiceRecord);
+                     try {
+-                        binder.linkToDeath(new IBinder.DeathRecipient() {
+-                            @Override
+-                            public void binderDied() {
+-                                binder.unlinkToDeath(this, 0);
+-                                mConnectedServices.remove(binder);
+-                            }
+-                        }, 0);
+-                    } catch (RemoteException e) {
+-                        e.printStackTrace();
++                        binder.linkToDeath(connectedService, 0);
++                    } catch (RemoteException dead) {
++                        return null;
+                     }
+-                    connectedService.mIBinder = binder;
+-                    connectedService.mIntent = intent;
+                     mConnectedServices.put(binder, connectedService);
+-                }
+-
+-                if (!isBound) {
+                     runningServiceRecord.incrementBindCountAndGet();
+                 }
+-                runningServiceRecord.mConnectedServiceRecord = connectedService;
+-            }
+-        }
+-        return createStubServiceIntent(intent, serviceInfo, processRecord, runningServiceRecord);
++            }
++        }
++        Intent stub = createStubServiceIntent(intent, serviceInfo, processRecord, runningServiceRecord);
++        // Android coalesces repeated binds to the same component and Intent filter.
++        stub.setAction(runningServiceRecord.mBindAction);
++        return stub;
+     }
+ 
+     public void unbindService(IBinder binder, int userId) {
+-        ConnectedServiceRecord connectedService = mConnectedServices.get(binder);
+-        if (connectedService == null) {
+-            return;
+-        }
+-        RunningServiceRecord runningServiceRecord = getOrCreateRunningServiceRecord(connectedService.mIntent);
+-        runningServiceRecord.mConnectedServiceRecord = null;
+-        runningServiceRecord.mBindCount.decrementAndGet();
+-        mConnectedServices.remove(binder);
++        synchronized (mRunningServiceRecords) {
++            ConnectedServiceRecord record = mConnectedServices.get(binder);
++            if (record != null) releaseConnection(record);
++        }
++    }
++
++    private void releaseConnection(ConnectedServiceRecord record) {
++        if (mConnectedServices.get(record.binder) != record) return;
++        mConnectedServices.remove(record.binder);
++        record.service.decrementBindCountAndGet();
++        record.binder.unlinkToDeath(record, 0);
+     }
+ 
+     public void stopServiceToken(ComponentName className, IBinder token, int userId) {
+@@ -271,9 +262,8 @@
+         
+         private final AtomicInteger mStartId = new AtomicInteger(1);
+         private final AtomicInteger mBindCount = new AtomicInteger(0);
++        private final String mBindAction = UUID.randomUUID().toString();
+         
+-        private ConnectedServiceRecord mConnectedServiceRecord;
+-
+         private ServiceInfo mServiceInfo;
+         private Intent mIntent;
+ 
+@@ -290,8 +280,20 @@
+         }
+     }
+ 
+-    public static class ConnectedServiceRecord {
+-        private IBinder mIBinder;
+-        private Intent mIntent;
++    private final class ConnectedServiceRecord implements IBinder.DeathRecipient {
++        final IBinder binder;
++        final RunningServiceRecord service;
++
++        ConnectedServiceRecord(IBinder binder, RunningServiceRecord service) {
++            this.binder = binder;
++            this.service = service;
++        }
++
++        @Override
++        public void binderDied() {
++            synchronized (mRunningServiceRecords) {
++                releaseConnection(this);
++            }
++        }
+     }
+ }

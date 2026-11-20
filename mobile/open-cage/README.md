@@ -2,6 +2,15 @@
 
 产品开发见 [Open Cage 分支状态](https://github.com/Flysky701/Claude-Cage/blob/codex/android-open-cage/mobile/STATUS.md)。对照实验与诊断记录见 [Android 研究分支](https://github.com/Flysky701/Claude-Cage/blob/codex/android-research/mobile/STATUS.md)。
 
+本目录有两条构建入口，验证结果分开记录：
+
+| 入口 | 用途 | 说明 |
+| --- | --- | --- |
+| `build.py` | `0.0.6-login-preview` 容器与组件集成实验 | 构建与手机测试说明见下文，后续实验由研究分支维护。 |
+| 本机 `candidate.py` | `1.0.0-rc.3.9` 产品候选，版本码 `10011` | 使用保留的 RC2 基线构建。见[RC3.9 公开源码与兼容性补丁](releases/rc3.9/README.md)及[验收范围](../STATUS.md)。 |
+
+下文保留 0.0.6 实验版的集成与手机测试记录。RC3.9 的验证结果单独记录在本分支的状态页。
+
 本目录根据 [GBox 架构报告](../GBOX-REA-ANALYSIS-2026-11-15.md) 和
 既有 Android 实验，建立**不输入 GBox APK、不恢复 GBox
 DEX/原生库、也不依赖旧 BlackBox APK** 的独立构建入口。

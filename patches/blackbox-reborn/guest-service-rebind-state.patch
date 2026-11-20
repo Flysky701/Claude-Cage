@@ -1,0 +1,100 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/entity/ServiceRecord.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/entity/ServiceRecord.java
+@@ -13,11 +13,12 @@
+ public class ServiceRecord {
+     private Service mService;
+     private Map<Intent.FilterComparison, BoundInfo> mBounds = new HashMap<>();
+-    private boolean rebind;
+     private int mStartId;
+ 
+     public class BoundInfo {
+         private IBinder mIBinder;
++        private boolean mPublished;
++        private boolean mRebind;
+         private AtomicInteger mBindCount = new AtomicInteger(0);
+ 
+         public int incrementAndGetBindCount() {
+@@ -34,6 +35,7 @@
+ 
+         public void setIBinder(IBinder IBinder) {
+             mIBinder = IBinder;
++            mPublished = true;
+         }
+     }
+ 
+@@ -60,23 +62,20 @@
+ 
+     public boolean hasBinder(Intent intent) {
+         BoundInfo boundInfo = getOrCreateBoundInfo(intent);
+-        return boundInfo.getIBinder() != null;
++        return boundInfo.mPublished;
+     }
+ 
+     public void addBinder(Intent intent, final IBinder iBinder) {
+         final Intent.FilterComparison filterComparison = new Intent.FilterComparison(intent);
+         BoundInfo boundInfo = getOrCreateBoundInfo(intent);
+-        if (boundInfo == null) {
+-            boundInfo = new BoundInfo();
+-            mBounds.put(filterComparison, boundInfo);
+-        }
+         boundInfo.setIBinder(iBinder);
++        if (iBinder == null) return;
+         try {
+             iBinder.linkToDeath(new IBinder.DeathRecipient() {
+                 @Override
+                 public void binderDied() {
+                     iBinder.unlinkToDeath(this, 0);
+-                    mBounds.remove(filterComparison);
++                    mBounds.remove(filterComparison, boundInfo);
+                 }
+             }, 0);
+         } catch (RemoteException e) {
+@@ -112,11 +111,14 @@
+         return boundInfo;
+     }
+ 
+-    public boolean isRebind() {
++    public boolean takeRebind(Intent intent) {
++        BoundInfo binding = getOrCreateBoundInfo(intent);
++        boolean rebind = binding.mRebind;
++        binding.mRebind = false;
+         return rebind;
+     }
+ 
+-    public void setRebind(boolean rebind) {
+-        this.rebind = rebind;
++    public void setRebind(Intent intent, boolean rebind) {
++        getOrCreateBoundInfo(intent).mRebind = rebind;
+     }
+ }
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
+@@ -51,9 +51,8 @@
+         ServiceRecord record = findRecord(intent);
+         record.incrementAndGetBindCount(intent);
+         if (record.hasBinder(intent)) {
+-            if (record.isRebind()) {
++            if (record.takeRebind(intent)) {
+                 service.onRebind(intent);
+-                record.setRebind(false);
+             }
+             return record.getBinder(intent);
+         }
+@@ -168,13 +167,14 @@
+ 
+             boolean destroy = unbindRecord.getStartId() == 0;
+             if (destroy || record.decreaseConnectionCount(intent)) {
+-                boolean b = service.onUnbind(intent);
++                boolean rebind = service.onUnbind(intent);
+                 if (destroy) {
+                     service.onDestroy();
+                     BlackBoxCore.getBActivityManager().onServiceDestroy(proxyIntent, BlackBoxCore.getUserId());
+                     mService.remove(new Intent.FilterComparison(intent));
+-                }
+-                record.setRebind(true);
++                } else {
++                    record.setRebind(intent, rebind);
++                }
+ 
+             }
+         } catch (Throwable e) {

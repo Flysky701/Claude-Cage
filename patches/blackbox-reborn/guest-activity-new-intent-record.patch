@@ -1,0 +1,39 @@
+--- a/Bcore/src/main/java/black/android/app/ActivityThread.java
++++ b/Bcore/src/main/java/black/android/app/ActivityThread.java
+@@ -94,6 +94,11 @@
+     void performNewIntents(IBinder IBinder0, List List1);
+ 
+     @BMethod
++    void handleNewIntent(
++            @BParamClassName("android.app.ActivityThread$ActivityClientRecord") Object record,
++            List intents);
++
++    @BMethod
+     void sendActivityResult(IBinder IBinder0, String String1, int int2, int int3, Intent Intent4);
+ 
+     @BClassName("android.app.ActivityThread$CreateServiceData")
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java
+@@ -42,6 +42,7 @@
+ import java.util.Map;
+ 
+ import black.android.app.ActivityThreadAppBindDataContext;
++import black.android.app.ActivityThreadContext;
+ import black.android.app.BRActivity;
+ import black.android.app.BRActivityManagerNative;
+ import black.android.app.BRActivityThread;
+@@ -1152,6 +1153,14 @@
+                         true);
+             } else if (BRActivityThreadQ.get(mainThread)._check_handleNewIntent(null, null) != null) {
+                 BRActivityThreadQ.get(mainThread).handleNewIntent(token, Collections.singletonList(newIntent));
++            } else {
++                ActivityThreadContext activityThread = BRActivityThread.get(mainThread);
++                if (activityThread._check_handleNewIntent(null, null) != null) {
++                    Object activityRecord = activityThread.getActivityClient(token);
++                    if (activityRecord != null) {
++                        activityThread.handleNewIntent(activityRecord, Collections.singletonList(newIntent));
++                    }
++                }
+             }
+         });
+     }

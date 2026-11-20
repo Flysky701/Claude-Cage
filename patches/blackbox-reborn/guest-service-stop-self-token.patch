@@ -1,0 +1,180 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
+@@ -75,29 +75,33 @@
+         ComponentName component = new ComponentName(info.packageName, info.name);
+         synchronized (mRunningServiceRecords) {
+             RunningServiceRecord service = mRunningServiceRecords.get(component);
+-            if (service == null || (!service.mStarted && service.mBindCount.get() == 0)) return 0;
+-
+-            ProcessRecord process = BProcessManagerService.get().findProcessRecord(
++            return stopRunningServiceLocked(service, userId);
++        }
++    }
++
++    private int stopRunningServiceLocked(RunningServiceRecord service, int userId) {
++        if (service == null || (!service.mStarted && service.mBindCount.get() == 0)) return 0;
++        ServiceInfo info = service.mServiceInfo;
++        ProcessRecord process = BProcessManagerService.get().findProcessRecord(
+                     info.packageName, info.processName, userId);
+-            if (process == null) {
+-                removeService(service);
+-                return 0;
+-            }
+-
+-            if (service.mBindCount.get() > 0) {
+-                // Release only the started state. Android keeps bound clients alive.
+-                service.mStarted = false;
+-                return 1;
+-            }
++        if (process == null) {
++            removeService(service);
++            return 0;
++        }
++
++        if (service.mBindCount.get() > 0) {
++            // Release only the started state. Android keeps bound clients alive.
+             service.mStarted = false;
+-            try {
+-                process.bActivityThread.stopService(
+-                        createStubServiceIntent(service.mIntent, info, process, service));
+-                return 1;
+-            } catch (RemoteException unavailable) {
+-                removeService(service);
+-                return 0;
+-            }
++            return 1;
++        }
++        service.mStarted = false;
++        try {
++            process.bActivityThread.stopService(
++                    createStubServiceIntent(service.mIntent, info, process, service));
++            return 1;
++        } catch (RemoteException unavailable) {
++            removeService(service);
++            return 0;
+         }
+     }
+ 
+@@ -160,10 +164,12 @@
+         record.binder.unlinkToDeath(record, 0);
+     }
+ 
+-    public void stopServiceToken(ComponentName className, IBinder token, int userId) {
+-        RunningServiceRecord runningServiceByToken = findRunningServiceByToken(token);
+-        if (runningServiceByToken != null) {
+-            stopService(runningServiceByToken.mIntent, null, userId);
++    public boolean stopServiceToken(ComponentName component, IBinder token, int startId, int userId) {
++        synchronized (mRunningServiceRecords) {
++            RunningServiceRecord service = mRunningTokens.get(token);
++            if (service == null || !service.mIntent.getComponent().equals(component)) return false;
++            if (startId != -1 && (startId <= 0 || startId != service.mStartId.get())) return false;
++            return stopRunningServiceLocked(service, userId) > 0;
+         }
+     }
+ 
+@@ -222,10 +228,6 @@
+     private void removeService(RunningServiceRecord service) {
+         mRunningServiceRecords.remove(service.mIntent.getComponent(), service);
+         mRunningTokens.remove(service);
+-    }
+-
+-    private RunningServiceRecord findRunningServiceByToken(IBinder token) {
+-        return mRunningTokens.get(token);
+     }
+ 
+     public RunningServiceInfo getRunningServiceInfo(String callerPackage, int userId) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/BActivityManagerService.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/BActivityManagerService.java
+@@ -313,10 +313,10 @@
+     }
+ 
+     @Override
+-    public void stopServiceToken(ComponentName className, IBinder token, int userId) throws RemoteException {
+-        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+-        synchronized (userSpace.mActiveServices) {
+-            userSpace.mActiveServices.stopServiceToken(className, token, userId);
++    public boolean stopServiceToken(ComponentName className, IBinder token, int startId, int userId) throws RemoteException {
++        UserSpace userSpace = getOrCreateSpaceLocked(userId);
++        synchronized (userSpace.mActiveServices) {
++            return userSpace.mActiveServices.stopServiceToken(className, token, startId, userId);
+         }
+     }
+ 
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/frameworks/BActivityManager.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/frameworks/BActivityManager.java
+@@ -243,14 +243,12 @@
+         }
+     }
+ 
+-    public void stopServiceToken(ComponentName componentName, IBinder token, int userId) {
+-        try {
+-            IBActivityManagerService service = getService();
+-            if (service != null) {
+-                service.stopServiceToken(componentName, token, userId);
+-            }
+-        } catch (RemoteException e) {
+-            e.printStackTrace();
++    public boolean stopServiceToken(ComponentName component, IBinder token, int startId, int userId) {
++        try {
++            IBActivityManagerService service = getService();
++            return service != null && service.stopServiceToken(component, token, startId, userId);
++        } catch (RemoteException unavailable) {
++            return false;
+         }
+     }
+ 
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java
+@@ -276,32 +276,15 @@
+     public static class StopServiceToken extends MethodHook {
+         @Override
+         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+-            try {
+-                ComponentName componentName = (ComponentName) args[0];
+-                IBinder token = (IBinder) args[1];
+-                
+-                                        
+-                        if (componentName != null) {
+-                            String servicePackage = componentName.getPackageName();
+-                            String currentPackage = BActivityThread.getAppPackageName();
+-
+-                            
+-                            if (!servicePackage.equals(currentPackage)) {
+-                                Slog.w(TAG, "StopServiceToken: Attempting to stop service from different package: " +
+-                                        servicePackage + " (current: " + currentPackage + "), returning true");
+-                                return true;
+-                            }
+-                        }
+-                
+-                BlackBoxCore.getBActivityManager().stopServiceToken(componentName, token, BActivityThread.getUserId());
+-                return true;
+-            } catch (SecurityException e) {
+-                Slog.w(TAG, "StopServiceToken: SecurityException caught, returning true", e);
+-                return true;
+-            } catch (Exception e) {
+-                Slog.e(TAG, "StopServiceToken: Error stopping service token", e);
+-                return true;
+-            }
++            ComponentName component = (ComponentName) args[0];
++            IBinder token = (IBinder) args[1];
++            int startId = (Integer) args[2];
++            if (component == null || token == null
++                    || !component.getPackageName().equals(BActivityThread.getAppPackageName())) {
++                return false;
++            }
++            return BlackBoxCore.getBActivityManager().stopServiceToken(
++                    component, token, startId, BActivityThread.getUserId());
+         }
+     }
+ 
+--- a/Bcore/src/main/aidl/top/niunaijun/blackbox/core/system/am/IBActivityManagerService.aidl
++++ b/Bcore/src/main/aidl/top/niunaijun/blackbox/core/system/am/IBActivityManagerService.aidl
+@@ -31,7 +31,7 @@
+     Intent bindService(in Intent service, in IBinder binder, String resolvedType, int userId);
+     void unbindService(in IBinder binder, int userId);
+ 
+-    void stopServiceToken(in ComponentName className, in IBinder token, int userId);
++    boolean stopServiceToken(in ComponentName className, in IBinder token, int startId, int userId);
+ 
+     void onStartCommand(in Intent proxyIntent, int userId);
+     UnbindRecord onServiceUnbind(in Intent proxyIntent, int userId);

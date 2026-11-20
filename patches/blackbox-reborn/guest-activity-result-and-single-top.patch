@@ -1,0 +1,47 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActivityStack.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActivityStack.java
+@@ -159,6 +159,7 @@ public class ActivityStack {
+         ActivityRecord topActivityRecord = taskRecord.getTopActivityRecord();
+-        ActivityRecord targetActivityRecord = findActivityRecordByComponentName(userId, ComponentUtils.toComponentName(activityInfo));
++        ComponentName targetComponent = ComponentUtils.toComponentName(activityInfo);
++        ActivityRecord targetActivityRecord = findActivityRecordByComponentName(userId, targetComponent);
+         ActivityRecord newIntentRecord = null;
+         boolean ignore = false;
+ 
+         if (clearTop) {
+@@ -187,6 +188,12 @@ public class ActivityStack {
+         if (singleTop && !clearTop) {
+-            if (ComponentUtils.intentFilterEquals(topActivityRecord.intent, intent)) {
++            // Reusing an activity for a result request also requires delivering RESULT_CANCELED.
++            // Keep the existing reuse policy for result requests and new-task launches here.
++            boolean reuseTop = topActivityRecord != null
++                    && (requestCode < 0 && !newTask
++                        ? targetComponent.equals(topActivityRecord.component)
++                        : ComponentUtils.intentFilterEquals(topActivityRecord.intent, intent));
++            if (reuseTop) {
+                 newIntentRecord = topActivityRecord;
+             } else {
+                 synchronized (mLaunchingActivities) {
+                     for (ActivityRecord launchingActivity : mLaunchingActivities) {
+@@ -246,7 +253,12 @@ public class ActivityStack {
+-        if (resultTo == null) {
++        ActivityRecord launchCaller = topActivityRecord;
++        if (requestCode >= 0 && !newTask && sourceRecord != null
++                && !sourceRecord.finished && sourceTask == taskRecord) {
++            // The activity that requested a result supplies both the token and caller thread.
++            launchCaller = sourceRecord;
++        } else if (resultTo == null) {
+             ActivityRecord top = taskRecord.getTopActivityRecord();
+             if (top != null) {
+                 resultTo = top.token;
+             }
+         } else if (sourceTask != null) {
+             ActivityRecord top = sourceTask.getTopActivityRecord();
+@@ -255,6 +267,6 @@ public class ActivityStack {
+             }
+         }
+         return startActivityInSourceTask(intent,
+-                resolvedType, resultTo, resultWho, requestCode, flags, options, userId, topActivityRecord, activityInfo, launchModeFlags);
++                resolvedType, resultTo, resultWho, requestCode, flags, options, userId, launchCaller, activityInfo, launchModeFlags);
+     }
+ 

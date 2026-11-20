@@ -1,0 +1,172 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
+@@ -89,12 +89,10 @@
+             return 0;
+         }
+ 
+-        if (service.mBindCount.get() > 0) {
+-            // Release only the started state. Android keeps bound clients alive.
+-            service.mStarted = false;
+-            return 1;
+-        }
++        // Leave earlier accepted starts cancelled even if this record is started again.
++        service.mCancelledStartId = service.mStartId.get();
+         service.mStarted = false;
++        if (service.mBindCount.get() > 0) return 1;
+         try {
+             process.bActivityThread.stopService(
+                     createStubServiceIntent(service.mIntent, info, process, service));
+@@ -181,7 +179,8 @@
+         ProxyServiceRecord proxy = ProxyServiceRecord.create(proxyIntent);
+         synchronized (mRunningServiceRecords) {
+             RunningServiceRecord service = mRunningTokens.get(proxy.mToken);
+-            if (service != null && !service.mStarted && service.mBindCount.get() == 0) {
++            if (service != null && !service.mStarted && service.mBindCount.get() == 0
++                    && proxy.mStartId == service.mCancelledStartId) {
+                 removeService(service);
+             }
+         }
+@@ -197,6 +196,7 @@
+             record.setComponentName(proxy.mServiceIntent.getComponent());
+             record.setBindCount(service.mBindCount.get());
+             record.setStartId(service.mStarted ? service.mStartId.get() : 0);
++            record.setCancelledStartId(service.mCancelledStartId);
+             return record;
+         }
+     }
+@@ -282,6 +282,7 @@
+         private final AtomicInteger mBindCount = new AtomicInteger(0);
+         private final Map<Intent.FilterComparison, String> mBindActions = new HashMap<>();
+         private boolean mStarted;
++        private int mCancelledStartId;
+         
+         private ServiceInfo mServiceInfo;
+         private Intent mIntent;
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
+@@ -78,7 +78,7 @@
+ 
+ 
+         UnbindRecord current = BlackBoxCore.getBActivityManager().onServiceUnbind(proxyIntent, stubRecord.mUserId);
+-        if (current == null || current.getStartId() == 0) return START_NOT_STICKY;
++        if (current == null || !current.allowsStart(stubRecord.mStartId)) return START_NOT_STICKY;
+         Service service = getOrCreateService(stubRecord);
+         if (service == null) return START_NOT_STICKY;
+         stubRecord.mServiceIntent.setExtrasClassLoader(service.getClassLoader());
+@@ -160,8 +160,13 @@
+             intent.setExtrasClassLoader(service.getClassLoader());
+             if (record.decreaseConnectionCount(intent)) {
+                 boolean rebind = service.onUnbind(intent);
+-                if (state.getStartId() == 0 && state.getBindCount() == 0) {
+-                    destroyService(proxyIntent, intent, record, stubRecord.mUserId);
++                // The guest callback can itself change the started state.
++                UnbindRecord afterCallback = BlackBoxCore.getBActivityManager()
++                        .onServiceUnbind(proxyIntent, stubRecord.mUserId);
++                if (afterCallback != null && afterCallback.getStartId() == 0
++                        && afterCallback.getBindCount() == 0 && !record.hasConnections()) {
++                    destroyService(proxyIntent, intent, record, stubRecord.mUserId,
++                            afterCallback.getCancelledStartId());
+                 } else {
+                     record.setRebind(intent, rebind);
+                 }
+@@ -185,24 +190,34 @@
+         mHandler.post(() -> {
+             ProxyServiceRecord stop = ProxyServiceRecord.create(proxyIntent);
+             if (stop.mServiceIntent == null) return;
++            UnbindRecord current = BlackBoxCore.getBActivityManager().onServiceUnbind(proxyIntent, stop.mUserId);
++            if (current == null || current.getStartId() != 0 || current.getBindCount() != 0
++                    || stop.mStartId != current.getCancelledStartId()) return;
++
+             ServiceRecord record = findRecord(stop.mServiceIntent);
+-            if (record == null || record.getService() == null
+-                    || !java.util.Objects.equals(stop.mToken, record.getToken())
+-                    || record.getStartId() > stop.mStartId || record.hasConnections()) return;
+-            UnbindRecord current = BlackBoxCore.getBActivityManager().onServiceUnbind(proxyIntent, stop.mUserId);
+-            if (current != null && current.getStartId() == 0 && current.getBindCount() == 0) {
+-                destroyService(proxyIntent, stop.mServiceIntent, record, stop.mUserId);
++            if (record == null) {
++                // This accepted start may have been cancelled before the guest was created.
++                acknowledgeDestroy(proxyIntent, stop.mUserId, stop.mStartId);
++            } else if (record.getService() != null && java.util.Objects.equals(stop.mToken, record.getToken())
++                    && record.getStartId() <= stop.mStartId && !record.hasConnections()) {
++                destroyService(proxyIntent, stop.mServiceIntent, record, stop.mUserId, stop.mStartId);
+             }
+         });
+     }
+ 
+-    private void destroyService(Intent proxyIntent, Intent intent, ServiceRecord record, int userId) {
++    private void destroyService(Intent proxyIntent, Intent intent, ServiceRecord record, int userId,
++                                int cancelledStartId) {
+         mService.remove(intent.getComponent(), record);
+         try {
+             record.getService().onDestroy();
+         } finally {
+-            BlackBoxCore.getBActivityManager().onServiceDestroy(proxyIntent, userId);
+-        }
++            acknowledgeDestroy(proxyIntent, userId, cancelledStartId);
++        }
++    }
++
++    private void acknowledgeDestroy(Intent proxyIntent, int userId, int cancelledStartId) {
++        BlackBoxCore.getBActivityManager().onServiceDestroy(
++                ProxyServiceRecord.withStartId(proxyIntent, cancelledStartId), userId);
+     }
+ 
+     private ServiceRecord findRecord(Intent intent) {
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/entity/UnbindRecord.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/entity/UnbindRecord.java
+@@ -8,6 +8,7 @@
+ public class UnbindRecord implements Parcelable {
+     private int mBindCount;
+     private int mStartId;
++    private int mCancelledStartId;
+     private ComponentName mComponentName;
+ 
+     public int getStartId() {
+@@ -16,6 +17,18 @@
+ 
+     public void setStartId(int startId) {
+         mStartId = startId;
++    }
++
++    public int getCancelledStartId() {
++        return mCancelledStartId;
++    }
++
++    public void setCancelledStartId(int startId) {
++        mCancelledStartId = startId;
++    }
++
++    public boolean allowsStart(int startId) {
++        return mStartId > 0 && startId > mCancelledStartId && startId <= mStartId;
+     }
+ 
+     public int getBindCount() {
+@@ -50,12 +63,14 @@
+     public void writeToParcel(Parcel dest, int flags) {
+         dest.writeInt(this.mBindCount);
+         dest.writeInt(this.mStartId);
++        dest.writeInt(this.mCancelledStartId);
+         dest.writeParcelable(this.mComponentName, flags);
+     }
+ 
+     protected UnbindRecord(Parcel in) {
+         this.mBindCount = in.readInt();
+         this.mStartId = in.readInt();
++        this.mCancelledStartId = in.readInt();
+         this.mComponentName = in.readParcelable(ComponentName.class.getClassLoader());
+     }
+ 
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/proxy/record/ProxyServiceRecord.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/proxy/record/ProxyServiceRecord.java
+@@ -30,6 +30,10 @@
+         BundleCompat.putBinder(shadow, "_B_|_token_", token);
+     }
+ 
++    public static Intent withStartId(Intent proxy, int startId) {
++        return new Intent(proxy).putExtra("_B_|_start_id_", startId);
++    }
++
+     public static ProxyServiceRecord create(Intent intent) {
+         Intent target = intent.getParcelableExtra("_B_|_target_");
+         ServiceInfo serviceInfo = intent.getParcelableExtra("_B_|_service_info_");

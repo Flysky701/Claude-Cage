@@ -1,0 +1,101 @@
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/core/system/am/ActiveServices.java
+@@ -133,7 +133,7 @@
+             if (binder != null) {
+                 ConnectedServiceRecord connectedService = mConnectedServices.get(binder);
+                 if (connectedService == null) {
+-                    connectedService = new ConnectedServiceRecord(binder, runningServiceRecord);
++                    connectedService = new ConnectedServiceRecord(binder, runningServiceRecord, userId);
+                     try {
+                         binder.linkToDeath(connectedService, 0);
+                     } catch (RemoteException dead) {
+@@ -299,15 +299,37 @@
+         final IBinder binder;
+         final RunningServiceRecord service;
+ 
+-        ConnectedServiceRecord(IBinder binder, RunningServiceRecord service) {
++        final int userId;
++
++        ConnectedServiceRecord(IBinder binder, RunningServiceRecord service, int userId) {
+             this.binder = binder;
+             this.service = service;
++            this.userId = userId;
+         }
+ 
+         @Override
+         public void binderDied() {
+             synchronized (mRunningServiceRecords) {
++                if (mConnectedServices.get(binder) != this) return;
+                 releaseConnection(this);
++                if (service.mStarted || service.mBindCount.get() != 0
++                        || !mRunningTokens.containsKey(service)) return;
++
++                // Virtual death and Android onUnbind can arrive in either order.
++                // Recheck once on the guest thread, where its filter callbacks run.
++                ServiceInfo info = service.mServiceInfo;
++                ProcessRecord process = BProcessManagerService.get().findProcessRecord(
++                        info.packageName, info.processName, userId);
++                if (process == null) {
++                    removeService(service);
++                    return;
++                }
++                try {
++                    process.bActivityThread.stopService(
++                            createStubServiceIntent(service.mIntent, info, process, service));
++                } catch (RemoteException unavailable) {
++                    removeService(service);
++                }
+             }
+         }
+     }
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/app/dispatcher/AppServiceDispatcher.java
+@@ -188,7 +188,7 @@
+             ServiceRecord record = findRecord(stop.mServiceIntent);
+             if (record == null || record.getService() == null
+                     || !java.util.Objects.equals(stop.mToken, record.getToken())
+-                    || record.getStartId() > stop.mStartId) return;
++                    || record.getStartId() > stop.mStartId || record.hasConnections()) return;
+             UnbindRecord current = BlackBoxCore.getBActivityManager().onServiceUnbind(proxyIntent, stop.mUserId);
+             if (current != null && current.getStartId() == 0 && current.getBindCount() == 0) {
+                 destroyService(proxyIntent, stop.mServiceIntent, record, stop.mUserId);
+--- a/Bcore/src/main/java/top/niunaijun/blackbox/entity/ServiceRecord.java
++++ b/Bcore/src/main/java/top/niunaijun/blackbox/entity/ServiceRecord.java
+@@ -5,14 +5,14 @@
+ import android.os.IBinder;
+ import android.os.RemoteException;
+ 
+-import java.util.HashMap;
+ import java.util.Map;
++import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.atomic.AtomicInteger;
+ 
+ 
+ public class ServiceRecord {
+     private Service mService;
+-    private Map<Intent.FilterComparison, BoundInfo> mBounds = new HashMap<>();
++    private final Map<Intent.FilterComparison, BoundInfo> mBounds = new ConcurrentHashMap<>();
+     private int mStartId;
+     private IBinder mToken;
+ 
+@@ -111,13 +111,14 @@
+     }
+ 
+     public BoundInfo getOrCreateBoundInfo(Intent intent) {
+-        Intent.FilterComparison filterComparison = new Intent.FilterComparison(intent);
+-        BoundInfo boundInfo = mBounds.get(filterComparison);
+-        if (boundInfo == null) {
+-            boundInfo = new BoundInfo();
+-            mBounds.put(filterComparison, boundInfo);
++        return mBounds.computeIfAbsent(new Intent.FilterComparison(intent), key -> new BoundInfo());
++    }
++
++    public boolean hasConnections() {
++        for (BoundInfo binding : mBounds.values()) {
++            if (binding.mBindCount.get() > 0) return true;
+         }
+-        return boundInfo;
++        return false;
+     }
+ 
+     public boolean takeRebind(Intent intent) {

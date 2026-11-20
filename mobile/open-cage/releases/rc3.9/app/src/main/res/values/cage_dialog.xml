@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="CageDialogLight" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#2367A6</item>
+        <item name="android:textColorPrimary">#1A1C1F</item>
+        <item name="android:textColorSecondary">#5E6064</item>
+    </style>
+    <style name="CageDialogDark" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#7FBDFF</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#B2B2B2</item>
+    </style>
+</resources>
