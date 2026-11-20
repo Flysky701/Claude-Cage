@@ -1,6 +1,6 @@
 # GBox 定向修改构建
 
-当前进展与接续安排统一见 [Android STATUS](../../STATUS.md)，开发分支为 `codex/android`。以下日期段落保留对应阶段的构建与验证记录。
+手机版开发见 [Cage 个人版分支状态](https://github.com/Flysky701/Claude-Cage/blob/codex/android-personal/mobile/STATUS.md)。设备对照实验见 [Android 研究分支](https://github.com/Flysky701/Claude-Cage/blob/codex/android-research/mobile/STATUS.md)。以下日期段落保留对应阶段的构建与验证记录。
 
 以用户提供的 GBox 1.8.4.02 APK 为输入，保留原 VLite 引擎与四个预置组件，构建独立测试副本。此目录保存本项目新增的构建、重定位和屏蔽代码；它不是 GBox 原始 Java/C++ 工程的完整恢复。原 APK 仍是构建必需输入。
 
