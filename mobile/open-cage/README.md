@@ -1,6 +1,6 @@
 # Cage Open Android：源码重建与集成测试包
 
-当前进展、阻塞和下一步统一见 [Android STATUS](../STATUS.md)，开发分支为 `codex/android`。
+产品开发见 [Open Cage 分支状态](https://github.com/Flysky701/Claude-Cage/blob/codex/android-open-cage/mobile/STATUS.md)。对照实验与诊断记录见 [Android 研究分支](https://github.com/Flysky701/Claude-Cage/blob/codex/android-research/mobile/STATUS.md)。
 
 本目录根据 [GBox 架构报告](../GBOX-REA-ANALYSIS-2026-11-15.md) 和
 既有 Android 实验，建立**不输入 GBox APK、不恢复 GBox
