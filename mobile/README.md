@@ -1,6 +1,6 @@
 # 在手机上使用 Cage
 
-Android 开发统一在 `codex/android` 接续；当前进展、阻塞和下一步见 [STATUS.md](STATUS.md)。
+Android 分为[Android 研究](https://github.com/Flysky701/Claude-Cage/blob/codex/android-research/mobile/STATUS.md)、[Cage 个人版](https://github.com/Flysky701/Claude-Cage/blob/codex/android-personal/mobile/STATUS.md)、[Open Cage](https://github.com/Flysky701/Claude-Cage/blob/codex/android-open-cage/mobile/STATUS.md)三条长期分支，各自在自己的分支开发、验证和发布，三条分支互不合并。 当前分支的进展见 [STATUS.md](STATUS.md)。
 
 手机 Cage 是远程客户端。点首页中央的「连接电脑」，用二维码或配对码连接主机，即可查看项目、接续 Claude Code 会话和处理工具审批。配对后还可在手机上操作主机里的浏览器和 Claude Desktop。代理、时区和语言在远程主机的 Cage 中设置。右上角的设置提供主题和电脑连接选项。
 

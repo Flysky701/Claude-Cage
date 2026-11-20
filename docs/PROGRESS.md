@@ -1,10 +1,12 @@
 # Cage 开发主线
 
-2026-11-18 整理。产品以 [上游 main](https://github.com/Lee-xeo/Claude-Cage/tree/main) 为基准。个人 fork 的 [main](https://github.com/Flysky701/Claude-Cage/tree/main) 是仓库首页，保留了自己的提交历史。个人开发沿下面两条主线接续。
+2026-11-18 整理。产品以 [上游 main](https://github.com/Lee-xeo/Claude-Cage/tree/main) 为基准。个人 fork 的 [main](https://github.com/Flysky701/Claude-Cage/tree/main) 是仓库首页，保留了自己的提交历史。Android 三条线路独立开发、互不合并，Windows 原生轻量隔离继续在自己的分支开发。
 
 | 开发主线 | 工作分支 | 进度与停点 |
 | --- | --- | --- |
-| Android | [`codex/android`](https://github.com/Flysky701/Claude-Cage/tree/codex/android) | 远程客户端、Cage Open 及 Android 对照实验统一到此。Cage Open 已完成 Google 登录和商店安装 Claude，Claude 登录仍返回 HTTP 400。各设备与方案的验证结果见 [Android 状态](../mobile/STATUS.md)。 |
+| Android 研究 | [`codex/android-research`](https://github.com/Flysky701/Claude-Cage/blob/codex/android-research/mobile/STATUS.md) | 设备与容器实验、对照验证和研究记录。 |
+| Cage 个人版 | [`codex/android-personal`](https://github.com/Flysky701/Claude-Cage/blob/codex/android-personal/mobile/STATUS.md) | 基于 GBox 的 Android 个人版本，维护自己的源码、构建说明和验收记录。 |
+| Open Cage | [`codex/android-open-cage`](https://github.com/Flysky701/Claude-Cage/blob/codex/android-open-cage/mobile/STATUS.md) | 从源码构建的 Android 产品，维护自己的候选版本、构建说明和验收记录。 |
 | Windows 原生轻量隔离 | `codex/windows-local-native`，仅本机 | Phase 1 的已有记录覆盖隔离边界、宿主清理和核心应用的离线验证。工作台接入与完整在线流程仍待验证。在本机该分支打开 `tools/windows-local/STATUS.md`，或运行 `git show codex/windows-local-native:tools/windows-local/STATUS.md`。 |
 
 ### Windows 的两条保留路线
@@ -14,11 +16,11 @@
 
 ### 协作分支
 
-五个上游投稿各用一个分支，便于维护者单独审核。第六个 Windows 汇总分支保存另外两笔实现。代理提示词与临时测试凭据的两条分支分别是个人 fork [PR #1](https://github.com/Flysky701/Claude-Cage/pull/1) 的目标和来源。
+截至 2026-11-21，四个已处理投稿的提交由 fork 的同名标签保存。单节点中转投稿继续保留分支。第六个 Windows 汇总分支保存另外两笔实现。代理提示词与临时测试凭据的两条分支分别是个人 fork [PR #1](https://github.com/Flysky701/Claude-Cage/pull/1) 的目标和来源。
 
 ## Windows 与共享功能
 
-截至 2026-11-18，五个贡献 Issue 均开放并等待审核。表中验证范围沿用各 Issue 的原记录。
+截至 2026-11-21，贡献 #352、#353、#359、#361 已关闭，#360 仍开放。表中验证范围沿用各 Issue 的原记录。
 
 | 修复 | 已记录的验证 | 待完成与提交入口 |
 | --- | --- | --- |
