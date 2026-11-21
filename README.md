@@ -18,6 +18,10 @@
 
 </div>
 
+## 个人 fork 的开发主线
+
+Android 按[研究](https://github.com/Flysky701/Claude-Cage/blob/codex/android-research/mobile/STATUS.md)、[Cage 个人版](https://github.com/Flysky701/Claude-Cage/blob/codex/android-personal/mobile/STATUS.md)、[Open Cage](https://github.com/Flysky701/Claude-Cage/blob/codex/android-open-cage/mobile/STATUS.md)三条长期分支独立开发；Windows 原生轻量隔离在 [`codex/windows-local-native`](https://github.com/Flysky701/Claude-Cage/blob/codex/windows-local-native/tools/windows-local/STATUS.md) 接续。分支归档、验证进度与上游投稿统一见[开发主线](docs/PROGRESS.md)。
+
 ## 设计理念
 
 1. **Claude 本身是安全的，但它的运行外壳（harness）及相关程序不是**——包括 Claude Code、Claude Desktop，以及浏览器里接触到的邮件、网页与环境信号。
