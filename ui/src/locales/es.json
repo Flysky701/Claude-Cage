@@ -2711,5 +2711,7 @@
   "删除后会从账号管理、调度和 Desktop 列表中移除此账号。请先关闭该账号的终端与 Desktop；虚拟机内的会话历史和资料会保留。": "Tras eliminarla se quitará esta cuenta de la gestión, programación y lista de Desktop. Cierre primero los terminales y el Desktop de esta cuenta; se conservarán el historial de sesiones y los datos de la máquina virtual.",
   "删除后会从账号管理与调度中移除此账号。虚拟机内的会话历史和资料会保留。": "Tras eliminarla se quitará esta cuenta de la gestión y programación de cuentas. Se conservarán el historial de sesiones y los datos de la máquina virtual.",
   "丢弃文件": "Descartar archivo",
-  "正在丢弃…": "Descartando…"
+  "正在丢弃…": "Descartando…",
+  "同步环境内部主题": "Sincronizar tema interno del entorno",
+  "将环境内的浏览器、编辑器、桌面应用与 Claude Code 同步为相同的浅色或深色主题。": "Sincroniza el navegador, el editor, la aplicación de escritorio y Claude Code dentro del entorno con el mismo tema claro u oscuro."
 }

@@ -253,3 +253,15 @@ test("accessible presets keep text, state colors, focus, borders and all ANSI te
       check(terminal.cursorAccent, terminal.cursor, threshold, "cursor text");
     }
 });
+
+test("syncGuestTheme defaults to true, preserves explicit false, and stays excluded from portable theme documents", () => {
+  assert.equal(defaultAppearance.syncGuestTheme, true);
+  assert.equal(normalizeAppearance({}).syncGuestTheme, true);
+  assert.equal(normalizeAppearance({ syncGuestTheme: false }).syncGuestTheme, false);
+  assert.equal(normalizeAppearance({ syncGuestTheme: true }).syncGuestTheme, true);
+  const doc = themeDocument("Theme Export", {
+    ...defaultAppearance,
+    syncGuestTheme: false,
+  });
+  assert.equal("syncGuestTheme" in doc, false);
+});

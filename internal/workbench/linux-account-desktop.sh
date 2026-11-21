@@ -73,6 +73,7 @@ fi
 # inside the service's private /tmp so it also exists for the Code tab.
 export CLAUDE_CONFIG_DIR
 CLAUDE_CONFIG_DIR=$(python3 -I -c 'import runpy,sys;print(runpy.run_path("/usr/local/bin/client_runtime.py")["path"](sys.argv[1]))' "$config")
+work_home=$HOME
 export HOME="$base/home" XDG_RUNTIME_DIR="$RUNTIME_DIRECTORY"
 unset RUNTIME_DIRECTORY INVOCATION_ID JOURNAL_STREAM SYSTEMD_EXEC_PID
 rm -f "$XDG_RUNTIME_DIR/stopping"
@@ -145,13 +146,41 @@ for _ in {1..100}; do test -s "$XDG_RUNTIME_DIR/display" && break; sleep .05; do
 export DISPLAY=":$(cat "$XDG_RUNTIME_DIR/display")"
 xauth -f "$XAUTHORITY" add "$DISPLAY" . "$cookie"
 dbus-update-activation-environment DISPLAY XAUTHORITY HOME XDG_RUNTIME_DIR
+if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+  printf '%s' "$DBUS_SESSION_BUS_ADDRESS" > "$XDG_RUNTIME_DIR/bus-address"
+fi
 cat > "$XDG_RUNTIME_DIR/windows.xml" <<'XML'
 <openbox_config xmlns="http://openbox.org/3.4/rc"><desktops><number>1</number></desktops><applications><application type="normal"><decor>no</decor><maximized>yes</maximized></application></applications></openbox_config>
 XML
 openbox --config-file "$XDG_RUNTIME_DIR/windows.xml" >/dev/null 2>&1 &
 # Electron draws its own GTK controls; Openbox decorations alone do not hide them.
-printf 'Gtk/DecorationLayout ":"\n' > "$XDG_RUNTIME_DIR/xsettings.conf"
+printf 'Gtk/DecorationLayout ":"\n' > "$XDG_RUNTIME_DIR/xsettings.fixed"
+guest_theme=
+if [ -r "$work_home/.config/claude-cage/theme-variant" ]; then
+  read -r guest_theme < "$work_home/.config/claude-cage/theme-variant" || true
+  if [ "$guest_theme" = dark ]; then
+    printf 'Net/ThemeName "Adwaita-dark"\nGtk/ApplicationPreferDarkTheme 1\n' >> "$XDG_RUNTIME_DIR/xsettings.fixed"
+  elif [ "$guest_theme" = light ]; then
+    printf 'Net/ThemeName "Adwaita"\nGtk/ApplicationPreferDarkTheme 0\n' >> "$XDG_RUNTIME_DIR/xsettings.fixed"
+  fi
+fi
+if [ -n "$guest_theme" ]; then
+  if [ -x /usr/local/bin/cage-apply-theme ]; then
+    HOME="$work_home" /usr/local/bin/cage-apply-theme "$guest_theme" >/dev/null 2>&1 || true
+  fi
+  if command -v gsettings >/dev/null 2>&1; then
+    if [ "$guest_theme" = dark ]; then
+      gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
+      gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark 2>/dev/null || true
+    elif [ "$guest_theme" = light ]; then
+      gsettings set org.gnome.desktop.interface color-scheme prefer-light 2>/dev/null || true
+      gsettings set org.gnome.desktop.interface gtk-theme Adwaita 2>/dev/null || true
+    fi
+  fi
+fi
+cat "$XDG_RUNTIME_DIR/xsettings.fixed" > "$XDG_RUNTIME_DIR/xsettings.conf"
 xsettingsd --config="$XDG_RUNTIME_DIR/xsettings.conf" &
+printf '%s\n' "$!" > "$XDG_RUNTIME_DIR/xsettings.pid"
 python3 - <<'PYSETTINGS'
 from Xlib import display
 import time
